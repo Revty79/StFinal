@@ -8,16 +8,19 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
+import { GradientText } from "@/components/GradientText";
 
 const BACKGROUND_OPTIONS = [
   { value: 'nebula.png', label: 'Nebula' },
   { value: 'SPBackground.png', label: 'SP Background' },
+  { value: 'WesternBG.png', label: 'Western Background' },
 ];
 
 const GEAR_OPTIONS = [
   { value: null, label: 'None' },
   { value: 'SPGear.png', label: 'SP Gear' },
   { value: 'alchemy.png', label: 'Alchemy (Spinning)' },
+  { value: 'Revolver.png', label: 'Revolver (Spinning)' },
 ];
 
 export default function ProfilePage() {
@@ -145,9 +148,14 @@ export default function ProfilePage() {
         {/* Header */}
         <header className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-evanescent st-title-gradient st-glow text-3xl sm:text-4xl tracking-tight">
+            <GradientText 
+              as="h1" 
+              variant="title" 
+              glow 
+              className="font-evanescent text-3xl sm:text-4xl tracking-tight"
+            >
               Profile
-            </h1>
+            </GradientText>
             <p className="mt-1 text-sm text-zinc-300">
               Manage your account details and choose your preferred theme.
             </p>
@@ -174,9 +182,13 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 gap-6">
           {/* Account info */}
           <Card padded className="space-y-4">
-            <h2 className="st-card-title-gradient font-portcullion text-lg md:text-xl">
+            <GradientText 
+              as="h2" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
               Account Info
-            </h2>
+            </GradientText>
             <p className="text-xs text-zinc-300/90">
               Basic details for your Serrian Tide account.
             </p>
@@ -228,9 +240,13 @@ export default function ProfilePage() {
         {/* Visual Preferences */}
         <Card padded className="space-y-6">
           <div>
-            <h2 className="st-card-title-gradient font-portcullion text-lg md:text-xl">
+            <GradientText 
+              as="h2" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
               Visual Customization
-            </h2>
+            </GradientText>
             <p className="text-xs text-zinc-300/90 mt-2">
               Customize your background and gear overlay. Changes apply immediately after saving.
             </p>
@@ -270,7 +286,7 @@ export default function ProfilePage() {
             {/* Gear Selection */}
             <div className="space-y-3">
               <FormField
-                label="Gear Overlay"
+                label="Spinning Overlay"
                 htmlFor="gear"
                 description="Optional decorative spinning gear."
               >

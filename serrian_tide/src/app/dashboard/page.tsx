@@ -4,6 +4,7 @@ import { getSessionUser } from "@/server/session";
 import WorldBuilderCard from "@/components/WorldBuilderCard";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { GradientText } from "@/components/GradientText";
 
 // Map role → capabilities
 function getCapabilities(role: string) {
@@ -32,9 +33,14 @@ export default async function Dashboard() {
       {/* Header */}
       <header className="max-w-7xl mx-auto mb-8 flex items-center justify-between">
         <div>
-          <h1 className="font-evanescent st-title-gradient st-glow text-4xl sm:text-5xl tracking-tight">
+          <GradientText 
+            as="h1" 
+            variant="title" 
+            glow 
+            className="font-evanescent text-4xl sm:text-5xl tracking-tight"
+          >
             Dashboard
-          </h1>
+          </GradientText>
           <p className="mt-1 text-sm text-zinc-300">Welcome, {user.username}</p>
         </div>
 
@@ -67,9 +73,13 @@ export default async function Dashboard() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-amber-400/20">
               <div className="h-3 w-3 rounded-full bg-amber-300" />
             </div>
-            <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
-              The Gods’ Realm
-            </h3>
+            <GradientText 
+              as="h3" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
+              The Gods' Realm
+            </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
               Design arcs, sessions, and encounters.
             </p>
@@ -90,9 +100,13 @@ export default async function Dashboard() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400/20">
               <div className="h-3 w-3 rounded-full bg-emerald-300" />
             </div>
-            <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
-              The Players’ Realm
-            </h3>
+            <GradientText 
+              as="h3" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
+              The Players' Realm
+            </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
               Join a table, track characters, sync sessions.
             </p>
@@ -113,9 +127,13 @@ export default async function Dashboard() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-400/20">
               <div className="h-3 w-3 rounded-full bg-blue-300" />
             </div>
-            <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
+            <GradientText 
+              as="h3" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
               The Bazaar
-            </h3>
+            </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
               Grab world packs, tools, and modules.
             </p>
@@ -145,9 +163,13 @@ export default async function Dashboard() {
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-rose-500/20">
               <div className="h-3 w-3 rounded-full bg-rose-300" />
             </div>
-            <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
+            <GradientText 
+              as="h3" 
+              variant="card-title" 
+              className="font-portcullion text-lg md:text-xl"
+            >
               Admin Console
-            </h3>
+            </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
               Manage users, roles, and world packs.
             </p>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { GradientText } from "@/components/GradientText";
 
 interface WorldBuilderCardProps {
   canWorldBuild: boolean;
@@ -21,9 +22,13 @@ export default function WorldBuilderCard({
         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-500/30">
           <div className="h-3 w-3 rounded-full bg-slate-300" />
         </div>
-        <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
+        <GradientText 
+          as="h3" 
+          variant="card-title" 
+          className="font-portcullion text-lg md:text-xl"
+        >
           World Builder (Locked)
-        </h3>
+        </GradientText>
         <p className="mt-2 text-base text-zinc-300/90">
           Your current role{" "}
           <span className="font-semibold">{role}</span> does not have
@@ -47,9 +52,13 @@ export default function WorldBuilderCard({
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500/25">
         <div className="h-3 w-3 rounded-full bg-amber-300" />
       </div>
-      <h3 className="st-card-title-gradient font-portcullion st-card-title-sm text-lg md:text-xl">
+      <GradientText 
+        as="h3" 
+        variant="card-title" 
+        className="font-portcullion text-lg md:text-xl"
+      >
         The Source Forge
-      </h3>
+      </GradientText>
       <p className="mt-2 text-base text-zinc-300/90">
         Create and manage worlds, eras, and settings under your control as
         G.O.D.

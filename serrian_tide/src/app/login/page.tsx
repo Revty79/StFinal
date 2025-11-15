@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { GradientText } from "@/components/GradientText";
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Input } from "@/components/Input";
+import { FormField } from "@/components/FormField";
+import { Tabs } from "@/components/Tabs";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -93,42 +98,47 @@ export default function LoginPage() {
     <main className="relative min-h-screen w-full px-6">
       {/* Back to home */}
       <div className="absolute left-4 top-4 z-20">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={goHome}
-          className="inline-flex items-center gap-2 rounded-xl border border-yellow-400/40 px-3 py-2 text-sm font-medium text-yellow-200/90 hover:bg-yellow-400/10 hover:border-yellow-300/70 transition"
+          className="gap-2"
         >
           <span aria-hidden>←</span>
           Back to Home
-        </button>
+        </Button>
       </div>
 
       {/* Center card */}
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center justify-center p-6">
-        <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+        <Card className="w-full">
           {/* Title */}
           <div className="mb-6 text-center">
-            <h2 className="font-evanescent st-title-gradient st-glow text-5xl sm:text-6xl tracking-tight">
+            <GradientText 
+              as="h2" 
+              variant="title" 
+              glow 
+              className="font-evanescent text-5xl sm:text-6xl tracking-tight"
+            >
               Serrian&nbsp;Tide
-            </h2>
+            </GradientText>
             <p className="mt-2 text-sm text-zinc-300">Begin your journey</p>
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 grid w-full grid-cols-2 rounded-xl border border-white/10 bg-black/30 p-1 text-sm">
-            <button
-              onClick={() => { setTab('login'); setMsg(null); }}
-              className={`rounded-lg py-2 transition ${tab === 'login' ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
-              data-testid="tab-login"
-            >
-              Login
-            </button>
-            <button
-              onClick={() => { setTab('register'); setMsg(null); }}
-              className={`rounded-lg py-2 transition ${tab === 'register' ? 'bg-white/10 text-white' : 'text-slate-300 hover:text-white'}`}
-              data-testid="tab-register"
-            >
-              Register
-            </button>
+          <div className="mb-6">
+            <Tabs
+              tabs={[
+                { id: 'login', label: 'Login' },
+                { id: 'register', label: 'Register' }
+              ]}
+              activeId={tab}
+              onChange={(id) => {
+                setTab(id as 'login' | 'register');
+                setMsg(null);
+              }}
+              fullWidth
+            />
           </div>
 
           {msg && (
@@ -139,39 +149,48 @@ export default function LoginPage() {
 
           {tab === 'login' ? (
             <section aria-label="Login" className="space-y-4" data-testid="content-login">
-              <div className="space-y-2">
-                <label htmlFor="login-username" className="text-sm text-slate-200">Username</label>
-                <input
+              <FormField
+                label="Username"
+                htmlFor="login-username"
+                required
+              >
+                <Input
                   id="login-username"
                   type="text"
                   placeholder="adventurer"
                   value={loginUser}
                   onChange={e => setLoginUser(e.target.value)}
                   autoComplete="username"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-login-username"
                 />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="login-password" className="text-sm text-slate-200">Password</label>
-                <input
+              </FormField>
+
+              <FormField
+                label="Password"
+                htmlFor="login-password"
+                required
+              >
+                <Input
                   id="login-password"
                   type="password"
                   value={loginPass}
                   onChange={e => setLoginPass(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-login-password"
                 />
-              </div>
-              <button
+              </FormField>
+
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={handleLogin}
                 disabled={loading}
-                className="mt-2 w-full rounded-2xl bg-amber-400 px-4 py-2 font-semibold text-black shadow-lg transition hover:bg-amber-300 active:scale-[.99] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="mt-2"
                 data-testid="button-login-submit"
               >
                 {loading ? 'Working…' : 'Login'}
-              </button>
+              </Button>
+
               <p className="pt-2 text-center text-xs text-slate-400">
                 New here?{' '}
                 <button onClick={() => setTab('register')} className="font-medium text-amber-300 hover:underline">
@@ -181,68 +200,79 @@ export default function LoginPage() {
             </section>
           ) : (
             <section aria-label="Register" className="space-y-4" data-testid="content-register">
-              <div className="space-y-2">
-                <label htmlFor="register-username" className="text-sm text-slate-200">Username</label>
-                <input
+              <FormField
+                label="Username"
+                htmlFor="register-username"
+                required
+              >
+                <Input
                   id="register-username"
                   type="text"
                   placeholder="adventurer"
                   value={regUser}
                   onChange={e => setRegUser(e.target.value)}
                   autoComplete="username"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-register-username"
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <label htmlFor="register-email" className="text-sm text-slate-200">Email</label>
-                <input
+              <FormField
+                label="Email"
+                htmlFor="register-email"
+                required
+              >
+                <Input
                   id="register-email"
                   type="email"
                   placeholder="you@realm.com"
                   value={regEmail}
                   onChange={e => setRegEmail(e.target.value)}
                   autoComplete="email"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-register-email"
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <label htmlFor="register-password" className="text-sm text-slate-200">Password</label>
-                <input
+              <FormField
+                label="Password"
+                htmlFor="register-password"
+                required
+              >
+                <Input
                   id="register-password"
                   type="password"
                   value={regPass}
                   onChange={e => setRegPass(e.target.value)}
                   autoComplete="new-password"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-register-password"
                 />
-              </div>
+              </FormField>
 
-              <div className="space-y-2">
-                <label htmlFor="register-confirm" className="text-sm text-slate-200">Confirm Password</label>
-                <input
+              <FormField
+                label="Confirm Password"
+                htmlFor="register-confirm"
+                required
+              >
+                <Input
                   id="register-confirm"
                   type="password"
                   value={regConfirm}
                   onChange={e => setRegConfirm(e.target.value)}
                   autoComplete="new-password"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 outline-none ring-0 transition placeholder:text-slate-500 focus:border-amber-300/60"
                   data-testid="input-register-confirm"
                 />
-              </div>
+              </FormField>
 
-              <button
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={handleRegister}
                 disabled={loading}
-                className="mt-2 w-full rounded-2xl bg-amber-400 px-4 py-2 font-semibold text-black shadow-lg transition hover:bg-amber-300 active:scale-[.99] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="mt-2"
                 data-testid="button-register-submit"
               >
                 {loading ? 'Working…' : 'Create Account'}
-              </button>
+              </Button>
+
               <p className="pt-2 text-center text-xs text-slate-400">
                 Already have an account?{' '}
                 <button onClick={() => setTab('login')} className="font-medium text-amber-300 hover:underline">
@@ -254,10 +284,12 @@ export default function LoginPage() {
 
           {/* Footer links */}
           <div className="mt-6 flex items-center justify-between text-xs text-slate-400/80">
-            <Link href="#" className="hover:text-slate-200 hover:underline">Forgot password?</Link>
+            <button className="hover:text-slate-200 hover:underline">
+              Forgot password?
+            </button>
             <span className="select-none">GM is G.O.D.</span>
           </div>
-        </div>
+        </Card>
       </div>
     </main>
   );

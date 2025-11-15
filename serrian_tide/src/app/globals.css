@@ -112,6 +112,14 @@ body::before {
   background-clip: text;
   color: transparent;
 }
+
+/* Glow effect for dramatic emphasis */
+.st-glow {
+  filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.4)) 
+          drop-shadow(0 0 24px rgba(168, 85, 247, 0.3));
+}
+
+/* Legacy card title support (deprecated - use GradientText component instead) */
 .card h2, .card h3,
 .dashboard-card h2, .dashboard-card h3,
 [data-card-title] {
