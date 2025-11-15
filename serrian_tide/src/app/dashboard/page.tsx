@@ -8,12 +8,34 @@ import { GradientText } from "@/components/GradientText";
 
 // Map role → capabilities
 function getCapabilities(role: string) {
-  const r = role.toLowerCase();
+  // Normalize safely in case something unexpected slips through
+  const r = (role ?? "").toLowerCase();
+
   const isAdmin = r === "admin";
+
+  // These match your actual DB role codes:
+  //   admin
+  //   privileged
+  //   free
+  //   developer? (if you add it later)
+  //   world_builder
+  //   world_developer
+  //   universe_creator
   const canWorldBuild =
-    isAdmin || r === "worldbuilder" || r === "developer" || r === "privileged";
-  const canPublish = isAdmin || r === "developer"; // future: selling in store
+    isAdmin ||
+    r === "privileged" ||
+    r === "world_builder" ||
+    r === "world_developer" ||
+    r === "universe_creator";
+
+  // Who is allowed to publish/sell in the Bazaar
+  const canPublish =
+    isAdmin ||
+    r === "world_developer" ||
+    r === "universe_creator";
+
   const canSeeAdmin = isAdmin;
+
   return { isAdmin, canWorldBuild, canPublish, canSeeAdmin };
 }
 

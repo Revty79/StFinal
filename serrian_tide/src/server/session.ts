@@ -1,13 +1,20 @@
 import { cookies } from "next/headers";
 import { db, schema } from "@/db/client";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { newSessionId } from "@/lib/auth";
 
 const COOKIE_NAME = "st_sess";
 const SESSION_TTL_DAYS = 14;
 
 // role precedence (leftmost = highest)
-const ROLE_ORDER = ["admin", "privileged", "universe_creator", "world_developer", "world_builder", "free"] as const;
+const ROLE_ORDER = [
+  "admin",
+  "privileged",
+  "universe_creator",
+  "world_developer",
+  "world_builder",
+  "free",
+] as const;
 
 function pickPrimaryRole(roleCodes: string[]): string {
   // choose the highest-precedence role present
@@ -21,7 +28,9 @@ function pickPrimaryRole(roleCodes: string[]): string {
 export async function createSession(userId: string) {
   const id = newSessionId();
   const now = new Date();
-  const expires = new Date(now.getTime() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const expires = new Date(
+    now.getTime() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
+  );
 
   // insert session row
   await db.insert(schema.sessions).values({
@@ -70,7 +79,12 @@ export async function getSessionUser(): Promise<{
       expiresAt: schema.sessions.expiresAt,
     })
     .from(schema.sessions)
-    .where(and(eq(schema.sessions.id, sid), sql`${schema.sessions.expiresAt} > ${now}`))
+    .where(
+      and(
+        eq(schema.sessions.id, sid),
+        sql`${schema.sessions.expiresAt} > ${now}`
+      )
+    )
     .limit(1);
 
   const s = sessionRows[0];
@@ -95,8 +109,13 @@ export async function getSessionUser(): Promise<{
     .from(schema.userRoles)
     .where(eq(schema.userRoles.userId, u.id));
 
-  const roles = roleRows.map(r => r.roleCode);
+  const roles = roleRows.map((r) => r.roleCode);
   const primary = pickPrimaryRole(roles);
 
-  return { id: u.id, username: u.username, email: u.email, role: primary };
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    role: primary,
+  };
 }

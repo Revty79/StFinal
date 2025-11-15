@@ -12,15 +12,15 @@ import { GradientText } from "@/components/GradientText";
 
 const BACKGROUND_OPTIONS = [
   { value: 'nebula.png', label: 'Nebula' },
-  { value: 'SPBackground.png', label: 'SP Background' },
+  { value: 'SPBackground.png', label: 'Steampunk Background' },
   { value: 'WesternBG.png', label: 'Western Background' },
 ];
 
 const GEAR_OPTIONS = [
   { value: null, label: 'None' },
-  { value: 'SPGear.png', label: 'SP Gear' },
-  { value: 'alchemy.png', label: 'Alchemy (Spinning)' },
-  { value: 'Revolver.png', label: 'Revolver (Spinning)' },
+  { value: 'SPGear.png', label: 'Steampunk Gear' },
+  { value: 'alchemy.png', label: 'Alchemy' },
+  { value: 'Revolver.png', label: 'Revolver' },
 ];
 
 export default function ProfilePage() {
