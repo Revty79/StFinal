@@ -5,6 +5,7 @@ import WorldBuilderCard from "@/components/WorldBuilderCard";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { GradientText } from "@/components/GradientText";
+import { LogoutButton } from "@/components/LogoutButton";
 
 // Map role → capabilities
 function getCapabilities(role: string) {
@@ -72,12 +73,8 @@ export default async function Dashboard() {
             <Button variant="secondary">Profile</Button>
           </Link>
 
-          {/* real logout: POST to /api/auth/logout */}
-          <form action="/api/auth/logout" method="POST">
-            <Button type="submit" variant="primary">
-              ← Logout
-            </Button>
-          </form>
+          {/* Logout button */}
+          <LogoutButton />
         </div>
       </header>
 
