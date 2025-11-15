@@ -1,13 +1,52 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
 import { GradientText } from "@/components/GradientText";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
+
+/* ---------- Worldbuilder local nav ---------- */
+
+function WBNav({
+  current = "races",
+}: {
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+}) {
+  const items = [
+    { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
+    { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
+    { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
+    { href: "/worldbuilder/races", key: "races", label: "Races" },
+    { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+  ] as const;
+
+  return (
+    <nav className="flex flex-wrap gap-2">
+      {items.map((it) => {
+        const active = current === it.key;
+        return (
+          <Link
+            key={it.key}
+            href={it.href}
+            className={[
+              "rounded-xl px-3 py-1.5 text-sm border transition",
+              active
+                ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
+                : "border-white/15 text-zinc-200 hover:bg-white/10",
+            ].join(" ")}
+          >
+            {it.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 /* ---------- Types (mirroring your old logic) ---------- */
 
@@ -46,6 +85,17 @@ type BonusRow = {
   points: string;
 };
 
+type RaceRecord = {
+  id: string | number;
+  name: string;
+  tagline: string;
+  is_free?: boolean;
+  def: RaceDefinition;
+  attr: RaceAttributes;
+  bonusRows: BonusRow[];
+  specialRows: BonusRow[];
+};
+
 /* ---------- Constants ---------- */
 
 const TAB_SECTIONS: { id: TabKey; label: string }[] = [
@@ -75,33 +125,317 @@ function makeBonusRows(count: number): BonusRow[] {
   }));
 }
 
+const uid = () => Math.random().toString(36).slice(2, 10);
+
 /* ---------- Page ---------- */
 
 export default function RacesPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("identity");
 
-  // Simple draft state (no DB yet)
-  const [raceName, setRaceName] = useState("");
-  const [raceTagline, setRaceTagline] = useState("");
+  // Library of races
+  const [races, setRaces] = useState<RaceRecord[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [qtext, setQtext] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const [def, setDef] = useState<RaceDefinition>({});
-  const [attr, setAttr] = useState<RaceAttributes>({});
-  const [bonusRows, setBonusRows] = useState<BonusRow[]>(
-    makeBonusRows(MAX_BONUS_SKILLS)
+  // Load races from database on mount
+  useEffect(() => {
+    async function loadRaces() {
+      try {
+        const response = await fetch("/api/worldbuilder/races");
+        const data = await response.json();
+        
+        if (!data.ok) {
+          throw new Error(data.error || "Failed to load races");
+        }
+
+        // Transform API response to match our UI format
+        const transformed: RaceRecord[] = (data.races || []).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          tagline: r.tagline || "",
+          is_free: r.isFree ?? true,
+          def: r.definition || {},
+          attr: r.attributes || {},
+          bonusRows: [
+            ...(r.bonusSkills || []).map((b: any, idx: number) => ({
+              slotIdx: idx,
+              skillName: b.skillName || "",
+              points: String(b.points || 0),
+            })),
+            ...makeBonusRows(MAX_BONUS_SKILLS - (r.bonusSkills || []).length),
+          ].map((row, idx) => ({ ...row, slotIdx: idx })),
+          specialRows: [
+            ...(r.specialAbilities || []).map((s: any, idx: number) => ({
+              slotIdx: idx,
+              skillName: s.skillName || "",
+              points: String(s.points || 0),
+            })),
+            ...makeBonusRows(MAX_SPECIALS - (r.specialAbilities || []).length),
+          ].map((row, idx) => ({ ...row, slotIdx: idx })),
+        }));
+
+        setRaces(transformed);
+      } catch (error) {
+        console.error("Error loading races:", error);
+        alert(`Failed to load races: ${error instanceof Error ? error.message : "Unknown error"}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadRaces();
+  }, []);
+
+  const selected: RaceRecord | null = useMemo(
+    () =>
+      races.find((r) => String(r.id) === String(selectedId ?? "")) ?? null,
+    [races, selectedId]
   );
-  const [specialRows, setSpecialRows] = useState<BonusRow[]>(
-    makeBonusRows(MAX_SPECIALS)
-  );
+
+  // ensure something is selected when the list changes
+  useEffect(() => {
+    if (!races.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selected) {
+      const first = races[0];
+      if (first) setSelectedId(String(first.id));
+    }
+  }, [races, selected]);
+
+  const filteredList = useMemo(() => {
+    const q = qtext.trim().toLowerCase();
+    if (!q) return races;
+    return races.filter((r) => {
+      const base = [
+        r.name,
+        r.tagline,
+        r.def.examples_by_genre ?? "",
+        r.def.cultural_mindset ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return base.includes(q);
+    });
+  }, [races, qtext]);
+
+  /* ---------- library CRUD helpers (UI-only) ---------- */
+
+  function createRace() {
+    const id = uid();
+    const newRace: RaceRecord = {
+      id,
+      name: "New Race",
+      tagline: "",
+      is_free: true,
+      def: {},
+      attr: {},
+      bonusRows: makeBonusRows(MAX_BONUS_SKILLS),
+      specialRows: makeBonusRows(MAX_SPECIALS),
+    };
+    setRaces((prev) => [newRace, ...prev]);
+    setSelectedId(id);
+  }
+
+  async function deleteSelected() {
+    if (!selected) return;
+    if (!confirm("Delete this race from the library?")) return;
+    
+    const idStr = String(selected.id);
+    const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+    // If it's a UI-only race (not yet saved), just remove from state
+    if (isNew) {
+      setRaces((prev) => prev.filter((r) => String(r.id) !== idStr));
+      setSelectedId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/worldbuilder/races/${selected.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to delete race");
+      }
+
+      setRaces((prev) => prev.filter((r) => String(r.id) !== idStr));
+      setSelectedId(null);
+      alert("Race deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting race:", error);
+      alert(`Failed to delete race: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  function updateSelected(patch: Partial<RaceRecord>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr ? ({ ...r, ...patch } as RaceRecord) : r
+      )
+    );
+  }
+
+  function updateDef<K extends keyof RaceDefinition>(key: K, value: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr
+          ? ({
+              ...r,
+              def: { ...(r.def || {}), [key]: value },
+            } as RaceRecord)
+          : r
+      )
+    );
+  }
+
+  function updateAttr<K extends keyof RaceAttributes>(
+    key: K,
+    value: string
+  ) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr
+          ? ({
+              ...r,
+              attr: { ...(r.attr || {}), [key]: value },
+            } as RaceRecord)
+          : r
+      )
+    );
+  }
+
+  function updateBonusRow(
+    idx: number,
+    field: "skillName" | "points",
+    value: string
+  ) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) => {
+        if (String(r.id) !== idStr) return r;
+        const updatedRows = r.bonusRows.map((row) =>
+          row.slotIdx === idx ? { ...row, [field]: value } : row
+        );
+        return { ...r, bonusRows: updatedRows } as RaceRecord;
+      })
+    );
+  }
+
+  function updateSpecialRow(
+    idx: number,
+    field: "skillName" | "points",
+    value: string
+  ) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) => {
+        if (String(r.id) !== idStr) return r;
+        const updatedRows = r.specialRows.map((row) =>
+          row.slotIdx === idx ? { ...row, [field]: value } : row
+        );
+        return { ...r, specialRows: updatedRows } as RaceRecord;
+      })
+    );
+  }
+
+  async function saveSelected() {
+    if (!selected) return;
+    
+    try {
+      // Transform bonusRows and specialRows into the JSONB format expected by the API
+      const bonusSkills = selected.bonusRows
+        .filter((r) => r.skillName.trim() !== "")
+        .map((r) => ({ skillName: r.skillName, points: parseInt(r.points) || 0 }));
+      
+      const specialAbilities = selected.specialRows
+        .filter((r) => r.skillName.trim() !== "")
+        .map((r) => ({ skillName: r.skillName, points: parseInt(r.points) || 0 }));
+
+      const payload = {
+        name: selected.name,
+        tagline: selected.tagline || null,
+        isFree: selected.is_free ?? true,
+        definition: selected.def,
+        attributes: selected.attr,
+        bonusSkills,
+        specialAbilities,
+      };
+
+      // Check if this is a new race (string ID means UI-only) or existing (UUID means from DB)
+      const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+      let response;
+      if (isNew) {
+        // Create new race
+        response = await fetch("/api/worldbuilder/races", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Update existing race
+        response = await fetch(`/api/worldbuilder/races/${selected.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save race");
+      }
+
+      // Update the local state with the saved race (including the new ID if it was created)
+      if (isNew && data.race) {
+        const oldId = selected.id;
+        setRaces((prev) =>
+          prev.map((r) =>
+            String(r.id) === String(oldId)
+              ? { ...r, id: data.race.id }
+              : r
+          )
+        );
+        setSelectedId(data.race.id);
+      }
+
+      alert("Race saved successfully!");
+    } catch (error) {
+      console.error("Error saving race:", error);
+      alert(`Failed to save race: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  /* ---------- preview text ---------- */
 
   const previewText = useMemo(() => {
+    if (!selected) return "";
+
+    const { name, tagline, def, attr, bonusRows, specialRows } = selected;
+
     const nv = (x: any) =>
       x == null || x === "" ? "—" : String(x).trim() === "" ? "—" : x;
 
     const lines: string[] = [];
 
-    lines.push(`Race: ${raceName || "New Race"}`);
-    if (raceTagline) {
-      lines.push(`"${raceTagline}"`);
+    lines.push(`Race: ${name || "New Race"}`);
+    if (tagline) {
+      lines.push(`"${tagline}"`);
     }
     lines.push("");
 
@@ -177,120 +511,161 @@ export default function RacesPage() {
     }
 
     return lines.join("\n");
-  }, [raceName, raceTagline, def, attr, bonusRows, specialRows]);
-
-  /* ---------- helpers ---------- */
-
-  function updateDef<K extends keyof RaceDefinition>(key: K, value: string) {
-    setDef((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function updateAttr<K extends keyof RaceAttributes>(key: K, value: string) {
-    setAttr((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function updateBonusRow(
-    idx: number,
-    field: "skillName" | "points",
-    value: string
-  ) {
-    setBonusRows((rows) =>
-      rows.map((r) =>
-        r.slotIdx === idx ? { ...r, [field]: value } : r
-      )
-    );
-  }
-
-  function updateSpecialRow(
-    idx: number,
-    field: "skillName" | "points",
-    value: string
-  ) {
-    setSpecialRows((rows) =>
-      rows.map((r) =>
-        r.slotIdx === idx ? { ...r, [field]: value } : r
-      )
-    );
-  }
+  }, [selected]);
 
   /* ---------- render ---------- */
 
   return (
     <main className="min-h-screen px-6 py-10">
       {/* Header */}
-      <header className="max-w-7xl mx-auto mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <GradientText
-            as="h1"
-            variant="title"
-            glow
-            className="font-evanescent text-4xl sm:text-5xl tracking-tight"
-          >
-            The Source Forge — Races
-          </GradientText>
-          <p className="mt-1 text-sm text-zinc-300/90">
-            Define racial lore, attribute caps, and racial bonuses. DB wiring
-            and auto-save will plug in after we lock the structure.
-          </p>
+      <header className="max-w-7xl mx-auto mb-6 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <GradientText
+              as="h1"
+              variant="title"
+              glow
+              className="font-evanescent text-4xl sm:text-5xl tracking-tight"
+            >
+              The Source Forge — Races
+            </GradientText>
+            <p className="mt-1 text-sm text-zinc-300/90 max-w-2xl">
+              Define racial lore, attribute caps, and racial bonuses. This
+              screen is UI-only; DB wiring and auto-save will plug in after
+              we lock the structure.
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <Link href="/worldbuilder">
+              <Button variant="secondary" size="sm">
+                ← Source Forge
+              </Button>
+            </Link>
+          </div>
         </div>
 
-        <div className="flex gap-3">
-          <Link href="/worldbuilder">
-            <Button variant="secondary" size="sm">
-              ← Source Forge
-            </Button>
-          </Link>
+        <div className="flex justify-end">
+          <WBNav current="races" />
         </div>
       </header>
 
-      <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
-        {/* Left column: placeholder selector / metadata */}
+      <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-6">
+        {/* Left column: Race Library */}
         <Card
           padded={false}
-          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
+          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl flex flex-col gap-4"
         >
-          <h2 className="text-sm font-semibold text-zinc-200 mb-3">
-            Race Selector (Coming Soon)
-          </h2>
-          <p className="text-xs text-zinc-400">
-            This panel will list your saved races and let you switch, duplicate,
-            and delete. For now, you&apos;re editing a single local draft.
-          </p>
-
-          <div className="mt-4 space-y-3">
-            <FormField
-              label="Race Name"
-              htmlFor="race-name"
-              description="What is this lineage called?"
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-zinc-200">
+              Race Library
+            </h2>
+            <Button
+              variant="primary"
+              size="sm"
+              type="button"
+              onClick={createRace}
             >
-              <Input
-                id="race-name"
-                value={raceName}
-                onChange={(e) => setRaceName(e.target.value)}
-                placeholder="e.g., Serrian, Tideborn, Ashwalker..."
-              />
-            </FormField>
+              + New Race
+            </Button>
+          </div>
 
-            <FormField
-              label="Tagline"
-              htmlFor="race-tagline"
-              description="A short hook for this race."
-            >
-              <Input
-                id="race-tagline"
-                value={raceTagline}
-                onChange={(e) => setRaceTagline(e.target.value)}
-                placeholder="Stoic guardians of forgotten seas..."
-              />
-            </FormField>
+          {/* Filter */}
+          <div className="space-y-2">
+            <Input
+              value={qtext}
+              onChange={(e) => setQtext(e.target.value)}
+              placeholder="Search races by name, tagline, or lore…"
+            />
+          </div>
 
-            <div className="flex flex-col gap-2 pt-2">
-              <Button variant="primary" size="sm" disabled>
-                Save Draft (DB Coming Soon)
+          {/* List */}
+          <div className="mt-2 flex-1 min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-b border-white/10">
+              <span>Races: {filteredList.length}</span>
+              <span className="uppercase tracking-wide text-[10px] text-zinc-500">
+                Race records
+              </span>
+            </div>
+
+            <div className="max-h-[420px] overflow-auto">
+              {filteredList.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  No races yet. Create your first lineage.
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="text-left text-zinc-400">
+                    <tr>
+                      <th className="px-3 py-1">Name</th>
+                      <th className="px-3 py-1">Tagline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredList.map((r) => {
+                      const idStr = String(r.id);
+                      const isSel = selectedId === idStr;
+                      return (
+                        <tr
+                          key={idStr}
+                          className={`border-t border-white/5 cursor-pointer hover:bg-white/5 ${
+                            isSel ? "bg-white/10" : ""
+                          }`}
+                          onClick={() => setSelectedId(idStr)}
+                        >
+                          <td className="px-3 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span>{r.name || "(unnamed)"}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {r.tagline ? r.tagline : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Quick rename + delete */}
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-t border-white/10">
+              <div className="flex flex-col gap-1 flex-1 pr-2">
+                <span>Race Name</span>
+                <input
+                  className="rounded-md border border-white/15 bg-black/50 px-2 py-1 text-xs text-zinc-100 outline-none"
+                  disabled={!selected}
+                  value={selected?.name ?? ""}
+                  onChange={(e) =>
+                    updateSelected({ name: e.target.value })
+                  }
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={!selected}
+                onClick={deleteSelected}
+              >
+                Delete
               </Button>
-              <Button variant="secondary" size="sm" disabled>
-                New Race
-              </Button>
+            </div>
+
+            <div className="px-3 pb-3 pt-1 text-xs text-zinc-400 border-t border-white/10">
+              <div className="flex flex-col gap-1">
+                <span>Tagline</span>
+                <input
+                  className="rounded-md border border-white/15 bg-black/50 px-2 py-1 text-xs text-zinc-100 outline-none"
+                  disabled={!selected}
+                  value={selected?.tagline ?? ""}
+                  onChange={(e) =>
+                    updateSelected({ tagline: e.target.value })
+                  }
+                  placeholder="Stoic guardians of forgotten seas..."
+                />
+              </div>
             </div>
           </div>
         </Card>
@@ -300,455 +675,559 @@ export default function RacesPage() {
           padded={false}
           className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
         >
-          <div className="mb-4">
-            <Tabs
-              tabs={TAB_SECTIONS}
-              activeId={activeTab}
-              onChange={(id) => setActiveTab(id as TabKey)}
-            />
-          </div>
-
-          <div className="space-y-4">
-            {/* Identity & Lore */}
-            {activeTab === "identity" && (
-              <div className="space-y-4">
-                <FormField
-                  label="Legacy Description"
-                  htmlFor="legacy-description"
-                  description="If this race already exists somewhere else, capture that legacy version here."
-                >
-                  <textarea
-                    id="legacy-description"
-                    value={def.legacy_description ?? ""}
-                    onChange={(e) =>
-                      updateDef("legacy_description", e.target.value)
-                    }
-                    className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Physical Characteristics"
-                  htmlFor="physical-characteristics"
-                  description="Common builds, features, and standout physical traits."
-                >
-                  <textarea
-                    id="physical-characteristics"
-                    value={def.physical_characteristics ?? ""}
-                    onChange={(e) =>
-                      updateDef(
-                        "physical_characteristics",
-                        e.target.value
-                      )
-                    }
-                    className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Physical Description"
-                  htmlFor="physical-description"
-                  description="How would you describe this race at the table to new players?"
-                >
-                  <textarea
-                    id="physical-description"
-                    value={def.physical_description ?? ""}
-                    onChange={(e) =>
-                      updateDef("physical_description", e.target.value)
-                    }
-                    className="w-full min-h-[140px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Racial Quirk"
-                  htmlFor="racial-quirk"
-                  description="A signature quirk that can trigger special outcomes."
-                >
+          {loading ? (
+            <p className="text-sm text-zinc-400">
+              Loading races...
+            </p>
+          ) : !selected ? (
+            <p className="text-sm text-zinc-400">
+              Select a race on the left or create a new one to begin
+              editing.
+            </p>
+          ) : (
+            <>
+              {/* Header: name + tabs + save */}
+              <div className="mb-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                <div className="flex-1">
                   <Input
-                    id="racial-quirk"
-                    value={def.racial_quirk ?? ""}
+                    value={selected.name}
                     onChange={(e) =>
-                      updateDef("racial_quirk", e.target.value)
+                      updateSelected({ name: e.target.value })
                     }
-                    placeholder="e.g., Tidal Memory, Ember Sight, Void Drift..."
+                    placeholder="Race name (e.g., Serrian, Tideborn, Ashwalker...)"
                   />
-                </FormField>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    label="Quirk Success Effect"
-                    htmlFor="quirk-success"
-                  >
-                    <textarea
-                      id="quirk-success"
-                      value={def.quirk_success_effect ?? ""}
-                      onChange={(e) =>
-                        updateDef(
-                          "quirk_success_effect",
-                          e.target.value
-                        )
-                      }
-                      className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Quirk Failure Effect"
-                    htmlFor="quirk-failure"
-                  >
-                    <textarea
-                      id="quirk-failure"
-                      value={def.quirk_failure_effect ?? ""}
-                      onChange={(e) =>
-                        updateDef(
-                          "quirk_failure_effect",
-                          e.target.value
-                        )
-                      }
-                      className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                    />
-                  </FormField>
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    This is the label that will appear in character
+                    creation, sheets, and world docs.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.is_free ?? true}
+                        onChange={(e) =>
+                          updateSelected({ is_free: e.target.checked })
+                        }
+                        className="w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
+                      />
+                      <span className="text-sm text-zinc-300">
+                        Free (available to all users)
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
-                <FormField
-                  label="Common Languages Known"
-                  htmlFor="languages"
-                  description="Typical languages this race is expected to know."
-                >
-                  <textarea
-                    id="languages"
-                    value={def.common_languages_known ?? ""}
-                    onChange={(e) =>
-                      updateDef(
-                        "common_languages_known",
-                        e.target.value
-                      )
-                    }
-                    className="w-full min-h-[80px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                <div className="shrink-0 flex flex-col items-end gap-2">
+                  <Tabs
+                    tabs={TAB_SECTIONS}
+                    activeId={activeTab}
+                    onChange={(id) => setActiveTab(id as TabKey)}
                   />
-                </FormField>
-
-                <FormField
-                  label="Common Archetypes"
-                  htmlFor="archetypes"
-                  description="Typical roles this race falls into (classes, archetypes, professions)."
-                >
-                  <textarea
-                    id="archetypes"
-                    value={def.common_archetypes ?? ""}
-                    onChange={(e) =>
-                      updateDef("common_archetypes", e.target.value)
-                    }
-                    className="w-full min-h-[80px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Examples by Genre"
-                  htmlFor="examples-by-genre"
-                  description="How does this race show up in fantasy, sci-fi, horror, etc.?"
-                >
-                  <textarea
-                    id="examples-by-genre"
-                    value={def.examples_by_genre ?? ""}
-                    onChange={(e) =>
-                      updateDef("examples_by_genre", e.target.value)
-                    }
-                    className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Cultural Mindset"
-                  htmlFor="cultural-mindset"
-                  description="What is their default outlook on life, conflict, community?"
-                >
-                  <textarea
-                    id="cultural-mindset"
-                    value={def.cultural_mindset ?? ""}
-                    onChange={(e) =>
-                      updateDef("cultural_mindset", e.target.value)
-                    }
-                    className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Outlook on Magic"
-                  htmlFor="outlook-on-magic"
-                  description="How does this race view magic, psionics, tech, or other power sources?"
-                >
-                  <textarea
-                    id="outlook-on-magic"
-                    value={def.outlook_on_magic ?? ""}
-                    onChange={(e) =>
-                      updateDef("outlook_on_magic", e.target.value)
-                    }
-                    className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  />
-                </FormField>
-              </div>
-            )}
-
-            {/* Attributes */}
-            {activeTab === "attributes" && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    label="Age Range"
-                    htmlFor="age-range"
-                    description="Typical lifespan or playable age range."
-                  >
-                    <Input
-                      id="age-range"
-                      value={attr.age_range ?? ""}
-                      onChange={(e) =>
-                        updateAttr("age_range", e.target.value)
-                      }
-                      placeholder="e.g., 15–90"
-                    />
-                  </FormField>
-
-                  <FormField
-                    label="Size"
-                    htmlFor="size"
-                    description="Choose the baseline size category."
-                  >
-                    <select
-                      id="size"
-                      value={attr.size ?? ""}
-                      onChange={(e) =>
-                        updateAttr("size", e.target.value)
-                      }
-                      className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
+                  <div className="flex gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="button"
+                      onClick={saveSelected}
                     >
-                      <option value="">(choose)</option>
-                      {SIZE_OPTIONS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField label="STR Max" htmlFor="str-max">
-                    <Input
-                      id="str-max"
-                      type="number"
-                      value={attr.strength_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr("strength_max", e.target.value)
-                      }
-                    />
-                  </FormField>
-                  <FormField label="DEX Max" htmlFor="dex-max">
-                    <Input
-                      id="dex-max"
-                      type="number"
-                      value={attr.dexterity_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr("dexterity_max", e.target.value)
-                      }
-                    />
-                  </FormField>
-                  <FormField label="CON Max" htmlFor="con-max">
-                    <Input
-                      id="con-max"
-                      type="number"
-                      value={attr.constitution_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr(
-                          "constitution_max",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField label="INT Max" htmlFor="int-max">
-                    <Input
-                      id="int-max"
-                      type="number"
-                      value={attr.intelligence_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr(
-                          "intelligence_max",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </FormField>
-                  <FormField label="WIS Max" htmlFor="wis-max">
-                    <Input
-                      id="wis-max"
-                      type="number"
-                      value={attr.wisdom_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr("wisdom_max", e.target.value)
-                      }
-                    />
-                  </FormField>
-                  <FormField label="CHA Max" htmlFor="cha-max">
-                    <Input
-                      id="cha-max"
-                      type="number"
-                      value={attr.charisma_max ?? ""}
-                      onChange={(e) =>
-                        updateAttr("charisma_max", e.target.value)
-                      }
-                    />
-                  </FormField>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Base Magic" htmlFor="base-magic">
-                    <Input
-                      id="base-magic"
-                      type="number"
-                      value={attr.base_magic ?? ""}
-                      onChange={(e) =>
-                        updateAttr("base_magic", e.target.value)
-                      }
-                    />
-                  </FormField>
-                  <FormField
-                    label="Base Movement"
-                    htmlFor="base-movement"
-                  >
-                    <Input
-                      id="base-movement"
-                      type="number"
-                      value={attr.base_movement ?? ""}
-                      onChange={(e) =>
-                        updateAttr(
-                          "base_movement",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </FormField>
+                      Save
+                    </Button>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Bonuses */}
-            {activeTab === "bonuses" && (
-              <div className="space-y-6">
-                <section>
-                  <h3 className="text-lg font-semibold mb-3 text-zinc-200">
-                    Bonus Skills (Tier 1 only)
-                  </h3>
-                  <div className="rounded-lg border border-white/15 bg-white/5 p-4">
-                    <div className="grid gap-2">
-                      {bonusRows.map((row) => (
-                        <div
-                          key={row.slotIdx}
-                          className="flex items-center gap-3"
+              <div className="space-y-4">
+                {/* Identity & Lore */}
+                {activeTab === "identity" && (
+                  <div className="space-y-4">
+                    <FormField
+                      label="Legacy Description"
+                      htmlFor="legacy-description"
+                      description="If this race already exists somewhere else, capture that legacy version here."
+                    >
+                      <textarea
+                        id="legacy-description"
+                        value={selected.def.legacy_description ?? ""}
+                        onChange={(e) =>
+                          updateDef(
+                            "legacy_description",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Physical Characteristics"
+                      htmlFor="physical-characteristics"
+                      description="Common builds, features, and standout physical traits."
+                    >
+                      <textarea
+                        id="physical-characteristics"
+                        value={
+                          selected.def.physical_characteristics ?? ""
+                        }
+                        onChange={(e) =>
+                          updateDef(
+                            "physical_characteristics",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Physical Description"
+                      htmlFor="physical-description"
+                      description="How would you describe this race at the table to new players?"
+                    >
+                      <textarea
+                        id="physical-description"
+                        value={
+                          selected.def.physical_description ?? ""
+                        }
+                        onChange={(e) =>
+                          updateDef(
+                            "physical_description",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[140px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Racial Quirk"
+                      htmlFor="racial-quirk"
+                      description="A signature quirk that can trigger special outcomes."
+                    >
+                      <Input
+                        id="racial-quirk"
+                        value={selected.def.racial_quirk ?? ""}
+                        onChange={(e) =>
+                          updateDef("racial_quirk", e.target.value)
+                        }
+                        placeholder="e.g., Tidal Memory, Ember Sight, Void Drift..."
+                      />
+                    </FormField>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        label="Quirk Success Effect"
+                        htmlFor="quirk-success"
+                      >
+                        <textarea
+                          id="quirk-success"
+                          value={
+                            selected.def.quirk_success_effect ?? ""
+                          }
+                          onChange={(e) =>
+                            updateDef(
+                              "quirk_success_effect",
+                              e.target.value
+                            )
+                          }
+                          className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Quirk Failure Effect"
+                        htmlFor="quirk-failure"
+                      >
+                        <textarea
+                          id="quirk-failure"
+                          value={
+                            selected.def.quirk_failure_effect ?? ""
+                          }
+                          onChange={(e) =>
+                            updateDef(
+                              "quirk_failure_effect",
+                              e.target.value
+                            )
+                          }
+                          className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                        />
+                      </FormField>
+                    </div>
+
+                    <FormField
+                      label="Common Languages Known"
+                      htmlFor="languages"
+                      description="Typical languages this race is expected to know."
+                    >
+                      <textarea
+                        id="languages"
+                        value={
+                          selected.def.common_languages_known ?? ""
+                        }
+                        onChange={(e) =>
+                          updateDef(
+                            "common_languages_known",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[80px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Common Archetypes"
+                      htmlFor="archetypes"
+                      description="Typical roles this race falls into (classes, archetypes, professions)."
+                    >
+                      <textarea
+                        id="archetypes"
+                        value={
+                          selected.def.common_archetypes ?? ""
+                        }
+                        onChange={(e) =>
+                          updateDef(
+                            "common_archetypes",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[80px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Examples by Genre"
+                      htmlFor="examples-by-genre"
+                      description="How does this race show up in fantasy, sci-fi, horror, etc.?"
+                    >
+                      <textarea
+                        id="examples-by-genre"
+                        value={
+                          selected.def.examples_by_genre ?? ""
+                        }
+                        onChange={(e) =>
+                          updateDef(
+                            "examples_by_genre",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Cultural Mindset"
+                      htmlFor="cultural-mindset"
+                      description="What is their default outlook on life, conflict, community?"
+                    >
+                      <textarea
+                        id="cultural-mindset"
+                        value={selected.def.cultural_mindset ?? ""}
+                        onChange={(e) =>
+                          updateDef(
+                            "cultural_mindset",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Outlook on Magic"
+                      htmlFor="outlook-on-magic"
+                      description="How does this race view magic, psionics, tech, or other power sources?"
+                    >
+                      <textarea
+                        id="outlook-on-magic"
+                        value={selected.def.outlook_on_magic ?? ""}
+                        onChange={(e) =>
+                          updateDef(
+                            "outlook_on_magic",
+                            e.target.value
+                          )
+                        }
+                        className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                      />
+                    </FormField>
+                  </div>
+                )}
+
+                {/* Attributes */}
+                {activeTab === "attributes" && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        label="Age Range"
+                        htmlFor="age-range"
+                        description="Typical lifespan or playable age range."
+                      >
+                        <Input
+                          id="age-range"
+                          value={selected.attr.age_range ?? ""}
+                          onChange={(e) =>
+                            updateAttr("age_range", e.target.value)
+                          }
+                          placeholder="e.g., 15–90"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Size"
+                        htmlFor="size"
+                        description="Choose the baseline size category."
+                      >
+                        <select
+                          id="size"
+                          value={selected.attr.size ?? ""}
+                          onChange={(e) =>
+                            updateAttr("size", e.target.value)
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
                         >
-                          <Input
-                            placeholder="Skill name"
-                            value={row.skillName}
-                            onChange={(e) =>
-                              updateBonusRow(
-                                row.slotIdx,
-                                "skillName",
-                                e.target.value
-                              )
-                            }
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-zinc-400">
-                            pts
-                          </span>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.points}
-                            onChange={(e) =>
-                              updateBonusRow(
-                                row.slotIdx,
-                                "points",
-                                e.target.value
-                              )
-                            }
-                            className="w-20"
-                          />
-                        </div>
-                      ))}
+                          <option value="">(choose)</option>
+                          {SIZE_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField label="STR Max" htmlFor="str-max">
+                        <Input
+                          id="str-max"
+                          type="number"
+                          value={selected.attr.strength_max ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "strength_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                      <FormField label="DEX Max" htmlFor="dex-max">
+                        <Input
+                          id="dex-max"
+                          type="number"
+                          value={selected.attr.dexterity_max ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "dexterity_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                      <FormField label="CON Max" htmlFor="con-max">
+                        <Input
+                          id="con-max"
+                          type="number"
+                          value={selected.attr.constitution_max ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "constitution_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField label="INT Max" htmlFor="int-max">
+                        <Input
+                          id="int-max"
+                          type="number"
+                          value={
+                            selected.attr.intelligence_max ?? ""
+                          }
+                          onChange={(e) =>
+                            updateAttr(
+                              "intelligence_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                      <FormField label="WIS Max" htmlFor="wis-max">
+                        <Input
+                          id="wis-max"
+                          type="number"
+                          value={selected.attr.wisdom_max ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "wisdom_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                      <FormField label="CHA Max" htmlFor="cha-max">
+                        <Input
+                          id="cha-max"
+                          type="number"
+                          value={selected.attr.charisma_max ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "charisma_max",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField label="Base Magic" htmlFor="base-magic">
+                        <Input
+                          id="base-magic"
+                          type="number"
+                          value={selected.attr.base_magic ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "base_magic",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
+                      <FormField
+                        label="Base Movement"
+                        htmlFor="base-movement"
+                      >
+                        <Input
+                          id="base-movement"
+                          type="number"
+                          value={selected.attr.base_movement ?? ""}
+                          onChange={(e) =>
+                            updateAttr(
+                              "base_movement",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </FormField>
                     </div>
                   </div>
-                </section>
+                )}
 
-                <section>
-                  <h3 className="text-lg font-semibold mb-3 text-zinc-200">
-                    Racial Special Abilities
-                  </h3>
-                  <div className="rounded-lg border border-white/15 bg-white/5 p-4">
-                    <div className="grid gap-2">
-                      {specialRows.map((row) => (
-                        <div
-                          key={row.slotIdx}
-                          className="flex items-center gap-3"
-                        >
-                          <Input
-                            placeholder="Special ability"
-                            value={row.skillName}
-                            onChange={(e) =>
-                              updateSpecialRow(
-                                row.slotIdx,
-                                "skillName",
-                                e.target.value
-                              )
-                            }
-                            className="flex-1"
-                          />
-                          <span className="text-sm text-zinc-400">
-                            pts
-                          </span>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={row.points}
-                            onChange={(e) =>
-                              updateSpecialRow(
-                                row.slotIdx,
-                                "points",
-                                e.target.value
-                              )
-                            }
-                            className="w-20"
-                          />
+                {/* Bonuses */}
+                {activeTab === "bonuses" && (
+                  <div className="space-y-6">
+                    <section>
+                      <h3 className="text-lg font-semibold mb-3 text-zinc-200">
+                        Bonus Skills (Tier 1 only)
+                      </h3>
+                      <div className="rounded-lg border border-white/15 bg-white/5 p-4">
+                        <div className="grid gap-2">
+                          {selected.bonusRows.map((row) => (
+                            <div
+                              key={row.slotIdx}
+                              className="flex items-center gap-3"
+                            >
+                              <Input
+                                placeholder="Skill name"
+                                value={row.skillName}
+                                onChange={(e) =>
+                                  updateBonusRow(
+                                    row.slotIdx,
+                                    "skillName",
+                                    e.target.value
+                                  )
+                                }
+                                className="flex-1"
+                              />
+                              <span className="text-sm text-zinc-400">
+                                pts
+                              </span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={row.points}
+                                onChange={(e) =>
+                                  updateBonusRow(
+                                    row.slotIdx,
+                                    "points",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-20"
+                              />
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )}
+                      </div>
+                    </section>
 
-            {/* Preview */}
-            {activeTab === "preview" && (
-              <div>
-                <FormField
-                  label="Preview"
-                  htmlFor="race-preview"
-                  description="Rough writeup for this race, combining all other tabs."
-                >
-                  <textarea
-                    id="race-preview"
-                    readOnly
-                    value={previewText}
-                    className="w-full h-[500px] rounded-lg border border-white/10 bg-neutral-950/70 px-3 py-2 text-xs text-zinc-200 font-mono"
-                  />
-                </FormField>
+                    <section>
+                      <h3 className="text-lg font-semibold mb-3 text-zinc-200">
+                        Racial Special Abilities
+                      </h3>
+                      <div className="rounded-lg border border-white/15 bg-white/5 p-4">
+                        <div className="grid gap-2">
+                          {selected.specialRows.map((row) => (
+                            <div
+                              key={row.slotIdx}
+                              className="flex items-center gap-3"
+                            >
+                              <Input
+                                placeholder="Special ability"
+                                value={row.skillName}
+                                onChange={(e) =>
+                                  updateSpecialRow(
+                                    row.slotIdx,
+                                    "skillName",
+                                    e.target.value
+                                  )
+                                }
+                                className="flex-1"
+                              />
+                              <span className="text-sm text-zinc-400">
+                                pts
+                              </span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={row.points}
+                                onChange={(e) =>
+                                  updateSpecialRow(
+                                    row.slotIdx,
+                                    "points",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-20"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {/* Preview */}
+                {activeTab === "preview" && (
+                  <div>
+                    <FormField
+                      label="Preview"
+                      htmlFor="race-preview"
+                      description="Rough writeup for this race, combining all other tabs."
+                    >
+                      <textarea
+                        id="race-preview"
+                        readOnly
+                        value={previewText}
+                        className="w-full h-[500px] rounded-lg border border-white/10 bg-neutral-950/70 px-3 py-2 text-xs text-zinc-200 font-mono"
+                      />
+                    </FormField>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </Card>
       </section>
     </main>

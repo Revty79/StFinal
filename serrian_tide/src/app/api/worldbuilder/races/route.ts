@@ -1,0 +1,60 @@
+import { NextResponse } from "next/server";
+import { db, schema } from "@/db/client";
+import { eq, and } from "drizzle-orm";
+import { getSessionUser } from "@/server/session";
+import crypto from "crypto";
+
+// GET /api/worldbuilder/races
+export async function GET(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    const races = await db
+      .select()
+      .from(schema.races)
+      .where(eq(schema.races.createdBy, user.id))
+      .orderBy(schema.races.name);
+
+    return NextResponse.json({ ok: true, races });
+  } catch (err) {
+    console.error("Get races error:", err);
+    return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
+  }
+}
+
+// POST /api/worldbuilder/races
+export async function POST(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => null) as any;
+    if (!body || !body.name) {
+      return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+    }
+
+    const id = crypto.randomUUID();
+
+    await db.insert(schema.races).values({
+      id,
+      createdBy: user.id,
+      name: body.name,
+      definition: body.definition || null,
+      attributes: body.attributes || null,
+      bonusSkills: body.bonusSkills || null,
+      specialAbilities: body.specialAbilities || null,
+      isFree: body.isFree !== undefined ? body.isFree : true,
+      isPublished: body.isPublished !== undefined ? body.isPublished : false,
+    });
+
+    return NextResponse.json({ ok: true, id });
+  } catch (err) {
+    console.error("Create race error:", err);
+    return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
+  }
+}

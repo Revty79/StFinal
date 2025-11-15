@@ -15,6 +15,20 @@
       "when": 1763183587176,
       "tag": "0001_solid_namor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1763245519982,
+      "tag": "0002_fat_enchantress",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1763246583986,
+      "tag": "0003_clever_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

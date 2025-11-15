@@ -85,6 +85,7 @@ type Skill = {
   tier: number | null; // null == "N/A"
   primary_attribute: Attr;
   secondary_attribute: Attr;
+  is_free?: boolean;
   definition?: string;
   parent_id?: string | number | null;
   parent2_id?: string | number | null;
@@ -713,7 +714,7 @@ function MagicBuilder({
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
             onClick={saveBuild}
           >
-            💾 Save
+             Save
           </button>
           <button
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
@@ -931,7 +932,7 @@ function SpecialAbilityDetails({
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
             onClick={save}
           >
-            💾 Save
+             Save
           </button>
           <button
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
@@ -1110,6 +1111,47 @@ export default function SkillsetsPage() {
   // UI-only data (starts empty; Copilot can swap in initial fetch)
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load skills from database on mount
+  useEffect(() => {
+    async function loadSkills() {
+      try {
+        const response = await fetch("/api/worldbuilder/skills");
+        const data = await response.json();
+        
+        if (!data.ok) {
+          throw new Error(data.error || "Failed to load skills");
+        }
+
+        const transformed: Skill[] = (data.skills || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          type: s.type,
+          tier: s.tier,
+          primary_attribute: s.primaryAttribute,
+          secondary_attribute: s.secondaryAttribute,
+          is_free: s.isFree ?? true,
+          definition: s.definition,
+          parent_id: s.parentId,
+          parent2_id: s.parent2Id,
+          parent3_id: s.parent3Id,
+          created_by: s.createdBy,
+          created_at: s.createdAt,
+          updated_at: s.updatedAt,
+        }));
+
+        setSkills(transformed);
+      } catch (error) {
+        console.error("Error loading skills:", error);
+        alert(`Failed to load skills: ${error instanceof Error ? error.message : "Unknown error"}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSkills();
+  }, []);
 
   // filters + paging
   const [qtext, setQtext] = useState("");
@@ -1178,6 +1220,7 @@ export default function SkillsetsPage() {
       tier: 1,
       primary_attribute: "STR",
       secondary_attribute: "NA",
+      is_free: true,
       definition: "",
       parent_id: null,
       parent2_id: null,
@@ -1191,12 +1234,37 @@ export default function SkillsetsPage() {
     setActiveTab("core");
   }
 
-  function deleteSelected() {
+  async function deleteSelected() {
     if (!selected) return;
     const id = String(selected.id);
-    setSkills((prev) => prev.filter((x) => String(x.id) !== id));
-    setSelectedId(null);
-    setShowDetails(false);
+    const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+    if (isNew) {
+      setSkills((prev) => prev.filter((x) => String(x.id) !== id));
+      setSelectedId(null);
+      setShowDetails(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/worldbuilder/skills/${selected.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to delete skill");
+      }
+
+      setSkills((prev) => prev.filter((x) => String(x.id) !== id));
+      setSelectedId(null);
+      setShowDetails(false);
+      alert("Skill deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting skill:", error);
+      alert(`Failed to delete skill: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   }
 
   function updateSelected(patch: Partial<Skill>) {
@@ -1210,11 +1278,75 @@ export default function SkillsetsPage() {
     );
   }
 
-  function saveSelected() {
+  async function saveSelected() {
     if (!selected) return;
-    // UI-only "save" — Copilot can hook this to /api/skills later
-    console.log("Skill saved (UI only):", selected);
-    alert("Skill saved locally in UI (no API wired yet).");
+    
+    try {
+      const payload = {
+        name: selected.name,
+        type: selected.type,
+        tier: selected.tier,
+        primaryAttribute: selected.primary_attribute,
+        secondaryAttribute: selected.secondary_attribute,
+        isFree: selected.is_free ?? true,
+        definition: selected.definition || null,
+        parentId: selected.parent_id || null,
+        parent2Id: selected.parent2_id || null,
+        parent3Id: selected.parent3_id || null,
+      };
+
+      const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+      let response;
+      if (isNew) {
+        response = await fetch("/api/worldbuilder/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        response = await fetch(`/api/worldbuilder/skills/${selected.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save skill");
+      }
+
+      if (isNew && data.skill) {
+        const oldId = selected.id;
+        const transformed = {
+          id: data.skill.id,
+          name: data.skill.name,
+          type: data.skill.type,
+          tier: data.skill.tier,
+          primary_attribute: data.skill.primaryAttribute,
+          secondary_attribute: data.skill.secondaryAttribute,
+          is_free: data.skill.isFree,
+          definition: data.skill.definition,
+          parent_id: data.skill.parentId,
+          parent2_id: data.skill.parent2Id,
+          parent3_id: data.skill.parent3Id,
+          created_by: data.skill.createdBy,
+          created_at: data.skill.createdAt,
+          updated_at: data.skill.updatedAt,
+        };
+        setSkills((prev) =>
+          prev.map((s) => (String(s.id) === String(oldId) ? transformed : s))
+        );
+        setSelectedId(data.skill.id);
+      }
+
+      alert("Skill saved successfully!");
+    } catch (error) {
+      console.error("Error saving skill:", error);
+      alert(`Failed to save skill: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   }
 
   function setParentsOrdered(
@@ -1603,6 +1735,21 @@ export default function SkillsetsPage() {
                     This is the label that will show up everywhere:
                     races, world builder, and modules.
                   </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.is_free ?? true}
+                        onChange={(e) =>
+                          updateSelected({ is_free: e.target.checked })
+                        }
+                        className="w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
+                      />
+                      <span className="text-sm text-zinc-300">
+                        Free (available to all users)
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="shrink-0 flex flex-col items-end gap-2">
@@ -1620,7 +1767,7 @@ export default function SkillsetsPage() {
                       type="button"
                       onClick={saveSelected}
                     >
-                      💾 Save
+                       Save
                     </Button>
                     <Button
                       variant="secondary"
