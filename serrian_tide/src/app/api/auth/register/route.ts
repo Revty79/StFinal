@@ -3,6 +3,7 @@ import { db, schema } from "@/db/client";
 import { eq, or } from "drizzle-orm";
 import crypto from "crypto";
 import { hashPassword } from "@/lib/auth";
+import { createSession } from "@/server/session";
 
 // POST /api/auth/register
 export async function POST(req: Request) {
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
       roleCode: "free",
       // grantedAt default in DB
     });
+
+    // Create session (auto-login after registration)
+    await createSession(id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
