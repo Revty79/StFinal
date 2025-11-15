@@ -8,6 +8,13 @@
       "when": 1763169420145,
       "tag": "0000_special_the_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763183587176,
+      "tag": "0001_solid_namor",
+      "breakpoints": true
     }
   ]
 }

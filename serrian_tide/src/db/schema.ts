@@ -55,3 +55,13 @@ export const sessions = pgTable(
     byUser: index('idx_sessions_user').on(t.userId),
   })
 );
+
+export const userPreferences = pgTable('user_preferences', {
+  userId: varchar('user_id', { length: 36 })
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  theme: varchar('theme', { length: 50 }).default('void'),
+  backgroundImage: varchar('background_image', { length: 255 }).default('nebula.png'),
+  gearImage: varchar('gear_image', { length: 255 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
