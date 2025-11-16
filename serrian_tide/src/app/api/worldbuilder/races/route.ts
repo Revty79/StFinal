@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const id = crypto.randomUUID();
 
-    await db.insert(schema.races).values({
+    const newRace = {
       id,
       createdBy: user.id,
       name: body.name,
@@ -50,9 +50,11 @@ export async function POST(req: Request) {
       specialAbilities: body.specialAbilities || null,
       isFree: body.isFree !== undefined ? body.isFree : true,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
-    });
+    };
 
-    return NextResponse.json({ ok: true, id });
+    await db.insert(schema.races).values(newRace);
+
+    return NextResponse.json({ ok: true, id, race: newRace });
   } catch (err) {
     console.error("Create race error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

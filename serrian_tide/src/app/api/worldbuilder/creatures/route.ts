@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const id = crypto.randomUUID();
 
-    await db.insert(schema.creatures).values({
+    const newCreature = {
       id,
       createdBy: user.id,
       name: body.name,
@@ -76,9 +76,11 @@ export async function POST(req: Request) {
       notes: body.notes || null,
       isFree: body.isFree !== undefined ? body.isFree : true,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
-    });
+    };
 
-    return NextResponse.json({ ok: true, id });
+    await db.insert(schema.creatures).values(newCreature);
+
+    return NextResponse.json({ ok: true, id, creature: newCreature });
   } catch (err) {
     console.error("Create creature error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

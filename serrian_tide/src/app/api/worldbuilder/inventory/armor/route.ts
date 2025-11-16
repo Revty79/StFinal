@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const id = crypto.randomUUID();
 
-    await db.insert(schema.inventoryArmor).values({
+    const newArmor = {
       id,
       createdBy: user.id,
       name: body.name,
@@ -57,9 +57,11 @@ export async function POST(req: Request) {
       narrativeNotes: body.narrativeNotes || null,
       isFree: body.isFree !== undefined ? body.isFree : true,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
-    });
+    };
 
-    return NextResponse.json({ ok: true, id });
+    await db.insert(schema.inventoryArmor).values(newArmor);
+
+    return NextResponse.json({ ok: true, id, armor: newArmor });
   } catch (err) {
     console.error("Create armor error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

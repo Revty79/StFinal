@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     const id = crypto.randomUUID();
     const tierValue = body.tier === null || body.tier === 'N/A' ? null : parseInt(body.tier);
 
-    await db.insert(schema.skills).values({
+    const newSkill = {
       id,
       createdBy: user.id,
       name: body.name,
@@ -97,9 +97,13 @@ export async function POST(req: Request) {
       parent3Id: body.parent3Id || null,
       isFree: body.isFree !== undefined ? body.isFree : true,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
-    });
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    return NextResponse.json({ ok: true, id });
+    await db.insert(schema.skills).values(newSkill);
+
+    return NextResponse.json({ ok: true, id, skill: newSkill });
   } catch (err) {
     console.error("Create skill error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

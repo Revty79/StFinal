@@ -1239,10 +1239,16 @@ export default function SkillsetsPage() {
     const id = String(selected.id);
     const isNew = typeof selected.id === "string" && selected.id.length < 20;
 
+    // If it's a temporary ID (never saved to DB), just remove from UI
     if (isNew) {
       setSkills((prev) => prev.filter((x) => String(x.id) !== id));
       setSelectedId(null);
       setShowDetails(false);
+      return;
+    }
+
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete "${selected.name}"?`)) {
       return;
     }
 
@@ -1251,12 +1257,18 @@ export default function SkillsetsPage() {
         method: "DELETE",
       });
 
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (!data.ok) {
         throw new Error(data.error || "Failed to delete skill");
       }
 
+      // Successfully deleted from DB, now remove from UI
       setSkills((prev) => prev.filter((x) => String(x.id) !== id));
       setSelectedId(null);
       setShowDetails(false);
@@ -1264,6 +1276,7 @@ export default function SkillsetsPage() {
     } catch (error) {
       console.error("Error deleting skill:", error);
       alert(`Failed to delete skill: ${error instanceof Error ? error.message : "Unknown error"}`);
+      // Don't remove from UI if delete failed
     }
   }
 
