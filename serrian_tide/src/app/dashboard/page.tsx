@@ -37,7 +37,9 @@ function getCapabilities(role: string) {
 
   const canSeeAdmin = isAdmin;
 
-  return { isAdmin, canWorldBuild, canPublish, canSeeAdmin };
+  const canAccessSourceForge = isAdmin || r === "privileged";
+
+  return { isAdmin, canWorldBuild, canPublish, canSeeAdmin, canAccessSourceForge };
 }
 
 export default async function Dashboard() {
@@ -48,7 +50,7 @@ export default async function Dashboard() {
   if (!user) redirect("/login");
 
   const role = user.role.toLowerCase();
-  const { isAdmin, canWorldBuild, canPublish, canSeeAdmin } =
+  const { isAdmin, canWorldBuild, canPublish, canSeeAdmin, canAccessSourceForge } =
     getCapabilities(role);
 
   return (
@@ -82,7 +84,7 @@ export default async function Dashboard() {
       <section className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Galaxy Forge / World Builder (now far left) */}
-          <WorldBuilderCard canWorldBuild={canWorldBuild} role={role} />
+          <WorldBuilderCard canWorldBuild={canWorldBuild} role={role} canAccessSourceForge={canAccessSourceForge} />
 
           {/* Gods' Realm (everyone) */}
           <Card

@@ -55,7 +55,9 @@ type Attr = (typeof ATTR_ITEMS)[number];
 
 const TYPE_ITEMS = [
   "standard",
-  "magic",
+  "magic regeneration",
+  "magic access",
+  "magic stabilization",
   "sphere",
   "discipline",
   "resonance",
@@ -282,11 +284,14 @@ function MagicBuilder({
       ? "resonance"
       : "sphere";
 
+  // For looking up parent skills, spheres/disciplines/resonances should link to "magic access" skills
+  const parentType = "magic access";
+
   const pathOptions = useMemo(() => {
     const items = [
       "(none)",
       ...allSkills
-        .filter((s) => s.type === wantType)
+        .filter((s) => s.type === parentType)
         .map((s) => s.name)
         .sort(),
     ];
@@ -297,11 +302,11 @@ function MagicBuilder({
     ]
       .map((pid) => allSkills.find((x) => String(x.id) === String(pid)))
       .filter(Boolean) as Skill[];
-    const exact = seedParents.find((p) => p.type === wantType)?.name;
+    const exact = seedParents.find((p) => p.type === parentType)?.name;
     if (exact && items.includes(exact) && path === "(none)") setPath(exact);
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantType, allSkills, seedSkill?.id]);
+  }, [parentType, allSkills, seedSkill?.id]);
 
   const nodeSubtotal = (n: MBNode): number => {
     let m = CONTAINERS[n.container] || 0;

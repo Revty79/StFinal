@@ -6,44 +6,15 @@ import { GradientText } from "@/components/GradientText";
 interface WorldBuilderCardProps {
   canWorldBuild: boolean;
   role: string;
+  canAccessSourceForge: boolean;
 }
 
 export default function WorldBuilderCard({
   canWorldBuild,
   role,
+  canAccessSourceForge,
 }: WorldBuilderCardProps) {
-  if (!canWorldBuild) {
-    // Locked view for roles without world-building permissions
-    return (
-      <Card
-        padded={false}
-        className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl opacity-70"
-      >
-        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-500/30">
-          <div className="h-3 w-3 rounded-full bg-slate-300" />
-        </div>
-        <GradientText 
-          as="h3" 
-          variant="card-title" 
-          className="font-portcullion text-lg md:text-xl"
-        >
-          World Builder (Locked)
-        </GradientText>
-        <p className="mt-2 text-base text-zinc-300/90">
-          Your current role{" "}
-          <span className="font-semibold">{role}</span> does not have
-          world-building permissions yet.
-        </p>
-        <div className="mt-4">
-          <Button variant="secondary" size="sm" disabled>
-            Access Restricted
-          </Button>
-        </div>
-      </Card>
-    );
-  }
-
-  // Unlocked view for GMs / dev / privileged
+  // Always show Source Forge card
   return (
     <Card
       padded={false}
@@ -64,7 +35,7 @@ export default function WorldBuilderCard({
         G.O.D.
       </p>
       <div className="mt-4">
-        <Link href="/worldbuilder">
+        <Link href={canAccessSourceForge ? "/worldbuilder" : "/worldbuilder/coming-soon"}>
           <Button variant="primary" size="sm">
             Light The Forge
           </Button>

@@ -137,20 +137,48 @@ export default function RacesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
+  
+  // Skills for dropdowns
+  const [tier1Skills, setTier1Skills] = useState<Array<{ id: string; name: string }>>([]);
+  const [specialAbilitySkills, setSpecialAbilitySkills] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Load races from database on mount
+  // Load races and skills from database on mount
   useEffect(() => {
-    async function loadRaces() {
+    async function loadData() {
       try {
-        const response = await fetch("/api/worldbuilder/races");
-        const data = await response.json();
+        // Load races
+        const racesResponse = await fetch("/api/worldbuilder/races");
+        const racesData = await racesResponse.json();
         
-        if (!data.ok) {
-          throw new Error(data.error || "Failed to load races");
+        // Load skills
+        const skillsResponse = await fetch("/api/worldbuilder/skills");
+        const skillsData = await skillsResponse.json();
+        
+        if (!racesData.ok) {
+          throw new Error(racesData.error || "Failed to load races");
+        }
+        
+        if (!skillsData.ok) {
+          throw new Error(skillsData.error || "Failed to load skills");
         }
 
+        // Process skills
+        const allSkills = skillsData.skills || [];
+        const tier1 = allSkills
+          .filter((s: any) => s.tier === 1)
+          .map((s: any) => ({ id: s.id, name: s.name }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        
+        const specials = allSkills
+          .filter((s: any) => s.type === "special ability")
+          .map((s: any) => ({ id: s.id, name: s.name }))
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        
+        setTier1Skills(tier1);
+        setSpecialAbilitySkills(specials);
+
         // Transform API response to match our UI format
-        const transformed: RaceRecord[] = (data.races || []).map((r: any) => ({
+        const transformed: RaceRecord[] = (racesData.races || []).map((r: any) => ({
           id: r.id,
           name: r.name,
           tagline: r.tagline || "",
@@ -177,14 +205,14 @@ export default function RacesPage() {
 
         setRaces(transformed);
       } catch (error) {
-        console.error("Error loading races:", error);
-        alert(`Failed to load races: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error("Error loading data:", error);
+        alert(`Failed to load data: ${error instanceof Error ? error.message : "Unknown error"}`);
       } finally {
         setLoading(false);
       }
     }
 
-    loadRaces();
+    loadData();
   }, []);
 
   const selected: RaceRecord | null = useMemo(
@@ -1120,6 +1148,9 @@ export default function RacesPage() {
                       <h3 className="text-lg font-semibold mb-3 text-zinc-200">
                         Bonus Skills (Tier 1 only)
                       </h3>
+                      <p className="text-xs text-zinc-400 mb-3">
+                        Select from Tier 1 skills in your skills library.
+                      </p>
                       <div className="rounded-lg border border-white/15 bg-white/5 p-4">
                         <div className="grid gap-2">
                           {selected.bonusRows.map((row) => (
@@ -1127,8 +1158,7 @@ export default function RacesPage() {
                               key={row.slotIdx}
                               className="flex items-center gap-3"
                             >
-                              <Input
-                                placeholder="Skill name"
+                              <select
                                 value={row.skillName}
                                 onChange={(e) =>
                                   updateBonusRow(
@@ -1137,14 +1167,22 @@ export default function RacesPage() {
                                     e.target.value
                                   )
                                 }
-                                className="flex-1"
-                              />
-                              <span className="text-sm text-zinc-400">
+                                className="min-w-[300px] flex-1 rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
+                              >
+                                <option value="">(none)</option>
+                                {tier1Skills.map((skill) => (
+                                  <option key={skill.id} value={skill.name}>
+                                    {skill.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="text-sm text-zinc-400 shrink-0">
                                 pts
                               </span>
-                              <Input
+                              <input
                                 type="number"
                                 min={0}
+                                max={999}
                                 value={row.points}
                                 onChange={(e) =>
                                   updateBonusRow(
@@ -1153,7 +1191,7 @@ export default function RacesPage() {
                                     e.target.value
                                   )
                                 }
-                                className="w-20"
+                                className="w-16 shrink-0 rounded-lg border border-white/10 bg-neutral-950/50 px-2 py-2 text-sm text-zinc-100 text-center outline-none focus:ring-2 focus:ring-amber-400/40"
                               />
                             </div>
                           ))}
@@ -1165,6 +1203,9 @@ export default function RacesPage() {
                       <h3 className="text-lg font-semibold mb-3 text-zinc-200">
                         Racial Special Abilities
                       </h3>
+                      <p className="text-xs text-zinc-400 mb-3">
+                        Select from special ability type skills in your skills library.
+                      </p>
                       <div className="rounded-lg border border-white/15 bg-white/5 p-4">
                         <div className="grid gap-2">
                           {selected.specialRows.map((row) => (
@@ -1172,8 +1213,7 @@ export default function RacesPage() {
                               key={row.slotIdx}
                               className="flex items-center gap-3"
                             >
-                              <Input
-                                placeholder="Special ability"
+                              <select
                                 value={row.skillName}
                                 onChange={(e) =>
                                   updateSpecialRow(
@@ -1182,14 +1222,22 @@ export default function RacesPage() {
                                     e.target.value
                                   )
                                 }
-                                className="flex-1"
-                              />
-                              <span className="text-sm text-zinc-400">
+                                className="min-w-[300px] flex-1 rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
+                              >
+                                <option value="">(none)</option>
+                                {specialAbilitySkills.map((skill) => (
+                                  <option key={skill.id} value={skill.name}>
+                                    {skill.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="text-sm text-zinc-400 shrink-0">
                                 pts
                               </span>
-                              <Input
+                              <input
                                 type="number"
                                 min={0}
+                                max={999}
                                 value={row.points}
                                 onChange={(e) =>
                                   updateSpecialRow(
@@ -1198,7 +1246,7 @@ export default function RacesPage() {
                                     e.target.value
                                   )
                                 }
-                                className="w-20"
+                                className="w-16 shrink-0 rounded-lg border border-white/10 bg-neutral-950/50 px-2 py-2 text-sm text-zinc-100 text-center outline-none focus:ring-2 focus:ring-amber-400/40"
                               />
                             </div>
                           ))}

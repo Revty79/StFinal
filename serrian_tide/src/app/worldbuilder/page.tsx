@@ -109,142 +109,71 @@ export default async function SourceForgePage() {
       </header>
 
       <section className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {/* Worlds */}
+        {/* Info Card */}
+        <Card
+          variant="subtle"
+          padded={false}
+          className="mb-8 rounded-2xl border border-violet-300/30 bg-violet-300/5 p-4 backdrop-blur"
+        >
+          <p className="text-sm text-zinc-200 text-center">
+            <span className="font-semibold text-violet-200">Start here:</span> Use the{" "}
+            <span className="text-amber-200">World Builder's Toolbox</span> to create reusable components.
+            Then head to <span className="text-emerald-200">The G.O.D's Playground</span> to assemble your worlds.
+          </p>
+        </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* World Builder's Toolbox */}
           <Card
             padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition"
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8 shadow-2xl hover:shadow-[0_0_50px_rgba(251,191,36,0.2)] transition"
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-500/20">
-              <div className="h-3 w-3 rounded-full bg-violet-300" />
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-amber-400/20">
+              <div className="h-6 w-6 rounded-full bg-amber-300" />
             </div>
             <GradientText
               as="h2"
               variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
+              className="font-portcullion text-2xl md:text-3xl"
             >
-              Worlds
+              World Builder's Toolbox
             </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Define the big canvases: cosmology, tone, high-level rules that
-              eras, settings, campaigns and sessions will inherit.
+            <p className="mt-3 text-base text-zinc-300/90 leading-relaxed">
+              Create reusable components: races, creatures, skills, inventory, calendars, factions, magic systems, and more.
             </p>
-            <div className="mt-4">
+            
+            <div className="mt-6">
+              <Link href="/worldbuilder/toolbox">
+                <Button variant="primary" size="md" className="w-full">
+                  Open Toolbox
+                </Button>
+              </Link>
+            </div>
+          </Card>
+
+          {/* The G.O.D's Playground */}
+          <Card
+            padded={false}
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8 shadow-2xl hover:shadow-[0_0_50px_rgba(167,139,250,0.2)] transition"
+          >
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-violet-400/20">
+              <div className="h-6 w-6 rounded-full bg-violet-300" />
+            </div>
+            <GradientText
+              as="h2"
+              variant="card-title"
+              className="font-portcullion text-2xl md:text-3xl"
+            >
+              The G.O.D's Playground
+            </GradientText>
+            <p className="mt-3 text-base text-zinc-300/90 leading-relaxed">
+              Assemble complete worlds by combining your tools and defining cosmology, eras, and the rules that govern reality.
+            </p>
+            
+            <div className="mt-6">
               <Link href="/worldbuilder/worlds">
-                <Button variant="primary" size="sm">
-                  Enter Worlds
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          {/* Races */}
-          <Card
-            padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(52,211,153,0.15)] transition"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/20">
-              <div className="h-3 w-3 rounded-full bg-emerald-300" />
-            </div>
-            <GradientText
-              as="h2"
-              variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
-            >
-              Races
-            </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Create peoples, lineages, and strange bloodlines that will live
-              in your worlds.
-            </p>
-            <div className="mt-4">
-              <Link href="/worldbuilder/races">
-                <Button variant="primary" size="sm">
-                  Enter Races
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          {/* Skillsets */}
-          <Card
-            padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] transition"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/20">
-              <div className="h-3 w-3 rounded-full bg-blue-300" />
-            </div>
-            <GradientText
-              as="h2"
-              variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
-            >
-              Skillsets
-            </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Define skills, spell lists, disciplines, and other engines that
-              power characters and creatures.
-            </p>
-            <div className="mt-4">
-              <Link href="/worldbuilder/skillsets">
-                <Button variant="primary" size="sm">
-                  Enter Skillsets
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          {/* Creatures */}
-          <Card
-            padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(248,113,113,0.15)] transition"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-rose-500/20">
-              <div className="h-3 w-3 rounded-full bg-rose-300" />
-            </div>
-            <GradientText
-              as="h2"
-              variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
-            >
-              Creatures
-            </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Build monsters, NPCs, and beasts that inhabit your worlds and
-              test your tables.
-            </p>
-            <div className="mt-4">
-              <Link href="/worldbuilder/creatures">
-                <Button variant="primary" size="sm">
-                  Enter Creatures
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          {/* Inventory */}
-          <Card
-            padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(251,191,36,0.15)] transition"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500/20">
-              <div className="h-3 w-3 rounded-full bg-amber-300" />
-            </div>
-            <GradientText
-              as="h2"
-              variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
-            >
-              Inventory
-            </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Manage weapons, gear, artifacts, and other tangible stuff that
-              flows through your worlds.
-            </p>
-            <div className="mt-4">
-              <Link href="/worldbuilder/inventory">
-                <Button variant="primary" size="sm">
-                  Enter Inventory
+                <Button variant="primary" size="md" className="w-full">
+                  Enter Playground
                 </Button>
               </Link>
             </div>
