@@ -98,6 +98,29 @@ type Skill = {
   updated_at?: string | null;
 };
 
+function transformApiSkill(s: any): Skill {
+  return {
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    tier: s.tier,
+    primary_attribute: s.primaryAttribute,
+    secondary_attribute: s.secondaryAttribute,
+    is_free: s.isFree ?? true,
+    definition: s.definition ?? "",
+    parent_id: s.parentId ?? null,
+    parent2_id: s.parent2Id ?? null,
+    parent3_id: s.parent3Id ?? null,
+    created_by: s.createdBy
+      ? typeof s.createdBy === "object"
+        ? { id: s.createdBy.id, username: s.createdBy.username }
+        : { id: s.createdBy, username: "" }
+      : null,
+    created_at: s.createdAt ?? null,
+    updated_at: s.updatedAt ?? null,
+  };
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 const tierToText = (t: number | null): TierText =>
   t === null ? "N/A" : (String(t) as TierText);
@@ -278,15 +301,12 @@ function MagicBuilder({
   const [notes, setNotes] = useState<string>("");
   const [flavor, setFlavor] = useState<string>("");
 
-  const wantType =
-    trad.startsWith("Psionics")
-      ? "discipline"
-      : trad.startsWith("Bardic")
-      ? "resonance"
-      : "sphere";
-
-  // For looking up parent skills, spheres/disciplines/resonances should link to "magic access" skills
-  const parentType = "magic access";
+  // For looking up parent skills, spheres/disciplines/resonances should link to tier 2 skills
+  const parentType = trad.startsWith("Psionics")
+    ? "discipline"
+    : trad.startsWith("Bardic")
+    ? "resonance"
+    : "sphere";
 
   const pathOptions = useMemo(() => {
     const items = [
@@ -720,7 +740,7 @@ function MagicBuilder({
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
             onClick={saveBuild}
           >
-             Save
+            Save
           </button>
           <button
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
@@ -859,8 +879,7 @@ function SpecialAbilityDetails({
   onClose: () => void;
 }) {
   const [abilityType, setAbilityType] = useState<string>("Utility");
-  const [scalingMethod, setScalingMethod] =
-    useState<string>("Point-Based");
+  const [scalingMethod, setScalingMethod] = useState<string>("Point-Based");
   const [prereq, setPrereq] = useState<string>("");
   const [details, setDetails] = useState<string>("");
   const [sections, setSections] = useState<UpSection[]>([
@@ -882,9 +901,7 @@ function SpecialAbilityDetails({
     setSections((arr) => {
       const cp = [...arr];
       cp.splice(idx, 1);
-      return cp.length
-        ? cp
-        : [{ tag: "", desc: "", points: "" }];
+      return cp.length ? cp : [{ tag: "", desc: "", points: "" }];
     });
 
   const save = async () => {
@@ -938,7 +955,7 @@ function SpecialAbilityDetails({
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
             onClick={save}
           >
-             Save
+            Save
           </button>
           <button
             className="rounded border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
@@ -1031,7 +1048,11 @@ function SpecialAbilityDetails({
                     const cp = [...sections];
                     const existing = cp[i];
                     if (existing) {
-                      cp[i] = { tag: e.target.value, desc: existing.desc, points: existing.points };
+                      cp[i] = {
+                        tag: e.target.value,
+                        desc: existing.desc,
+                        points: existing.points,
+                      };
                     }
                     setSections(cp);
                   }}
@@ -1046,7 +1067,11 @@ function SpecialAbilityDetails({
                     const cp = [...sections];
                     const existing = cp[i];
                     if (existing) {
-                      cp[i] = { tag: existing.tag, desc: existing.desc, points: e.target.value };
+                      cp[i] = {
+                        tag: existing.tag,
+                        desc: existing.desc,
+                        points: e.target.value,
+                      };
                     }
                     setSections(cp);
                   }}
@@ -1063,7 +1088,11 @@ function SpecialAbilityDetails({
                   const cp = [...sections];
                   const existing = cp[i];
                   if (existing) {
-                    cp[i] = { tag: existing.tag, desc: e.target.value, points: existing.points };
+                    cp[i] = {
+                      tag: existing.tag,
+                      desc: e.target.value,
+                      points: existing.points,
+                    };
                   }
                   setSections(cp);
                 }}
@@ -1087,7 +1116,91 @@ function SpecialAbilityDetails({
 }
 
 /* ==========================================================
-   MAIN EDITOR — UI-only, ready for DB/API wiring
+   BULK IMPORT HELPERS
+   ========================================================== */
+
+type BulkRow = {
+  primaryAttribute: Attr;
+  secondaryAttribute: Attr;
+  type: SkillType;
+  tier: number | null;
+  name: string;
+  parentName: string | null;
+  definition: string;
+};
+
+function normalizeAttr(raw: string): Attr {
+  const up = raw.trim().toUpperCase();
+  if (!up || up === "N/A" || up === "NA") return "NA";
+  const found = ATTR_ITEMS.find((a) => a === up);
+  return (found ?? "NA") as Attr;
+}
+
+function normalizeType(raw: string): SkillType {
+  const low = raw.trim().toLowerCase();
+  const found = TYPE_ITEMS.find((t) => t.toLowerCase() === low);
+  return (found ?? "standard") as SkillType;
+}
+
+function normalizeTier(raw: string): number | null {
+  const t = raw.trim();
+  if (!t || t.toUpperCase() === "N/A") return null;
+  const n = parseInt(t, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function parseBulkInput(text: string): BulkRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (!lines.length) return [];
+
+  // Drop header row if present
+  if (lines[0] && (/skill name/i.test(lines[0]) || /primary attribute/i.test(lines[0]))) {
+    lines.shift();
+  }
+
+  const rows: BulkRow[] = [];
+
+  for (const line of lines) {
+    const cols = line.split("\t");
+    if (cols.length < 7) continue;
+
+    const [
+      primaryAttrRaw,
+      secondaryAttrRaw,
+      typeRaw,
+      tierRaw,
+      nameRaw,
+      parentRaw,
+      defRaw,
+    ] = cols;
+
+    const name = (nameRaw || "").trim();
+    if (!name) continue;
+
+    rows.push({
+      primaryAttribute: normalizeAttr(primaryAttrRaw || ""),
+      secondaryAttribute: normalizeAttr(secondaryAttrRaw || ""),
+      type: normalizeType(typeRaw || ""),
+      tier: normalizeTier(tierRaw || ""),
+      name,
+      parentName:
+        (parentRaw || "").trim() &&
+        !/^(n\/a|na)$/i.test(parentRaw || "")
+          ? (parentRaw || "").trim()
+          : null,
+      definition: (defRaw || "").trim(),
+    });
+  }
+
+  return rows;
+}
+
+/* ==========================================================
+   MAIN EDITOR — wired to DB/API + bulk import
    ========================================================== */
 
 type SkillTabKey = "core" | "parents" | "preview";
@@ -1102,9 +1215,17 @@ export default function SkillsetsPage() {
   const router = useRouter();
 
   // Current user
-  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    role: string;
+  } | null>(null);
 
-  // Esc -> back/fallback (still just UI)
+  // Bulk import state
+  const [importText, setImportText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  // Esc -> back/fallback
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -1117,7 +1238,7 @@ export default function SkillsetsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [router]);
 
-  // UI-only data (starts empty; Copilot can swap in initial fetch)
+  // Data
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1135,32 +1256,20 @@ export default function SkillsetsPage() {
 
         const response = await fetch("/api/worldbuilder/skills");
         const data = await response.json();
-        
+
         if (!data.ok) {
           throw new Error(data.error || "Failed to load skills");
         }
 
-        const transformed: Skill[] = (data.skills || []).map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          type: s.type,
-          tier: s.tier,
-          primary_attribute: s.primaryAttribute,
-          secondary_attribute: s.secondaryAttribute,
-          is_free: s.isFree ?? true,
-          definition: s.definition,
-          parent_id: s.parentId,
-          parent2_id: s.parent2Id,
-          parent3_id: s.parent3Id,
-          created_by: s.createdBy ? { username: s.createdBy.username, id: s.createdBy.id } : null,
-          created_at: s.createdAt,
-          updated_at: s.updatedAt,
-        }));
-
+        const transformed: Skill[] = (data.skills || []).map(transformApiSkill);
         setSkills(transformed);
       } catch (error) {
         console.error("Error loading skills:", error);
-        alert(`Failed to load skills: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to load skills: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       } finally {
         setLoading(false);
       }
@@ -1184,8 +1293,7 @@ export default function SkillsetsPage() {
   const [showDetails, setShowDetails] = useState<boolean>(false);
 
   const selected = useMemo(
-    () =>
-      skills.find((s) => String(s.id) === String(selectedId)) ?? null,
+    () => skills.find((s) => String(s.id) === String(selectedId)) ?? null,
     [skills, selectedId]
   );
 
@@ -1226,7 +1334,7 @@ export default function SkillsetsPage() {
     if (pageIndex >= pages) setPageIndex(Math.max(0, pages - 1));
   }, [pages, pageIndex]);
 
-  // CRUD shell — UI only
+  // CRUD shell
   function createSkill() {
     const now = new Date().toISOString();
     const item: Skill = {
@@ -1257,9 +1365,11 @@ export default function SkillsetsPage() {
 
     const isAdmin = currentUser.role?.toLowerCase() === "admin";
     const isCreator = selected.created_by?.id === currentUser.id;
-    
+
     if (!isNew && !isAdmin && !isCreator) {
-      alert("You can only delete skills you created. Admins can delete any skill.");
+      alert(
+        "You can only delete skills you created. Admins can delete any skill."
+      );
       return;
     }
 
@@ -1299,7 +1409,11 @@ export default function SkillsetsPage() {
       alert("Skill deleted successfully!");
     } catch (error) {
       console.error("Error deleting skill:", error);
-      alert(`Failed to delete skill: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to delete skill: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
       // Don't remove from UI if delete failed
     }
   }
@@ -1317,7 +1431,7 @@ export default function SkillsetsPage() {
 
   async function saveSelected() {
     if (!selected) return;
-    
+
     try {
       const payload = {
         name: selected.name,
@@ -1355,40 +1469,28 @@ export default function SkillsetsPage() {
         throw new Error(data.error || "Failed to save skill");
       }
 
-      if (isNew && data.skill) {
-        const oldId = selected.id;
-        const transformed = {
-          id: data.skill.id,
-          name: data.skill.name,
-          type: data.skill.type,
-          tier: data.skill.tier,
-          primary_attribute: data.skill.primaryAttribute,
-          secondary_attribute: data.skill.secondaryAttribute,
-          is_free: data.skill.isFree,
-          definition: data.skill.definition,
-          parent_id: data.skill.parentId,
-          parent2_id: data.skill.parent2Id,
-          parent3_id: data.skill.parent3Id,
-          created_by: data.skill.createdBy,
-          created_at: data.skill.createdAt,
-          updated_at: data.skill.updatedAt,
-        };
+      if (data.skill) {
+        const updated = transformApiSkill(data.skill);
         setSkills((prev) =>
-          prev.map((s) => (String(s.id) === String(oldId) ? transformed : s))
+          prev.map((s) =>
+            String(s.id) === String(selected.id) ? updated : s
+          )
         );
-        setSelectedId(data.skill.id);
+        setSelectedId(updated.id as string);
       }
 
       alert("Skill saved successfully!");
     } catch (error) {
       console.error("Error saving skill:", error);
-      alert(`Failed to save skill: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to save skill: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
-  function setParentsOrdered(
-    ids: (string | number | null | undefined)[]
-  ) {
+  function setParentsOrdered(ids: (string | number | null | undefined)[]) {
     const ordered = ids
       .filter(Boolean)
       .map(String)
@@ -1420,17 +1522,13 @@ export default function SkillsetsPage() {
     lines.push(`Type: ${s.type} · Tier: ${tierToText(s.tier)}`);
     lines.push(
       `Attributes: ${s.primary_attribute}${
-        s.secondary_attribute !== "NA"
-          ? ` / ${s.secondary_attribute}`
-          : ""
+        s.secondary_attribute !== "NA" ? ` / ${s.secondary_attribute}` : ""
       }`
     );
     lines.push("");
 
     const parents = [s.parent_id, s.parent2_id, s.parent3_id]
-      .map((id) =>
-        skills.find((x) => String(x.id) === String(id))?.name
-      )
+      .map((id) => skills.find((x) => String(x.id) === String(id))?.name)
       .filter(Boolean);
 
     lines.push(
@@ -1455,6 +1553,106 @@ export default function SkillsetsPage() {
   const showSpecialDetails =
     showDetails && selected && selected.type === "special ability";
 
+  async function handleBulkImport() {
+    if (!importText.trim()) {
+      alert("Paste your data first.");
+      return;
+    }
+
+    const rows = parseBulkInput(importText);
+    if (!rows.length) {
+      setImportResult(
+        "No valid rows found. Make sure columns are tab-separated."
+      );
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    // map existing skill names → ids (user-local)
+    const nameToId = new Map<string, string>();
+    for (const s of skills) {
+      if (!s.name) continue;
+      nameToId.set(s.name.trim().toLowerCase(), String(s.id));
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+    const createdSkills: Skill[] = [];
+
+    try {
+      for (const row of rows) {
+        const key = row.name.trim().toLowerCase();
+
+        // avoid double-imports
+        if (nameToId.has(key)) {
+          skipped++;
+          continue;
+        }
+
+        let parentId: string | null = null;
+        if (row.parentName) {
+          const parentKey = row.parentName.trim().toLowerCase();
+          const knownParentId = nameToId.get(parentKey);
+          if (knownParentId) {
+            parentId = knownParentId;
+          }
+        }
+
+        const payload = {
+          name: row.name,
+          type: row.type,
+          tier: row.tier,
+          primaryAttribute: row.primaryAttribute,
+          secondaryAttribute: row.secondaryAttribute,
+          isFree: true,
+          definition: row.definition,
+          parentId,
+        };
+
+        const res = await fetch("/api/worldbuilder/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          failed++;
+          continue;
+        }
+
+        const data = await res.json();
+        if (!data.ok || !data.skill) {
+          failed++;
+          continue;
+        }
+
+        const created = transformApiSkill(data.skill);
+        createdSkills.push(created);
+        nameToId.set(key, String(created.id));
+        imported++;
+      }
+
+      if (createdSkills.length) {
+        setSkills((prev) => [...createdSkills, ...prev]);
+      }
+
+      setImportResult(
+        `Import complete: ${imported} added, ${skipped} skipped (already existed), ${failed} failed.`
+      );
+    } catch (err) {
+      console.error("Bulk import error:", err);
+      setImportResult(
+        "Import failed: " +
+          (err instanceof Error ? err.message : "Unknown error")
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   /* ---------- render ---------- */
 
   return (
@@ -1474,7 +1672,6 @@ export default function SkillsetsPage() {
             <p className="mt-1 text-sm text-zinc-300/90 max-w-2xl">
               Define and manage the full skill lattice: standards,
               magic, psionics, reverberations, and special abilities.
-              Currently UI-only; DB/API wiring comes next.
             </p>
           </div>
           <div className="flex gap-3 justify-end">
@@ -1592,7 +1789,11 @@ export default function SkillsetsPage() {
           {/* List */}
           <div className="mt-2 flex-1 min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
             <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-b border-white/10">
-              <span>Results: {filtered.length}</span>
+              <span>
+                {loading
+                  ? "Loading skills…"
+                  : `Results: ${filtered.length}`}
+              </span>
               <div className="flex items-center gap-1">
                 <span>Page size</span>
                 <select
@@ -1613,11 +1814,15 @@ export default function SkillsetsPage() {
             </div>
 
             <div className="max-h-[420px] overflow-auto">
-              {pageRows.length === 0 ? (
+              {loading ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  Loading…
+                </div>
+              ) : pageRows.length === 0 ? (
                 <div className="px-3 py-6 text-center text-xs text-zinc-500">
                   {skills.length
                     ? "No results."
-                    : "No skills yet. Create your first one."}
+                    : "No skills yet. Create your first one or use bulk import below."}
                 </div>
               ) : (
                 <table className="w-full text-xs">
@@ -1739,11 +1944,62 @@ export default function SkillsetsPage() {
               variant="secondary"
               size="sm"
               type="button"
-              disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.created_by?.id !== currentUser.id)}
+              disabled={
+                !selected ||
+                !currentUser ||
+                (currentUser.role?.toLowerCase() !== "admin" &&
+                  selected.created_by?.id !== currentUser.id)
+              }
               onClick={deleteSelected}
             >
               Delete Selected
             </Button>
+          </div>
+
+          {/* Bulk import from spreadsheet (tab-separated) */}
+          <div className="mt-4 rounded-2xl border border-dashed border-amber-300/50 bg-amber-300/5 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-amber-100">
+                Bulk import skills
+              </span>
+              <span className="text-[10px] text-amber-200/80">
+                Paste tab-separated rows
+              </span>
+            </div>
+
+            <textarea
+              className="w-full h-32 rounded-xl border border-white/15 bg-black/60 px-2 py-1 text-[11px] text-zinc-100 font-mono"
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={[
+                "Primary Attribute\tSecondary Attribute\tSkill Type\tSkill Tier\tSkill Name\tParent Skill\tDefinition",
+                "STR\tN/A\tstandard\t1\tLoad-Bearing\tN/A\tTraining in managing physical load across the body...",
+                "STR\tN/A\tstandard\t2\tPowerlifting\tLoad-Bearing\tFocused on the exertion of maximum strength...",
+              ].join("\n")}
+            />
+
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                onClick={handleBulkImport}
+                disabled={isImporting}
+              >
+                {isImporting ? "Importing..." : "Import skills"}
+              </Button>
+              {importResult && (
+                <span className="text-[10px] text-amber-100">
+                  {importResult}
+                </span>
+              )}
+            </div>
+
+            <p className="text-[10px] text-amber-200/80">
+              Columns must be: Primary Attribute, Secondary Attribute, Skill
+              Type, Skill Tier, Skill Name, Parent Skill, Definition. Header row
+              is optional. Parents are matched by name if they already exist.
+            </p>
           </div>
         </Card>
 
@@ -1804,7 +2060,7 @@ export default function SkillsetsPage() {
                       type="button"
                       onClick={saveSelected}
                     >
-                       Save
+                      Save
                     </Button>
                     <Button
                       variant="secondary"
@@ -1836,8 +2092,7 @@ export default function SkillsetsPage() {
                             value={selected.type}
                             onChange={(e) => {
                               updateSelected({
-                                type:
-                                  e.target.value as SkillType,
+                                type: e.target.value as SkillType,
                               });
                               if (
                                 !DETAIL_TYPES.has(
@@ -1880,9 +2135,7 @@ export default function SkillsetsPage() {
                           value={tierToText(selected.tier)}
                           onChange={(e) =>
                             updateSelected({
-                              tier: textToTier(
-                                e.target.value as TierText
-                              ),
+                              tier: textToTier(e.target.value as TierText),
                             })
                           }
                         >
@@ -1905,8 +2158,7 @@ export default function SkillsetsPage() {
                           value={selected.primary_attribute}
                           onChange={(e) =>
                             updateSelected({
-                              primary_attribute:
-                                e.target.value as Attr,
+                              primary_attribute: e.target.value as Attr,
                             })
                           }
                         >
@@ -1991,8 +2243,7 @@ export default function SkillsetsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {(["parent_id", "parent2_id", "parent3_id"] as const).map(
                         (key, idx) => {
-                          const currentValue =
-                            (selected as any)[key] ?? "";
+                          const currentValue = (selected as any)[key] ?? "";
                           const id = `parent-${idx + 1}`;
                           return (
                             <FormField
@@ -2010,14 +2261,12 @@ export default function SkillsetsPage() {
                                 className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
                                 value={String(currentValue ?? "")}
                                 onChange={(e) => {
-                                  const ids: (string | number | null)[] =
-                                    [
-                                      selected.parent_id ?? null,
-                                      selected.parent2_id ?? null,
-                                      selected.parent3_id ?? null,
-                                    ];
-                                  ids[idx] =
-                                    e.target.value || null;
+                                  const ids: (string | number | null)[] = [
+                                    selected.parent_id ?? null,
+                                    selected.parent2_id ?? null,
+                                    selected.parent3_id ?? null,
+                                  ];
+                                  ids[idx] = e.target.value || null;
                                   setParentsOrdered(ids);
                                 }}
                               >
