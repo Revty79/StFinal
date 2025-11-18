@@ -88,6 +88,7 @@ export type NPC = {
   initiative?: number | null;
   armor_soak?: string | null;
   defense_notes?: string | null; // AC, resistances, notes
+  base_movement?: number | null; // Racial attribute for initiative calculation
 
   // Story / personality
   personality?: string | null; // quick read on vibe
@@ -151,6 +152,7 @@ export default function NPCsPage() {
   const [activeTab, setActiveTab] = useState<NPCTabKey>("identity");
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
+  const [races, setRaces] = useState<Array<{ id: number; name: string; baseMovement?: number }>>([]);
 
   // Load NPCs from database on mount (mirrors creatures)
   useEffect(() => {
@@ -163,6 +165,7 @@ export default function NPCsPage() {
           setCurrentUser({ id: userData.user.id, role: userData.user.role });
         }
 
+        // Load NPCs
         const response = await fetch("/api/worldbuilder/npcs");
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -173,6 +176,19 @@ export default function NPCsPage() {
 
         // Assuming data.npcs is an array of DB rows shaped similarly to NPC type
         setNpcs(data.npcs || []);
+
+        // Load races for dropdown
+        const racesResponse = await fetch("/api/worldbuilder/races");
+        if (racesResponse.ok) {
+          const racesData = await racesResponse.json();
+          if (racesData.ok && racesData.races) {
+            setRaces(racesData.races.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              baseMovement: r.baseMovement || 5
+            })));
+          }
+        }
       } catch (error) {
         console.error("Error loading NPCs:", error);
         alert(
@@ -250,6 +266,7 @@ export default function NPCsPage() {
       initiative: null,
       armor_soak: null,
       defense_notes: null,
+      base_movement: 5, // Default base movement
       personality: null,
       ideals: null,
       bonds: null,
@@ -446,6 +463,66 @@ export default function NPCsPage() {
   }
 
   /* ---------- preview text ---------- */
+
+  // Calculate modifier from attribute score
+  const calculateMod = (attrValue: number | null): number => {
+    if (attrValue === null || attrValue === undefined) return -5;
+    if (attrValue < 1) return -5;
+    if (attrValue === 1) return -5;
+    if (attrValue < 5) return -5;
+    if (attrValue < 10) return -4;
+    if (attrValue < 15) return -3;
+    if (attrValue < 20) return -2;
+    if (attrValue < 25) return -1;
+    if (attrValue < 30) return 0;
+    // At 30+, each 5 points adds +1
+    return Math.floor((attrValue - 25) / 5);
+  };
+
+  // Calculate percentage from attribute score
+  const calculatePercent = (attrValue: number | null): number => {
+    if (attrValue === null || attrValue === undefined) return 100;
+    return 100 - attrValue;
+  };
+
+  // Calculate HP total from constitution
+  const calculateHP = (constitution: number | null): number => {
+    if (constitution === null || constitution === undefined) return 0;
+    const baseHP = constitution * 2;
+    const conMod = calculateMod(constitution);
+    return baseHP + conMod;
+  };
+
+  // Calculate Base Initiative from Dexterity
+  const calculateBaseInitiative = (dexterity: number | null): number => {
+    if (dexterity === null || dexterity === undefined || dexterity < 1) return 1;
+    return 1 + Math.floor(dexterity / 5);
+  };
+
+  // Calculate Total Initiative
+  const calculateInitiative = (dexterity: number | null, baseMovement: number | null): number => {
+    const baseInit = calculateBaseInitiative(dexterity);
+    const movement = baseMovement ?? 5; // Default to 5 if not set
+    return baseInit * movement;
+  };
+
+  // Auto-calculate derived stats when attributes change
+  useEffect(() => {
+    if (!selected) return;
+    
+    const newHP = calculateHP(selected.constitution ?? null);
+    const newInitiative = calculateInitiative(selected.dexterity ?? null, selected.base_movement ?? null);
+    
+    // Only update if values changed to avoid infinite loops
+    if (selected.hp_total !== newHP || selected.initiative !== newInitiative) {
+      updateSelected({
+        hp_total: newHP,
+        initiative: newInitiative,
+      });
+    }
+  }, [selected?.strength, selected?.dexterity, selected?.constitution, 
+      selected?.intelligence, selected?.wisdom, selected?.charisma, 
+      selected?.base_movement]);
 
   const previewText = useMemo(() => {
     if (!selected) return "";
@@ -708,6 +785,33 @@ export default function NPCsPage() {
                             />
                           </FormField>
 
+                          <FormField
+                            label="Race / Species"
+                            htmlFor="npc-race-select"
+                            description="Select a race to auto-set Base Movement for initiative"
+                          >
+                            <select
+                              id="npc-race-select"
+                              value={selected.species ?? ""}
+                              onChange={(e) => {
+                                const raceName = e.target.value;
+                                const race = races.find(r => r.name === raceName);
+                                updateSelected({
+                                  species: raceName,
+                                  base_movement: race?.baseMovement ?? 5
+                                });
+                              }}
+                              className="w-full rounded-xl border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                            >
+                              <option value="">-- Select Race --</option>
+                              {races.map((race) => (
+                                <option key={race.id} value={race.name}>
+                                  {race.name}
+                                </option>
+                              ))}
+                            </select>
+                          </FormField>
+
                           <div className="grid gap-3 md:grid-cols-2">
                             <FormField
                               label="Importance"
@@ -743,20 +847,6 @@ export default function NPCsPage() {
 
                           <div className="grid gap-3 md:grid-cols-2">
                             <FormField
-                              label="Species / Ancestry"
-                              htmlFor="npc-species"
-                            >
-                              <Input
-                                id="npc-species"
-                                value={selected.species ?? ""}
-                                onChange={(e) =>
-                                  updateSelected({
-                                    species: e.target.value,
-                                  })
-                                }
-                              />
-                            </FormField>
-                            <FormField
                               label="Occupation"
                               htmlFor="npc-occupation"
                             >
@@ -770,9 +860,6 @@ export default function NPCsPage() {
                                 }
                               />
                             </FormField>
-                          </div>
-
-                          <div className="grid gap-3 md:grid-cols-2">
                             <FormField
                               label="Primary Location"
                               htmlFor="npc-location"
@@ -858,46 +945,83 @@ export default function NPCsPage() {
                       {/* STATS */}
                       {activeTab === "stats" && (
                         <div className="space-y-4">
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {(
-                              [
-                                ["STR", "strength"],
-                                ["DEX", "dexterity"],
-                                ["CON", "constitution"],
-                                ["INT", "intelligence"],
-                                ["WIS", "wisdom"],
-                                ["CHA", "charisma"],
-                              ] as const
-                            ).map(([label, key]) => (
-                              <FormField key={key} label={label} htmlFor={`npc-${key}`}>
-                                <Input
-                                  id={`npc-${key}`}
-                                  type="number"
-                                  value={
-                                    (selected as any)[key] ?? ""
-                                  }
-                                  onChange={(e) =>
-                                    updateSelected({
-                                      [key]:
-                                        e.target.value === ""
-                                          ? null
-                                          : Number(e.target.value),
-                                    } as any)
-                                  }
-                                />
-                              </FormField>
-                            ))}
+                          <Card className="rounded-2xl border border-blue-300/30 bg-blue-300/5 p-4">
+                            <p className="text-xs text-zinc-300">
+                              <span className="font-semibold text-blue-200">Auto-Calculated:</span> Modifiers (Mod) and 
+                              Percentages (%) are automatically calculated from attribute scores. HP and Initiative update 
+                              based on Constitution and Dexterity.
+                            </p>
+                          </Card>
+
+                          <div className="space-y-3">
+                            <p className="text-sm font-medium text-zinc-200">Core Attributes</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {(
+                                [
+                                  ["STR", "strength", "Strength"],
+                                  ["DEX", "dexterity", "Dexterity"],
+                                  ["CON", "constitution", "Constitution"],
+                                  ["INT", "intelligence", "Intelligence"],
+                                  ["WIS", "wisdom", "Wisdom"],
+                                  ["CHA", "charisma", "Charisma"],
+                                ] as const
+                              ).map(([label, key, fullName]) => {
+                                const attrValue = (selected as any)[key] ?? 0;
+                                const mod = calculateMod(attrValue);
+                                const percent = calculatePercent(attrValue);
+                                const modSign = mod >= 0 ? '+' : '';
+                                
+                                return (
+                                  <Card key={key} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-semibold text-violet-200">{label}</span>
+                                      <span className="text-[10px] text-zinc-400">{fullName}</span>
+                                    </div>
+                                    <FormField label="#" htmlFor={`npc-${key}`}>
+                                      <Input
+                                        id={`npc-${key}`}
+                                        type="number"
+                                        value={attrValue || ""}
+                                        onChange={(e) =>
+                                          updateSelected({
+                                            [key]:
+                                              e.target.value === ""
+                                                ? null
+                                                : Number(e.target.value),
+                                          } as any)
+                                        }
+                                        className="text-center"
+                                      />
+                                    </FormField>
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                      <div className="text-center">
+                                        <p className="text-[10px] text-zinc-400">Mod</p>
+                                        <p className="text-sm font-medium text-amber-200">{modSign}{mod}</p>
+                                      </div>
+                                      <div className="text-center">
+                                        <p className="text-[10px] text-zinc-400">%</p>
+                                        <p className="text-sm font-medium text-emerald-200">{percent}</p>
+                                      </div>
+                                    </div>
+                                  </Card>
+                                );
+                              })}
+                            </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <FormField label="HP Total" htmlFor="npc-hp-total">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                            <FormField 
+                              label="Base Movement" 
+                              htmlFor="npc-base-movement"
+                              description="Racial attribute for initiative (typically 3-5)"
+                            >
                               <Input
-                                id="npc-hp-total"
+                                id="npc-base-movement"
                                 type="number"
-                                value={selected.hp_total ?? ""}
+                                value={selected.base_movement ?? ""}
                                 onChange={(e) =>
                                   updateSelected({
-                                    hp_total:
+                                    base_movement:
                                       e.target.value === ""
                                         ? null
                                         : Number(e.target.value),
@@ -905,25 +1029,43 @@ export default function NPCsPage() {
                                 }
                               />
                             </FormField>
-                            <FormField label="Initiative" htmlFor="npc-initiative">
-                              <Input
-                                id="npc-initiative"
-                                type="number"
-                                value={selected.initiative ?? ""}
-                                onChange={(e) =>
-                                  updateSelected({
-                                    initiative:
-                                      e.target.value === ""
-                                        ? null
-                                        : Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </FormField>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                            <Card className="rounded-xl border border-emerald-400/30 bg-emerald-400/5 p-3">
+                              <FormField label="HP Total" htmlFor="npc-hp-total">
+                                <Input
+                                  id="npc-hp-total"
+                                  type="number"
+                                  value={selected.hp_total ?? ""}
+                                  readOnly
+                                  className="bg-black/40 text-emerald-200 font-semibold"
+                                />
+                              </FormField>
+                              <p className="text-[10px] text-zinc-400 mt-1">
+                                Auto: (CON × 2) + CON Mod
+                              </p>
+                            </Card>
+                            
+                            <Card className="rounded-xl border border-blue-400/30 bg-blue-400/5 p-3">
+                              <FormField label="Initiative" htmlFor="npc-initiative-display">
+                                <Input
+                                  id="npc-initiative-display"
+                                  type="number"
+                                  value={selected.initiative ?? ""}
+                                  readOnly
+                                  className="bg-black/40 text-blue-200 font-semibold"
+                                />
+                              </FormField>
+                              <p className="text-[10px] text-zinc-400 mt-1">
+                                Auto: Base Init × Base Movement
+                              </p>
+                            </Card>
+
                             <FormField
                               label="Armor / Soak"
                               htmlFor="npc-armor-soak"
-                              description="Armor rating, soak, shield, etc."
+                              description="Armor rating, soak, shield"
                             >
                               <Input
                                 id="npc-armor-soak"
