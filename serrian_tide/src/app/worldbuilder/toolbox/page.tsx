@@ -215,7 +215,7 @@ export default async function ToolboxPage() {
 
           <Card
             padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition"
           >
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/20">
               <div className="h-3 w-3 rounded-full bg-purple-300" />
@@ -225,15 +225,17 @@ export default async function ToolboxPage() {
               variant="card-title"
               className="font-portcullion text-lg md:text-xl"
             >
-              Magic Systems
+              NPCs
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Define how magic, psionics, or supernatural forces work in your universe.
+              Create NPCs with stats, personality, and story hooks for your worlds and campaigns.
             </p>
             <div className="mt-4">
-              <Button variant="ghost" size="sm" disabled>
-                Coming Soon
-              </Button>
+              <Link href="/worldbuilder/npcs">
+                <Button variant="primary" size="sm">
+                  Enter NPCs
+                </Button>
+              </Link>
             </div>
           </Card>
 
@@ -293,8 +295,8 @@ export default async function ToolboxPage() {
           className="mt-10 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 backdrop-blur"
         >
           <p className="text-sm text-zinc-200">
-            Active Tools: <span className="font-medium text-amber-200">4</span> | 
-            Coming Soon: <span className="font-medium text-zinc-400">5</span>
+            Active Tools: <span className="font-medium text-amber-200">5</span> | 
+            Coming Soon: <span className="font-medium text-zinc-400">4</span>
           </p>
         </Card>
       </section>

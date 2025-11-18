@@ -15,7 +15,7 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "creatures",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
     { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
@@ -23,6 +23,7 @@ function WBNav({
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
     { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   ] as const;
 
   return (
@@ -129,6 +130,13 @@ export default function CreaturesPage() {
   useEffect(() => {
     async function loadCreatures() {
       try {
+        // Load current user
+        const userResponse = await fetch("/api/profile/me");
+        const userData = await userResponse.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
         const response = await fetch("/api/worldbuilder/creatures");
         const data = await response.json();
         
@@ -227,11 +235,20 @@ export default function CreaturesPage() {
   }
 
   async function deleteSelected() {
-    if (!selected) return;
-    if (!confirm("Delete this creature?")) return;
+    if (!selected || !currentUser) return;
     
     const idStr = String(selected.id);
     const isNew = typeof selected.id === "string" && selected.id.length < 20;
+    
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+    const isCreator = selected.createdBy === currentUser.id;
+    
+    if (!isNew && !isAdmin && !isCreator) {
+      alert("You can only delete creatures you created. Admins can delete any creature.");
+      return;
+    }
+    
+    if (!confirm("Delete this creature?")) return;
 
     if (isNew) {
       setCreatures((prev) => prev.filter((c) => String(c.id) !== idStr));
@@ -545,7 +562,7 @@ export default function CreaturesPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected}
+                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
                 onClick={deleteSelected}
               >
                 Delete

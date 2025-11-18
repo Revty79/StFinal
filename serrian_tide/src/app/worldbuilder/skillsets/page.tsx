@@ -15,7 +15,7 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "skillsets",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
     { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
@@ -23,6 +23,7 @@ function WBNav({
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
     { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   ] as const;
 
   return (
@@ -92,7 +93,7 @@ type Skill = {
   parent_id?: string | number | null;
   parent2_id?: string | number | null;
   parent3_id?: string | number | null;
-  created_by?: { username?: string } | null;
+  created_by?: { username?: string; id?: string } | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -1100,6 +1101,9 @@ const SKILL_TABS: { id: SkillTabKey; label: string }[] = [
 export default function SkillsetsPage() {
   const router = useRouter();
 
+  // Current user
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+
   // Esc -> back/fallback (still just UI)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1122,6 +1126,13 @@ export default function SkillsetsPage() {
   useEffect(() => {
     async function loadSkills() {
       try {
+        // Load current user
+        const userResponse = await fetch("/api/profile/me");
+        const userData = await userResponse.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
         const response = await fetch("/api/worldbuilder/skills");
         const data = await response.json();
         
@@ -1141,7 +1152,7 @@ export default function SkillsetsPage() {
           parent_id: s.parentId,
           parent2_id: s.parent2Id,
           parent3_id: s.parent3Id,
-          created_by: s.createdBy,
+          created_by: s.createdBy ? { username: s.createdBy.username, id: s.createdBy.id } : null,
           created_at: s.createdAt,
           updated_at: s.updatedAt,
         }));
@@ -1240,9 +1251,17 @@ export default function SkillsetsPage() {
   }
 
   async function deleteSelected() {
-    if (!selected) return;
+    if (!selected || !currentUser) return;
     const id = String(selected.id);
     const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+    const isCreator = selected.created_by?.id === currentUser.id;
+    
+    if (!isNew && !isAdmin && !isCreator) {
+      alert("You can only delete skills you created. Admins can delete any skill.");
+      return;
+    }
 
     // If it's a temporary ID (never saved to DB), just remove from UI
     if (isNew) {
@@ -1720,7 +1739,7 @@ export default function SkillsetsPage() {
               variant="secondary"
               size="sm"
               type="button"
-              disabled={!selected}
+              disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.created_by?.id !== currentUser.id)}
               onClick={deleteSelected}
             >
               Delete Selected

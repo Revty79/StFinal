@@ -15,7 +15,7 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "inventory",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
     { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
@@ -23,6 +23,7 @@ function WBNav({
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
     { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   ] as const;
 
   return (
@@ -724,7 +725,7 @@ export default function InventoryPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected}
+                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
                 onClick={deleteSelected}
               >
                 Delete

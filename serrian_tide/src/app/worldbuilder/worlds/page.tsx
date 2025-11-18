@@ -25,7 +25,7 @@ const EXTRA_WORLD_SLOTS_PURCHASED = 0; // e.g. 1 = one extra slot purchased
 function WBNav({
   current = "worlds",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
     { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
@@ -33,6 +33,7 @@ function WBNav({
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
     { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   ] as const;
 
   return (

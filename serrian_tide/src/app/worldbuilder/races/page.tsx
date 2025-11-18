@@ -15,7 +15,7 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "races",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory";
+  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
     { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
@@ -23,6 +23,7 @@ function WBNav({
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
     { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   ] as const;
 
   return (
@@ -90,6 +91,7 @@ type RaceRecord = {
   name: string;
   tagline: string;
   is_free?: boolean;
+  createdBy?: string;
   def: RaceDefinition;
   attr: RaceAttributes;
   bonusRows: BonusRow[];
@@ -132,6 +134,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 export default function RacesPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("identity");
 
+  // User session
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+
   // Library of races
   const [races, setRaces] = useState<RaceRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -146,6 +151,13 @@ export default function RacesPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        // Load current user
+        const userResponse = await fetch("/api/profile/me");
+        const userData = await userResponse.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
         // Load races
         const racesResponse = await fetch("/api/worldbuilder/races");
         const racesData = await racesResponse.json();
@@ -183,6 +195,7 @@ export default function RacesPage() {
           name: r.name,
           tagline: r.tagline || "",
           is_free: r.isFree ?? true,
+          createdBy: r.createdBy,
           def: r.definition || {},
           attr: r.attributes || {},
           bonusRows: [
@@ -268,7 +281,16 @@ export default function RacesPage() {
   }
 
   async function deleteSelected() {
-    if (!selected) return;
+    if (!selected || !currentUser) return;
+    
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+    const isCreator = selected.createdBy === currentUser.id;
+    
+    if (!isAdmin && !isCreator) {
+      alert("You can only delete races you created. Admins can delete any race.");
+      return;
+    }
+    
     if (!confirm("Delete this race from the library?")) return;
     
     const idStr = String(selected.id);
@@ -674,7 +696,7 @@ export default function RacesPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected}
+                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
                 onClick={deleteSelected}
               >
                 Delete
