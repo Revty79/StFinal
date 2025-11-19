@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "npx tsx scripts/seed-roles.ts",
+    "db:setup": "npm run db:migrate && npm run db:seed",
     "db:push": "npm run db:generate && npm run db:migrate"
   },
   "dependencies": {
