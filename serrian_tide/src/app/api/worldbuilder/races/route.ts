@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, asc } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
@@ -15,8 +15,13 @@ export async function GET(req: Request) {
     const races = await db
       .select()
       .from(schema.races)
-      .where(eq(schema.races.createdBy, user.id))
-      .orderBy(schema.races.name);
+      .where(
+        or(
+          eq(schema.races.createdBy, user.id),
+          eq(schema.races.isFree, true)
+        )
+      )
+      .orderBy(asc(schema.races.name));
 
     // Transform races to include flattened max attributes for easier access
     const transformedRaces = races.map(race => {

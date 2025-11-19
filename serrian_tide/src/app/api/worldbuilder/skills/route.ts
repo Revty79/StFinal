@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and, or, inArray, sql } from "drizzle-orm";
+import { eq, and, or, inArray, sql, asc } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
@@ -18,14 +18,14 @@ export async function GET(req: Request) {
     const attribute = searchParams.get('attribute');
     const type = searchParams.get('type');
     const isSpecialAbility = searchParams.get('is_special_ability') === 'true';
-    
-    let query = db
-      .select()
-      .from(schema.skills)
-      .where(eq(schema.skills.createdBy, user.id));
 
-    // Build filters
-    const conditions: any[] = [eq(schema.skills.createdBy, user.id)];
+    // Build filters - include user's skills AND free skills
+    const conditions: any[] = [
+      or(
+        eq(schema.skills.createdBy, user.id),
+        eq(schema.skills.isFree, true)
+      )
+    ];
     
     if (tier) {
       const tierNum = tier === 'N/A' ? null : parseInt(tier);
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
       .select()
       .from(schema.skills)
       .where(and(...conditions))
-      .orderBy(schema.skills.name);
+      .orderBy(asc(schema.skills.name));
 
     return NextResponse.json({ ok: true, skills });
   } catch (err) {
