@@ -129,6 +129,157 @@ function makeBonusRows(count: number): BonusRow[] {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+/* ---------- Batch parsing helpers ---------- */
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase();
+}
+
+function parseBonusList(raw: string, max: number): BonusRow[] {
+  const out: BonusRow[] = [];
+  if (!raw) return makeBonusRows(max);
+  const txt = raw.trim();
+  if (!txt || /^none$/i.test(txt)) return makeBonusRows(max);
+
+  const parts = txt.split(",").map((p) => p.trim()).filter(Boolean);
+
+  for (const part of parts) {
+    if (out.length >= max) break;
+    // e.g. "Survival +4" or "Research & Analysis +2"
+    const m = part.match(/^(.*?)(?:\s*\+(-?\d+))?$/);
+    if (!m || !m[1]) continue;
+    const skillName = m[1].trim();
+    const points = m[2] ? m[2] : "0";
+    if (!skillName) continue;
+    out.push({
+      slotIdx: out.length,
+      skillName,
+      points,
+    });
+  }
+
+  while (out.length < max) {
+    out.push({
+      slotIdx: out.length,
+      skillName: "",
+      points: "0",
+    });
+  }
+
+  return out;
+}
+
+function normalizeSize(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.trim().toLowerCase();
+  if (!v) return null;
+  if (v === "medium" || v === "average") return "average";
+  if (["tiny", "small", "large", "gigantic", "titan"].includes(v)) return v;
+  // Fallback: keep original
+  return value;
+}
+
+function parseTSVToRaceRecords(raw: string): RaceRecord[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error("Need a header row plus at least one data row.");
+  }
+
+  const headerCells = (lines[0] ?? "").split("\t").map((h) => h.trim());
+  const headersNorm = headerCells.map(normalizeHeader);
+
+  const findIndex = (...candidates: string[]) => {
+    for (const c of candidates) {
+      const norm = c.toLowerCase();
+      const i = headersNorm.findIndex((h) => h === norm);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const records: RaceRecord[] = [];
+
+  for (let li = 1; li < lines.length; li++) {
+    const cols = (lines[li] ?? "").split("\t");
+
+    const get = (...names: string[]): string => {
+      const idx = findIndex(...names);
+      if (idx === -1) return "";
+      return (cols[idx] ?? "").trim();
+    };
+
+    const name = get("Race", "Name");
+    if (!name) continue; // skip blank row
+
+    const legacy = get("Legacy Description");
+    const physChars = get("Physical Characteristics");
+    const physDesc = get("Physicial Description", "Physical Description");
+    const ageRange = get("Age Range");
+    const sizeRaw = get("Size");
+    const strMax = get("Strenght Max", "Strength Max");
+    const dexMax = get("Dexterity Max");
+    const conMax = get("Constitution Max");
+    const intMax = get("Intelligence Max");
+    const wisMax = get("Wisdom Max");
+    const chaMax = get("Charisma Max");
+    const baseMagic = get("Base Magic");
+    const baseMove = get("Base Movement");
+    const racialQuirk = get("Racial Quirk");
+    const quirkSuccess = get("Quirk Success Effect");
+    const quirkFailure = get("Quirk Failure Effect");
+    const skillBonusStr = get("Skill Bonuses");
+    const racialSpecialStr = get("Racial Special Abilities");
+    const langs = get("Common Languages Known");
+    const archetypes = get("Common Archtypes", "Common Archetypes");
+    const examples = get("Examples of Use in Different Genres");
+    const mindset = get("Cultural Mindset");
+    const outlook = get("Outlook On Magic", "Outlook on Magic");
+
+    const bonusRows = parseBonusList(skillBonusStr, MAX_BONUS_SKILLS);
+    const specialRows = parseBonusList(racialSpecialStr, MAX_SPECIALS);
+
+    const rec: RaceRecord = {
+      id: uid(),
+      name,
+      tagline: "", // can be filled manually later if desired
+      is_free: true,
+      def: {
+        legacy_description: legacy || null,
+        physical_characteristics: physChars || null,
+        physical_description: physDesc || null,
+        racial_quirk: racialQuirk || null,
+        quirk_success_effect: quirkSuccess || null,
+        quirk_failure_effect: quirkFailure || null,
+        common_languages_known: langs || null,
+        common_archetypes: archetypes || null,
+        examples_by_genre: examples || null,
+        cultural_mindset: mindset || null,
+        outlook_on_magic: outlook || null,
+      },
+      attr: {
+        age_range: ageRange || null,
+        size: normalizeSize(sizeRaw),
+        strength_max: strMax || null,
+        dexterity_max: dexMax || null,
+        constitution_max: conMax || null,
+        intelligence_max: intMax || null,
+        wisdom_max: wisMax || null,
+        charisma_max: chaMax || null,
+        base_magic: baseMagic || null,
+        base_movement: baseMove || null,
+      },
+      bonusRows,
+      specialRows,
+    };
+
+    records.push(rec);
+  }
+
+  return records;
+}
+
 /* ---------- Page ---------- */
 
 export default function RacesPage() {
@@ -136,16 +287,23 @@ export default function RacesPage() {
 
   // User session
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+  const isAdmin = currentUser?.role?.toLowerCase() === "admin";
 
   // Library of races
   const [races, setRaces] = useState<RaceRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
-  
+
   // Skills for dropdowns
   const [tier1Skills, setTier1Skills] = useState<Array<{ id: string; name: string }>>([]);
   const [specialAbilitySkills, setSpecialAbilitySkills] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Batch uploader state
+  const [batchText, setBatchText] = useState("");
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchPreview, setBatchPreview] = useState<RaceRecord[]>([]);
+  const [batchUploading, setBatchUploading] = useState(false);
 
   // Load races and skills from database on mount
   useEffect(() => {
@@ -161,15 +319,15 @@ export default function RacesPage() {
         // Load races
         const racesResponse = await fetch("/api/worldbuilder/races");
         const racesData = await racesResponse.json();
-        
+
         // Load skills
         const skillsResponse = await fetch("/api/worldbuilder/skills");
         const skillsData = await skillsResponse.json();
-        
+
         if (!racesData.ok) {
           throw new Error(racesData.error || "Failed to load races");
         }
-        
+
         if (!skillsData.ok) {
           throw new Error(skillsData.error || "Failed to load skills");
         }
@@ -180,12 +338,12 @@ export default function RacesPage() {
           .filter((s: any) => s.tier === 1)
           .map((s: any) => ({ id: s.id, name: s.name }))
           .sort((a: any, b: any) => a.name.localeCompare(b.name));
-        
+
         const specials = allSkills
           .filter((s: any) => s.type === "special ability")
           .map((s: any) => ({ id: s.id, name: s.name }))
           .sort((a: any, b: any) => a.name.localeCompare(b.name));
-        
+
         setTier1Skills(tier1);
         setSpecialAbilitySkills(specials);
 
@@ -219,7 +377,11 @@ export default function RacesPage() {
         setRaces(transformed);
       } catch (error) {
         console.error("Error loading data:", error);
-        alert(`Failed to load data: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to load data: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       } finally {
         setLoading(false);
       }
@@ -282,17 +444,17 @@ export default function RacesPage() {
 
   async function deleteSelected() {
     if (!selected || !currentUser) return;
-    
-    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+
+    const isAdminLocal = currentUser.role?.toLowerCase() === "admin";
     const isCreator = selected.createdBy === currentUser.id;
-    
-    if (!isAdmin && !isCreator) {
+
+    if (!isAdminLocal && !isCreator) {
       alert("You can only delete races you created. Admins can delete any race.");
       return;
     }
-    
+
     if (!confirm("Delete this race from the library?")) return;
-    
+
     const idStr = String(selected.id);
     const isNew = typeof selected.id === "string" && selected.id.length < 20;
 
@@ -319,7 +481,11 @@ export default function RacesPage() {
       alert("Race deleted successfully!");
     } catch (error) {
       console.error("Error deleting race:", error);
-      alert(`Failed to delete race: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to delete race: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
@@ -348,10 +514,7 @@ export default function RacesPage() {
     );
   }
 
-  function updateAttr<K extends keyof RaceAttributes>(
-    key: K,
-    value: string
-  ) {
+  function updateAttr<K extends keyof RaceAttributes>(key: K, value: string) {
     if (!selected) return;
     const idStr = String(selected.id);
     setRaces((prev) =>
@@ -404,16 +567,22 @@ export default function RacesPage() {
 
   async function saveSelected() {
     if (!selected) return;
-    
+
     try {
       // Transform bonusRows and specialRows into the JSONB format expected by the API
       const bonusSkills = selected.bonusRows
         .filter((r) => r.skillName.trim() !== "")
-        .map((r) => ({ skillName: r.skillName, points: parseInt(r.points) || 0 }));
-      
+        .map((r) => ({
+          skillName: r.skillName,
+          points: parseInt(r.points) || 0,
+        }));
+
       const specialAbilities = selected.specialRows
         .filter((r) => r.skillName.trim() !== "")
-        .map((r) => ({ skillName: r.skillName, points: parseInt(r.points) || 0 }));
+        .map((r) => ({
+          skillName: r.skillName,
+          points: parseInt(r.points) || 0,
+        }));
 
       const payload = {
         name: selected.name,
@@ -467,7 +636,153 @@ export default function RacesPage() {
       alert("Race saved successfully!");
     } catch (error) {
       console.error("Error saving race:", error);
-      alert(`Failed to save race: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to save race: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  /* ---------- batch uploader actions ---------- */
+
+  function handleParseBatch() {
+    try {
+      if (!batchText.trim()) {
+        setBatchError("Paste tab-separated rows from your sheet first.");
+        setBatchPreview([]);
+        return;
+      }
+      const parsed = parseTSVToRaceRecords(batchText);
+      if (!parsed.length) {
+        setBatchError("No valid race rows found.");
+        setBatchPreview([]);
+        return;
+      }
+      setBatchPreview(parsed);
+      setBatchError(null);
+    } catch (err) {
+      console.error("Batch parse error:", err);
+      setBatchPreview([]);
+      setBatchError(
+        err instanceof Error ? err.message : "Failed to parse batch data."
+      );
+    }
+  }
+
+  async function handleCommitBatch() {
+    if (!isAdmin) return;
+    if (!batchPreview.length) {
+      alert("Parse some data first.");
+      return;
+    }
+    if (
+      !confirm(
+        `Import/update ${batchPreview.length} races? Matches are based on race name (case-insensitive).`
+      )
+    ) {
+      return;
+    }
+
+    setBatchUploading(true);
+    try {
+      const updatedRaces = [...races];
+
+      for (const row of batchPreview) {
+        const name = row.name.trim();
+        if (!name) continue;
+
+        const existingIdx = updatedRaces.findIndex(
+          (r) => r.name.trim().toLowerCase() === name.toLowerCase()
+        );
+
+        const bonusSkills = row.bonusRows
+          .filter((r) => r.skillName.trim() !== "")
+          .map((r) => ({
+            skillName: r.skillName,
+            points: parseInt(r.points) || 0,
+          }));
+
+        const specialAbilities = row.specialRows
+          .filter((r) => r.skillName.trim() !== "")
+          .map((r) => ({
+            skillName: r.skillName,
+            points: parseInt(r.points) || 0,
+          }));
+
+        const payload = {
+          name: row.name,
+          tagline: row.tagline || null,
+          isFree: row.is_free ?? true,
+          definition: row.def,
+          attributes: row.attr,
+          bonusSkills,
+          specialAbilities,
+        };
+
+        let response;
+        if (existingIdx >= 0) {
+          // Update existing race by name
+          const existing = updatedRaces[existingIdx];
+          if (!existing) continue;
+          response = await fetch(`/api/worldbuilder/races/${existing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // Create new race
+          response = await fetch("/api/worldbuilder/races", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        const data = await response.json();
+        if (!data.ok) {
+          throw new Error(
+            data.error || `Failed to save race "${row.name}"`
+          );
+        }
+
+        if (existingIdx >= 0) {
+          // Merge preview data into the existing local record
+          const existing = updatedRaces[existingIdx];
+          if (!existing) continue;
+          updatedRaces[existingIdx] = {
+            ...existing,
+            name: row.name,
+            tagline: row.tagline,
+            is_free: row.is_free,
+            def: row.def,
+            attr: row.attr,
+            bonusRows: row.bonusRows,
+            specialRows: row.specialRows,
+          };
+        } else if (data.race) {
+          // Add new race using the preview data plus server ID
+          updatedRaces.unshift({
+            ...row,
+            id: data.race.id,
+          });
+        }
+      }
+
+      setRaces(updatedRaces);
+      setBatchText("");
+      setBatchPreview([]);
+      setBatchError(null);
+      alert("Batch upload complete.");
+    } catch (err) {
+      console.error("Batch upload error:", err);
+      alert(
+        `Batch upload failed: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setBatchUploading(false);
     }
   }
 
@@ -515,9 +830,7 @@ export default function RacesPage() {
 
     lines.push("");
     lines.push("— Attributes —");
-    lines.push(
-      `Age / Size: ${nv(attr.age_range)} / ${nv(attr.size)}`
-    );
+    lines.push(`Age / Size: ${nv(attr.age_range)} / ${nv(attr.size)}`);
     lines.push(
       `STR / DEX / CON: ${nv(attr.strength_max)} / ${nv(
         attr.dexterity_max
@@ -580,9 +893,9 @@ export default function RacesPage() {
               The Source Forge — Races
             </GradientText>
             <p className="mt-1 text-sm text-zinc-300/90 max-w-2xl">
-              Define racial lore, attribute caps, and racial bonuses. This
-              screen is UI-only; DB wiring and auto-save will plug in after
-              we lock the structure.
+              Define racial lore, attribute caps, and racial bonuses.
+              This screen now supports admin-only batch uploads from
+              your design sheets.
             </p>
           </div>
 
@@ -696,7 +1009,14 @@ export default function RacesPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
+                disabled={
+                  !selected ||
+                  !currentUser ||
+                  (
+                    currentUser.role?.toLowerCase() !== "admin" &&
+                    selected.createdBy !== currentUser.id
+                  )
+                }
                 onClick={deleteSelected}
               >
                 Delete
@@ -718,6 +1038,67 @@ export default function RacesPage() {
               </div>
             </div>
           </div>
+
+          {/* Admin-only batch uploader */}
+          {isAdmin && (
+            <div className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/5 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-amber-100">
+                  Admin · Batch Upload
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={handleParseBatch}
+                  >
+                    Parse preview
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    onClick={handleCommitBatch}
+                    disabled={!batchPreview.length || batchUploading}
+                  >
+                    {batchUploading ? "Uploading…" : "Commit to DB"}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-100/80">
+                Paste tab-separated rows from your sheet. First row must be
+                headers (Race, Legacy Description, Physical Characteristics,
+                Physicial Description, Age Range, Size, Strenght Max, etc.).
+                Existing races are matched by name (case-insensitive).
+              </p>
+              <textarea
+                className="w-full h-32 rounded-lg border border-white/15 bg-black/60 p-2 text-xs text-zinc-100 font-mono"
+                value={batchText}
+                onChange={(e) => setBatchText(e.target.value)}
+                placeholder="Race\tLegacy Description\tPhysical Characteristics\tPhysicial Description\tAge Range\tSize\tStrenght Max\tDexterity Max\tConstitution Max\tIntelligence Max\tWisdom Max\tCharisma Max\tBase Magic\tBase Movement\tRacial Quirk\tQuirk Success Effect\tQuirk Failure Effect\tSkill Bonuses\tRacial Special Abilities\tCommon Languages Known\tCommon Archtypes\tExamples of Use in Different Genres\tCultural Mindset\tOutlook On Magic"
+              />
+              {batchError && (
+                <p className="text-[11px] text-rose-300">
+                  {batchError}
+                </p>
+              )}
+              {batchPreview.length > 0 && !batchError && (
+                <div className="text-[11px] text-amber-100/90">
+                  Parsed{" "}
+                  <span className="font-semibold">
+                    {batchPreview.length}
+                  </span>{" "}
+                  races:&nbsp;
+                  {batchPreview
+                    .map((r) => r.name)
+                    .slice(0, 5)
+                    .join(", ")}
+                  {batchPreview.length > 5 ? "…" : ""}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Right column: main editor */}
@@ -726,9 +1107,7 @@ export default function RacesPage() {
           className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
         >
           {loading ? (
-            <p className="text-sm text-zinc-400">
-              Loading races...
-            </p>
+            <p className="text-sm text-zinc-400">Loading races...</p>
           ) : !selected ? (
             <p className="text-sm text-zinc-400">
               Select a race on the left or create a new one to begin
@@ -756,7 +1135,9 @@ export default function RacesPage() {
                         type="checkbox"
                         checked={selected.is_free ?? true}
                         onChange={(e) =>
-                          updateSelected({ is_free: e.target.checked })
+                          updateSelected({
+                            is_free: e.target.checked,
+                          })
                         }
                         className="w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
                       />
@@ -970,7 +1351,9 @@ export default function RacesPage() {
                     >
                       <textarea
                         id="cultural-mindset"
-                        value={selected.def.cultural_mindset ?? ""}
+                        value={
+                          selected.def.cultural_mindset ?? ""
+                        }
                         onChange={(e) =>
                           updateDef(
                             "cultural_mindset",
@@ -988,7 +1371,9 @@ export default function RacesPage() {
                     >
                       <textarea
                         id="outlook-on-magic"
-                        value={selected.def.outlook_on_magic ?? ""}
+                        value={
+                          selected.def.outlook_on_magic ?? ""
+                        }
                         onChange={(e) =>
                           updateDef(
                             "outlook_on_magic",
@@ -1193,7 +1578,10 @@ export default function RacesPage() {
                               >
                                 <option value="">(none)</option>
                                 {tier1Skills.map((skill) => (
-                                  <option key={skill.id} value={skill.name}>
+                                  <option
+                                    key={skill.id}
+                                    value={skill.name}
+                                  >
                                     {skill.name}
                                   </option>
                                 ))}
@@ -1226,7 +1614,8 @@ export default function RacesPage() {
                         Racial Special Abilities
                       </h3>
                       <p className="text-xs text-zinc-400 mb-3">
-                        Select from special ability type skills in your skills library.
+                        Select from special ability type skills in your
+                        skills library.
                       </p>
                       <div className="rounded-lg border border-white/15 bg-white/5 p-4">
                         <div className="grid gap-2">
@@ -1248,7 +1637,10 @@ export default function RacesPage() {
                               >
                                 <option value="">(none)</option>
                                 {specialAbilitySkills.map((skill) => (
-                                  <option key={skill.id} value={skill.name}>
+                                  <option
+                                    key={skill.id}
+                                    value={skill.name}
+                                  >
                                     {skill.name}
                                   </option>
                                 ))}

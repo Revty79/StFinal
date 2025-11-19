@@ -349,3 +349,83 @@ export const inventoryArmor = pgTable('inventory_armor', {
   byCreator: index('idx_inventory_armor_created_by').on(t.createdBy),
 }));
 
+// NPCs table
+export const npcs = pgTable('npcs', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Identity
+  name: varchar('name', { length: 255 }).notNull(),
+  alias: varchar('alias', { length: 255 }),
+  importance: varchar('importance', { length: 100 }),
+  role: varchar('role', { length: 255 }),
+  race: varchar('race', { length: 100 }),
+  occupation: varchar('occupation', { length: 255 }),
+  location: varchar('location', { length: 255 }),
+  timelineTag: varchar('timeline_tag', { length: 100 }),
+  tags: text('tags'),
+  age: varchar('age', { length: 50 }),
+  gender: varchar('gender', { length: 50 }),
+  
+  // Descriptions
+  descriptionShort: text('description_short'),
+  appearance: text('appearance'),
+  
+  // Stats & Attributes
+  strength: integer('strength').default(25),
+  dexterity: integer('dexterity').default(25),
+  constitution: integer('constitution').default(25),
+  intelligence: integer('intelligence').default(25),
+  wisdom: integer('wisdom').default(25),
+  charisma: integer('charisma').default(25),
+  
+  baseMovement: integer('base_movement').default(5),
+  hpTotal: integer('hp_total'),
+  initiative: integer('initiative'),
+  armorSoak: varchar('armor_soak', { length: 100 }),
+  defenseNotes: text('defense_notes'),
+  
+  // Challenge Rating & XP
+  challengeRating: integer('challenge_rating').default(1),
+  
+  // Skills (stored as JSON: { skillId: points })
+  skillAllocations: jsonb('skill_allocations').$type<Record<string, number>>(),
+  skillCheckpoint: jsonb('skill_checkpoint').$type<Record<string, number>>(),
+  isInitialSetupLocked: boolean('is_initial_setup_locked').default(false),
+  xpSpent: integer('xp_spent').default(0),
+  xpCheckpoint: integer('xp_checkpoint').default(0),
+  
+  // Story & Personality
+  personality: text('personality'),
+  ideals: text('ideals'),
+  bonds: text('bonds'),
+  flaws: text('flaws'),
+  goals: text('goals'),
+  secrets: text('secrets'),
+  backstory: text('backstory'),
+  motivations: text('motivations'),
+  hooks: text('hooks'),
+  
+  // Connections
+  faction: varchar('faction', { length: 255 }),
+  relationships: text('relationships'),
+  attitudeTowardParty: varchar('attitude_toward_party', { length: 100 }),
+  allies: text('allies'),
+  enemies: text('enemies'),
+  affiliations: text('affiliations'),
+  resources: text('resources'),
+  
+  // Metadata
+  notes: text('notes'),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_npcs_created_by').on(t.createdBy),
+  byRace: index('idx_npcs_race').on(t.race),
+  byCR: index('idx_npcs_challenge_rating').on(t.challengeRating),
+}));
+

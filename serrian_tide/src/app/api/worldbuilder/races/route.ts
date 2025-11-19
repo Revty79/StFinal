@@ -18,7 +18,22 @@ export async function GET(req: Request) {
       .where(eq(schema.races.createdBy, user.id))
       .orderBy(schema.races.name);
 
-    return NextResponse.json({ ok: true, races });
+    // Transform races to include flattened max attributes for easier access
+    const transformedRaces = races.map(race => {
+      const attrs = race.attributes as any || {};
+      return {
+        ...race,
+        maxStrength: attrs.strength_max ? parseInt(attrs.strength_max) : 50,
+        maxDexterity: attrs.dexterity_max ? parseInt(attrs.dexterity_max) : 50,
+        maxConstitution: attrs.constitution_max ? parseInt(attrs.constitution_max) : 50,
+        maxIntelligence: attrs.intelligence_max ? parseInt(attrs.intelligence_max) : 50,
+        maxWisdom: attrs.wisdom_max ? parseInt(attrs.wisdom_max) : 50,
+        maxCharisma: attrs.charisma_max ? parseInt(attrs.charisma_max) : 50,
+        baseMovement: attrs.base_movement ? parseInt(attrs.base_movement) : 5,
+      };
+    });
+
+    return NextResponse.json({ ok: true, races: transformedRaces });
   } catch (err) {
     console.error("Get races error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
