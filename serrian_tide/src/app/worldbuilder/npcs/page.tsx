@@ -160,54 +160,6 @@ const NPC_TABS: { id: NPCTabKey; label: string }[] = [
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-/* ---------- random NPC generator helpers ---------- */
-
-// Calculate modifier from attribute (Serrian Tide rules)
-function calculateMod(attr: number | null): number {
-  if (attr === null) return 0;
-  if (attr < 1) return -5;
-  if (attr < 5) return -5;
-  if (attr < 10) return -4;
-  if (attr < 15) return -3;
-  if (attr < 20) return -2;
-  if (attr < 25) return -1;
-  if (attr < 30) return 0;
-  return Math.floor((attr - 25) / 5);
-}
-
-// Calculate HP: (CON × 2) + CON Modifier
-function calculateHP(con: number): number {
-  return (con * 2) + calculateMod(con);
-}
-
-// Calculate Base Initiative: 1 + floor(DEX / 5)
-function calculateBaseInitiative(dex: number): number {
-  return 1 + Math.floor(dex / 5);
-}
-
-// Calculate Total Initiative: Base Initiative × Base Movement
-function calculateInitiative(dex: number, baseMovement: number): number {
-  return calculateBaseInitiative(dex) * baseMovement;
-}
-
-// Roll attribute with 3d6 (3-18) then scale to race max
-function rollAttributeForRace(raceMax: number | undefined): number {
-  if (!raceMax || raceMax <= 0) raceMax = 30; // Default if not set
-  
-  // Roll 3d6 for bell curve (3-18, avg ~10.5)
-  const roll = 
-    (Math.floor(Math.random() * 6) + 1) +
-    (Math.floor(Math.random() * 6) + 1) +
-    (Math.floor(Math.random() * 6) + 1);
-  
-  // Scale: 3-18 maps to 10-raceMax
-  // Formula: min + (roll - 3) * (max - min) / (18 - 3)
-  const min = 10;
-  const scaled = Math.round(min + ((roll - 3) * (raceMax - min)) / 15);
-  
-  return Math.min(raceMax, Math.max(min, scaled));
-}
-
 /* ---------- main page ---------- */
 
 export default function NPCsPage() {
@@ -241,12 +193,6 @@ export default function NPCsPage() {
     id: number; 
     name: string; 
     baseMovement?: number;
-    maxStrength?: number;
-    maxDexterity?: number;
-    maxConstitution?: number;
-    maxIntelligence?: number;
-    maxWisdom?: number;
-    maxCharisma?: number;
   }>>([]);
   const [allSkills, setAllSkills] = useState<Array<{ 
     id: string; 
@@ -291,22 +237,15 @@ export default function NPCsPage() {
               id: r.id,
               name: r.name,
               baseMovement: r.baseMovement || 5,
-              maxStrength: r.maxStrength || 50,
-              maxDexterity: r.maxDexterity || 50,
-              maxConstitution: r.maxConstitution || 50,
-              maxIntelligence: r.maxIntelligence || 50,
-              maxWisdom: r.maxWisdom || 50,
-              maxCharisma: r.maxCharisma || 50,
             })));
           }
         }
 
-        // Load tier 1 skills for skill allocation
+        // Load skills for skill allocation
         const skillsResponse = await fetch("/api/worldbuilder/skills");
         if (skillsResponse.ok) {
           const skillsData = await skillsResponse.json();
           if (skillsData.ok && skillsData.skills) {
-            // Store all skills for tier filtering
             setAllSkills(skillsData.skills.map((s: any) => ({
               id: s.id,
               name: s.name,
@@ -417,225 +356,6 @@ export default function NPCsPage() {
     setNpcs((prev) => [row, ...prev]);
     setSelectedId(String(id));
     setActiveTab("identity");
-  }
-
-  function createRandomNPC() {
-    const id = uid();
-    
-    // Step 1: Pick a random race
-    if (races.length === 0) {
-      alert("No races loaded. Please create races first.");
-      return;
-    }
-    
-    const randomRace = races[Math.floor(Math.random() * races.length)];
-    if (!randomRace) return;
-    
-    // Step 2: Roll attributes based on race maximums
-    const str = rollAttributeForRace(randomRace.maxStrength);
-    const dex = rollAttributeForRace(randomRace.maxDexterity);
-    const con = rollAttributeForRace(randomRace.maxConstitution);
-    const int = rollAttributeForRace(randomRace.maxIntelligence);
-    const wis = rollAttributeForRace(randomRace.maxWisdom);
-    const cha = rollAttributeForRace(randomRace.maxCharisma);
-    
-    const baseMove = randomRace.baseMovement || 5;
-    const hp = calculateHP(con);
-    const init = calculateInitiative(dex, baseMove);
-    
-    // Random CR (1-10)
-    const cr = 1 + Math.floor(Math.random() * 10);
-    
-    // Step 3: INITIAL 50 skill points allocation (Tier 1 skills only, max 10 per skill)
-    const attrMap: Record<string, number> = {
-      'STR': str,
-      'DEX': dex,
-      'CON': con,
-      'INT': int,
-      'WIS': wis,
-      'CHA': cha,
-    };
-    
-    // Filter for TIER 1 ONLY standard skills that match attributes
-    const tier1Skills = allSkills.filter(skill => {
-      // Must be Tier 1 standard skill
-      if (skill.type !== 'standard' || skill.tier !== 1) return false;
-      
-      // Must have decent primary attribute (15+)
-      const primary = attrMap[skill.primaryAttribute];
-      return primary && primary >= 15;
-    });
-    
-    if (tier1Skills.length === 0) {
-      // No skills available, create with empty allocations
-      const row: NPC = {
-        id,
-        name: `Random ${randomRace.name}`,
-        is_free: true,
-        race: randomRace.name,
-        strength: str,
-        dexterity: dex,
-        constitution: con,
-        intelligence: int,
-        wisdom: wis,
-        charisma: cha,
-        hp_total: hp,
-        initiative: init,
-        base_movement: baseMove,
-        challenge_rating: cr,
-        skill_allocations: {},
-        skill_checkpoint: {},
-        is_initial_setup_locked: false,
-        xp_spent: 0,
-        xp_checkpoint: 0,
-        createdBy: currentUser?.id ?? null,
-        isPublished: false,
-      } as NPC;
-      
-      setNpcs((prev) => [row, ...prev]);
-      setSelectedId(String(id));
-      setActiveTab("stats");
-      return;
-    }
-    
-    // Allocate initial 50 skill points (max 10 per skill)
-    const initialAllocations: Record<string, number> = {};
-    let remaining = 50;
-    
-    // Pick 5-8 random skills to specialize in
-    const numSkills = Math.min(Math.floor(Math.random() * 4) + 5, tier1Skills.length);
-    const selectedSkills = [...tier1Skills]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, numSkills);
-    
-    // Distribute points with some skills getting more emphasis
-    selectedSkills.forEach((skill, index) => {
-      if (remaining <= 0) return;
-      
-      // First few skills get more points (primary specializations)
-      const maxForSkill = index < 2 ? 10 : index < 4 ? 7 : 5;
-      const minForSkill = index < 2 ? 5 : 2;
-      
-      const pointsToAdd = Math.min(
-        Math.floor(Math.random() * (maxForSkill - minForSkill + 1)) + minForSkill,
-        remaining,
-        10 // Hard cap at 10 for Tier 1 initial allocation
-      );
-      
-      if (pointsToAdd > 0) {
-        initialAllocations[skill.id] = pointsToAdd;
-        remaining -= pointsToAdd;
-      }
-    });
-    
-    // Distribute any remaining points
-    while (remaining > 0 && selectedSkills.length > 0) {
-      const skill = selectedSkills[Math.floor(Math.random() * selectedSkills.length)];
-      if (!skill) break;
-      
-      const currentPoints = initialAllocations[skill.id] || 0;
-      
-      if (currentPoints < 10) {
-        const toAdd = Math.min(remaining, 10 - currentPoints);
-        initialAllocations[skill.id] = currentPoints + toAdd;
-        remaining -= toAdd;
-      }
-    }
-    
-    // Step 4: If CR > 1, lock initial setup and spend XP on additional skills
-    let finalAllocations = { ...initialAllocations };
-    let xpSpent = 0;
-    const isLocked = cr > 1;
-    
-    if (isLocked) {
-      // Calculate available XP from CR
-      const CR_TO_XP: Record<number, number> = {
-        1: 0, 2: 25, 3: 50, 4: 75, 5: 125, 6: 200, 7: 325, 8: 525, 9: 850, 10: 1020,
-      };
-      const availableXP = CR_TO_XP[cr] || 0;
-      
-      if (availableXP > 0) {
-        let xpRemaining = availableXP;
-        
-        // Get all tier 1 & 2 skills (tier 2 only if parent has 25+ points, but we won't have that yet)
-        // So focus on improving existing tier 1 skills
-        const improvableSkills = Object.keys(finalAllocations);
-        
-        // Spend XP to improve skills
-        while (xpRemaining > 0 && improvableSkills.length > 0) {
-          const skillId = improvableSkills[Math.floor(Math.random() * improvableSkills.length)];
-          if (!skillId) break;
-          
-          const currentPoints = finalAllocations[skillId] || 0;
-          
-          // Cost to upgrade: current points in skill (or 10 for new skill)
-          const upgradeCost = currentPoints === 0 ? 10 : currentPoints;
-          
-          // Don't go beyond what we can afford or reasonable limits (cap at 30 for random gen)
-          if (xpRemaining >= upgradeCost && currentPoints < 30) {
-            finalAllocations[skillId] = currentPoints + 1;
-            xpSpent += upgradeCost;
-            xpRemaining -= upgradeCost;
-          } else {
-            // Remove this skill from consideration if too expensive or maxed
-            const idx = improvableSkills.indexOf(skillId);
-            if (idx > -1) improvableSkills.splice(idx, 1);
-          }
-        }
-      }
-    }
-    
-    const row: NPC = {
-      id,
-      name: `Random ${randomRace.name}`,
-      is_free: true,
-      alias: null,
-      importance: null,
-      role: null,
-      race: randomRace.name,
-      occupation: null,
-      location: null,
-      timeline_tag: null,
-      tags: null,
-      description_short: null,
-      appearance: null,
-      strength: str,
-      dexterity: dex,
-      constitution: con,
-      intelligence: int,
-      wisdom: wis,
-      charisma: cha,
-      hp_total: hp,
-      initiative: init,
-      armor_soak: null,
-      defense_notes: null,
-      base_movement: baseMove,
-      challenge_rating: cr,
-      skill_allocations: finalAllocations,
-      skill_checkpoint: isLocked ? initialAllocations : {},
-      is_initial_setup_locked: isLocked,
-      xp_spent: xpSpent,
-      xp_checkpoint: isLocked ? xpSpent : 0,
-      personality: null,
-      ideals: null,
-      bonds: null,
-      flaws: null,
-      goals: null,
-      secrets: null,
-      backstory: null,
-      hooks: null,
-      faction: null,
-      relationships: null,
-      attitude_toward_party: null,
-      resources: null,
-      notes: null,
-      createdBy: currentUser?.id ?? null,
-      isPublished: false,
-    };
-    
-    setNpcs((prev) => [row, ...prev]);
-    setSelectedId(String(id));
-    setActiveTab("skills"); // Show skills tab so they can see the allocations
   }
 
   function updateSelected(patch: Partial<NPC>) {
@@ -1309,14 +1029,6 @@ export default function NPCsPage() {
                 onClick={createNPC}
               >
                 + New NPC
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                type="button"
-                onClick={createRandomNPC}
-              >
-                🎲 Generate Random
               </Button>
             </div>
 
