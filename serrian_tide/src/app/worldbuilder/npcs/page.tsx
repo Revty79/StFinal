@@ -201,6 +201,8 @@ export default function NPCsPage() {
     secondaryAttribute: string;
     tier: number | null;
     parentId: string | null;
+    parent2Id: string | null;
+    parent3Id: string | null;
     type: string;
   }>>([]);
 
@@ -253,6 +255,8 @@ export default function NPCsPage() {
               secondaryAttribute: s.secondaryAttribute,
               tier: s.tier,
               parentId: s.parentId,
+              parent2Id: s.parent2Id,
+              parent3Id: s.parent3Id,
               type: s.type,
             })));
           }
@@ -585,7 +589,10 @@ export default function NPCsPage() {
   };
 
   // Calculate skill rank (points + attribute mod)
-  const calculateSkillRank = (skillPoints: number, attributeName: string): number => {
+  // For tier 1: rank = points + attribute mod
+  // For tier 2: rank = parent rank + points in tier 2 skill
+  // For tier 3: rank = tier 2 parent rank + points in tier 3 skill
+  const calculateSkillRank = (skillPoints: number, attributeName: string, skillId?: string, tier?: number | null, contextParentId?: string): number => {
     if (!selected) return skillPoints;
     
     // Handle NA or empty for special abilities - no attribute modifier
@@ -594,6 +601,59 @@ export default function NPCsPage() {
       return skillPoints; // Special abilities: rank = points only
     }
     
+    // For tier 2 and tier 3 skills, we need to add parent skill rank
+    if (tier && tier > 1 && skillId) {
+      const skill = allSkills.find(s => s.id === skillId);
+      if (skill) {
+        // Use contextParentId if provided (when viewing under a specific parent tree),
+        // otherwise fall back to first available parent
+        const parentId = contextParentId || skill.parentId || skill.parent2Id || skill.parent3Id;
+        
+        if (parentId) {
+          const parentSkill = allSkills.find(s => s.id === parentId);
+          if (parentSkill) {
+            // Determine the correct allocation key for the parent
+            let parentAllocationKey: string;
+            let grandparentId: string | undefined;
+            
+            if (parentSkill.tier === 1) {
+              // Parent is tier 1, use simple key
+              parentAllocationKey = parentId;
+            } else if (parentSkill.tier === 2) {
+              // Parent is tier 2, need to find its tier 1 grandparent context
+              // Look through allocations to find the contexted key
+              const allocations = selected.skill_allocations || {};
+              const contextedKey = Object.keys(allocations).find(key => {
+                if (key.includes(':')) {
+                  const [prefix, skillIdPart] = key.split(':');
+                  return skillIdPart === parentId;
+                }
+                return false;
+              });
+              
+              if (contextedKey) {
+                parentAllocationKey = contextedKey;
+                grandparentId = contextedKey.split(':')[0]; // Extract tier 1 grandparent for recursive call
+              } else {
+                // Fallback to simple key if no context found
+                parentAllocationKey = parentId;
+              }
+            } else {
+              // Shouldn't happen, but fallback to simple key
+              parentAllocationKey = parentId;
+            }
+            
+            const parentPoints = selected.skill_allocations?.[parentAllocationKey] ?? 0;
+            // Recursively calculate parent rank, passing grandparent context if available
+            const parentRank = calculateSkillRank(parentPoints, parentSkill.primaryAttribute || "", parentId, parentSkill.tier, grandparentId);
+            // Tier 2/3 rank = parent rank + points spent in this skill
+            return parentRank + skillPoints;
+          }
+        }
+      }
+    }
+    
+    // Tier 1: standard calculation (points + attribute mod)
     let attributeValue = 25; // default
     
     // Support both full names and 3-letter codes
@@ -617,7 +677,10 @@ export default function NPCsPage() {
   };
 
   // Calculate skill percentage (100 - (rank + attribute))
-  const calculateSkillPercent = (skillPoints: number, attributeName: string): number => {
+  // For tier 1: % = 100 - (rank + attribute)
+  // For tier 2: % = 100 - (rank + attribute) where rank includes parent
+  // For tier 3: % = 100 - (rank + attribute) where rank includes tier 2 parent
+  const calculateSkillPercent = (skillPoints: number, attributeName: string, skillId?: string, tier?: number | null, contextParentId?: string): number => {
     if (!selected) return 100;
     
     // Handle NA or empty for special abilities - simply 100 - points
@@ -647,7 +710,7 @@ export default function NPCsPage() {
     // If no points spent, skill is untrained - return 100%
     if (skillPoints === 0) return 100;
     
-    const rank = calculateSkillRank(skillPoints, attributeName);
+    const rank = calculateSkillRank(skillPoints, attributeName, skillId, tier, contextParentId);
     return 100 - (rank + attributeValue);
   };
 
@@ -672,14 +735,22 @@ export default function NPCsPage() {
   const xpSpent = selected?.xp_spent ?? 0;
   const xpRemaining = selected?.is_initial_setup_locked ? availableXP - xpSpent : 0;
 
+  // Helper to generate allocation key
+  // For tier 1 skills: use skillId
+  // For tier 2/3 skills with multiple parents: use "parentId:skillId" to track points per tree
+  function getAllocationKey(skillId: string, parentId?: string): string {
+    return parentId ? `${parentId}:${skillId}` : skillId;
+  }
+
   // Helper to update skill allocation
-  function updateSkillAllocation(skillId: string, newPoints: number) {
+  function updateSkillAllocation(skillId: string, newPoints: number, parentId?: string) {
     if (!selected) return;
     
+    const allocationKey = getAllocationKey(skillId, parentId);
     const currentAllocations = selected.skill_allocations || {};
-    const currentPoints = currentAllocations[skillId] ?? 0;
+    const currentPoints = currentAllocations[allocationKey] ?? 0;
     const checkpoint = selected.skill_checkpoint || {};
-    const checkpointValue = checkpoint[skillId] ?? 0;
+    const checkpointValue = checkpoint[allocationKey] ?? 0;
     const currentXPSpent = selected.xp_spent ?? 0;
     
     // If initial setup is NOT locked, use initial point spending rules
@@ -692,7 +763,7 @@ export default function NPCsPage() {
       // If removing points
       if (newPoints <= 0) {
         const updatedAllocations = { ...currentAllocations };
-        delete updatedAllocations[skillId];
+        delete updatedAllocations[allocationKey];
         updateSelected({ skill_allocations: updatedAllocations });
         return;
       }
@@ -706,7 +777,7 @@ export default function NPCsPage() {
       }
       
       const updatedAllocations = { ...currentAllocations };
-      updatedAllocations[skillId] = newPoints;
+      updatedAllocations[allocationKey] = newPoints;
       updateSelected({ skill_allocations: updatedAllocations });
       return;
     }
@@ -732,11 +803,11 @@ export default function NPCsPage() {
       
       const updatedAllocations = { ...currentAllocations };
       if (newPoints <= 0) {
-        delete updatedAllocations[skillId];
+        delete updatedAllocations[allocationKey];
       } else {
-        updatedAllocations[skillId] = newPoints;
+        updatedAllocations[allocationKey] = newPoints;
       }
-      
+
       updateSelected({ 
         skill_allocations: updatedAllocations,
         xp_spent: Math.max(0, currentXPSpent - xpRefund)
@@ -767,7 +838,7 @@ export default function NPCsPage() {
     
     // Apply the upgrade
     const updatedAllocations = { ...currentAllocations };
-    updatedAllocations[skillId] = newPoints;
+    updatedAllocations[allocationKey] = newPoints;
     updateSelected({ 
       skill_allocations: updatedAllocations,
       xp_spent: currentXPSpent + xpCost
@@ -781,10 +852,17 @@ export default function NPCsPage() {
     // Tier 1 skills are always unlocked
     if (skill.tier === 1) return true;
     
-    // Tier 2/3 require parent skill to have 25+ points
-    if (skill.parentId) {
-      const parentPoints = (selected.skill_allocations || {})[skill.parentId] ?? 0;
-      return parentPoints >= 25;
+    // Tier 2/3 require at least one parent skill to have 25+ points
+    // Check all possible parent fields
+    const parentIds = [skill.parentId, skill.parent2Id, skill.parent3Id].filter(Boolean);
+    
+    for (const parentId of parentIds) {
+      if (parentId) {
+        const parentPoints = (selected.skill_allocations || {})[parentId] ?? 0;
+        if (parentPoints >= 25) {
+          return true; // At least one parent has enough points
+        }
+      }
     }
     
     return false;
@@ -941,7 +1019,9 @@ export default function NPCsPage() {
       n.skill_allocations && Object.keys(n.skill_allocations).length > 0
         ? Object.entries(n.skill_allocations)
             .filter(([_, points]) => points > 0)
-            .map(([skillId, points]) => {
+            .map(([allocationKey, points]) => {
+              // Parse allocation key: "skillId" for tier 1, "parentId:skillId" for tier 2/3
+              const skillId = allocationKey.includes(':') ? allocationKey.split(':')[1] : allocationKey;
               const skill = allSkills.find(s => s.id === skillId);
               return `${skill?.name ?? skillId}: ${points} points`;
             })
@@ -1815,10 +1895,28 @@ export default function NPCsPage() {
                                       if (skill.tier === 1) return true;
                                       // Skills with no tier (null) are always available
                                       if (skill.tier === null || skill.tier === undefined) return true;
+                                      
                                       // Tier 2/3 require parent skill at 25+ points
+                                      // Need to check all allocation keys since tier 2/3 might have contexted keys
                                       if (skill.parentId) {
-                                        const parentPoints = (selected.skill_allocations || {})[skill.parentId] ?? 0;
-                                        return parentPoints >= 25;
+                                        const allocations = selected.skill_allocations || {};
+                                        
+                                        // For tier 2 skills, parent is tier 1 (no context prefix)
+                                        if (skill.tier === 2) {
+                                          const parentPoints = allocations[skill.parentId] ?? 0;
+                                          return parentPoints >= 25;
+                                        }
+                                        
+                                        // For tier 3 skills, parent is tier 2 (might have context prefix)
+                                        if (skill.tier === 3) {
+                                          // Check if any allocation key contains this tier 2 parent and has 25+ points
+                                          const hasEnoughPoints = Object.entries(allocations).some(([key, points]) => {
+                                            // Key could be "parentId:tier2Id" or just "tier2Id"
+                                            const skillIdInKey = key.includes(':') ? key.split(':')[1] : key;
+                                            return skillIdInKey === skill.parentId && points >= 25;
+                                          });
+                                          return hasEnoughPoints;
+                                        }
                                       }
                                       return false;
                                     });
@@ -1846,8 +1944,8 @@ export default function NPCsPage() {
                                       const allocated = selected.skill_allocations?.[skill.id] ?? 0;
                                       const checkpointValue = (selected.skill_checkpoint || {})[skill.id] ?? 0;
                                       const canDecrease = selected.is_initial_setup_locked ? allocated > checkpointValue : allocated > 0;
-                                      const rank = calculateSkillRank(allocated, skill.primaryAttribute || "");
-                                      const percent = calculateSkillPercent(allocated, skill.primaryAttribute || "");
+                                      const rank = calculateSkillRank(allocated, skill.primaryAttribute || "", skill.id, skill.tier);
+                                      const percent = calculateSkillPercent(allocated, skill.primaryAttribute || "", skill.id, skill.tier);
                                       const atMax = allocated >= 10 && !selected.is_initial_setup_locked;
                                       
                                       // Calculate XP cost for next upgrade
@@ -1862,8 +1960,11 @@ export default function NPCsPage() {
                                         nextUpgradeCost = 1; // Initial point spending is 1-to-1
                                       }
                                       
-                                      // Find child skills (tier 2 and tier 3) for this skill
-                                      const childSkills = filteredSkills.filter(s => s.parentId === skill.id);
+                                      // Find child skills (tier 2 only) for this tier 1 skill
+                                      // Check all three parent fields since skills like Spellcraft, Talismanism, and Faith share children
+                                      const childSkills = filteredSkills.filter(s => 
+                                        s.tier === 2 && (s.parentId === skill.id || s.parent2Id === skill.id || s.parent3Id === skill.id)
+                                      );
                                       
                                       return (
                                       <div key={skill.id} className="space-y-2">
@@ -1926,11 +2027,13 @@ export default function NPCsPage() {
                                         
                                         {/* Tier 2/3 Child Skills */}
                                         {childSkills.map((childSkill) => {
-                                          const childAllocated = selected.skill_allocations?.[childSkill.id] ?? 0;
-                                          const childCheckpointValue = (selected.skill_checkpoint || {})[childSkill.id] ?? 0;
+                                          // Use parent-contexted allocation key for multi-parent skills
+                                          const childAllocationKey = getAllocationKey(childSkill.id, skill.id);
+                                          const childAllocated = selected.skill_allocations?.[childAllocationKey] ?? 0;
+                                          const childCheckpointValue = (selected.skill_checkpoint || {})[childAllocationKey] ?? 0;
                                           const childCanDecrease = selected.is_initial_setup_locked ? childAllocated > childCheckpointValue : childAllocated > 0;
-                                          const childRank = calculateSkillRank(childAllocated, childSkill.primaryAttribute || "");
-                                          const childPercent = calculateSkillPercent(childAllocated, childSkill.primaryAttribute || "");
+                                          const childRank = calculateSkillRank(childAllocated, childSkill.primaryAttribute || "", childSkill.id, childSkill.tier, skill.id);
+                                          const childPercent = calculateSkillPercent(childAllocated, childSkill.primaryAttribute || "", childSkill.id, childSkill.tier, skill.id);
                                           const childAtMax = childAllocated >= 10 && !selected.is_initial_setup_locked;
                                           
                                           let childNextUpgradeCost = 0;
@@ -1945,7 +2048,17 @@ export default function NPCsPage() {
                                           }
                                           
                                           // Find tier 3 children of this tier 2 skill
-                                          const tier3Children = filteredSkills.filter(s => s.parentId === childSkill.id);
+                                          // Check all three parent fields since skills can have multiple parents
+                                          const tier3Children = filteredSkills.filter(s => 
+                                            s.tier === 3 && (s.parentId === childSkill.id || s.parent2Id === childSkill.id || s.parent3Id === childSkill.id)
+                                          );
+                                          
+                                          // Debug: Log tier 3 findings
+                                          if (childSkill.tier === 2 && childSkill.name && filteredSkills.some(s => s.tier === 3)) {
+                                            console.log(`Tier 2: ${childSkill.name} (${childSkill.id})`);
+                                            console.log(`  Found ${tier3Children.length} tier 3 children`);
+                                            console.log(`  All tier 3 skills in filtered:`, filteredSkills.filter(s => s.tier === 3).map(s => ({ name: s.name, parentId: s.parentId })));
+                                          }
                                           
                                           return (
                                             <div key={childSkill.id} className="space-y-2">
@@ -1971,7 +2084,7 @@ export default function NPCsPage() {
                                                     type="button"
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => updateSkillAllocation(childSkill.id, Math.max(0, childAllocated - 1))}
+                                                    onClick={() => updateSkillAllocation(childSkill.id, Math.max(0, childAllocated - 1), skill.id)}
                                                     disabled={!childCanDecrease}
                                                     title={
                                                       selected.is_initial_setup_locked 
@@ -1988,7 +2101,7 @@ export default function NPCsPage() {
                                                     type="button"
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => updateSkillAllocation(childSkill.id, childAllocated + 1)}
+                                                    onClick={() => updateSkillAllocation(childSkill.id, childAllocated + 1, skill.id)}
                                                     disabled={
                                                       selected.is_initial_setup_locked
                                                         ? (childAtMax || xpRemaining < childNextUpgradeCost)
@@ -2011,11 +2124,14 @@ export default function NPCsPage() {
                                               
                                               {/* Tier 3 Skills */}
                                               {tier3Children.map((tier3Skill) => {
-                                                const t3Allocated = selected.skill_allocations?.[tier3Skill.id] ?? 0;
-                                                const t3CheckpointValue = (selected.skill_checkpoint || {})[tier3Skill.id] ?? 0;
+                                                // Use tier 1 grandparent context for tier 3 skills (not tier 2 parent)
+                                                // This ensures tier 3 skills track separately per magic tree
+                                                const t3AllocationKey = getAllocationKey(tier3Skill.id, skill.id);
+                                                const t3Allocated = selected.skill_allocations?.[t3AllocationKey] ?? 0;
+                                                const t3CheckpointValue = (selected.skill_checkpoint || {})[t3AllocationKey] ?? 0;
                                                 const t3CanDecrease = selected.is_initial_setup_locked ? t3Allocated > t3CheckpointValue : t3Allocated > 0;
-                                                const t3Rank = calculateSkillRank(t3Allocated, tier3Skill.primaryAttribute || "");
-                                                const t3Percent = calculateSkillPercent(t3Allocated, tier3Skill.primaryAttribute || "");
+                                                const t3Rank = calculateSkillRank(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, skill.id);
+                                                const t3Percent = calculateSkillPercent(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, skill.id);
                                                 const t3AtMax = t3Allocated >= 10 && !selected.is_initial_setup_locked;
                                                 
                                                 let t3NextUpgradeCost = 0;
@@ -2049,7 +2165,7 @@ export default function NPCsPage() {
                                                         type="button"
                                                         variant="secondary"
                                                         size="sm"
-                                                        onClick={() => updateSkillAllocation(tier3Skill.id, Math.max(0, t3Allocated - 1))}
+                                                        onClick={() => updateSkillAllocation(tier3Skill.id, Math.max(0, t3Allocated - 1), skill.id)}
                                                         disabled={!t3CanDecrease}
                                                         title={
                                                           selected.is_initial_setup_locked 
@@ -2066,7 +2182,7 @@ export default function NPCsPage() {
                                                         type="button"
                                                         variant="secondary"
                                                         size="sm"
-                                                        onClick={() => updateSkillAllocation(tier3Skill.id, t3Allocated + 1)}
+                                                        onClick={() => updateSkillAllocation(tier3Skill.id, t3Allocated + 1, skill.id)}
                                                         disabled={
                                                           selected.is_initial_setup_locked
                                                             ? (t3AtMax || xpRemaining < t3NextUpgradeCost)
