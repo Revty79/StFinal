@@ -29,7 +29,8 @@ export const Button: React.FC<ButtonProps> = ({
   const base =
     "inline-flex items-center justify-center font-medium rounded-2xl transition-all " +
     "backdrop-blur border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
-    "focus-visible:ring-amber-300 disabled:opacity-60 disabled:cursor-not-allowed";
+    "focus-visible:ring-amber-300 disabled:opacity-60 disabled:cursor-not-allowed " +
+    "active:scale-95 touch-manipulation select-none";
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
@@ -43,9 +44,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizeClasses: Record<ButtonSize, string> = {
-    sm: "text-xs px-3 py-1.5",
-    md: "text-sm px-4 py-2",
-    lg: "text-base px-6 py-3",
+    sm: "text-sm px-4 py-2.5 min-h-[44px]",
+    md: "text-base px-5 py-3 min-h-[48px]",
+    lg: "text-lg px-7 py-4 min-h-[52px]",
   };
 
   return (

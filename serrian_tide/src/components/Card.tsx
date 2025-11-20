@@ -28,7 +28,7 @@ export const Card: React.FC<CardProps> = ({
     danger: "bg-red-900/30 border-red-500/60",
   };
 
-  const padding = padded ? "p-4 md:p-6" : "";
+  const padding = padded ? "p-3 sm:p-4 md:p-6" : "";
 
   return (
     <div

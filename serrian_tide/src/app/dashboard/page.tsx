@@ -56,23 +56,23 @@ export default async function Dashboard() {
   return (
     <main className="min-h-screen px-6 py-10">
       {/* Header */}
-      <header className="max-w-7xl mx-auto mb-8 flex items-center justify-between">
+      <header className="max-w-7xl mx-auto mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <GradientText 
             as="h1" 
             variant="title" 
             glow 
-            className="font-evanescent text-4xl sm:text-5xl tracking-tight"
+            className="font-evanescent text-3xl sm:text-4xl md:text-5xl tracking-tight"
           >
             Dashboard
           </GradientText>
           <p className="mt-1 text-sm text-zinc-300">Welcome, {user.username}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Profile button */}
           <Link href="/profile">
-            <Button variant="secondary">Profile</Button>
+            <Button variant="secondary" size="sm">Profile</Button>
           </Link>
 
           {/* Logout button */}
@@ -82,7 +82,7 @@ export default async function Dashboard() {
 
       {/* Cards */}
       <section className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Galaxy Forge / World Builder (now far left) */}
           <WorldBuilderCard canWorldBuild={canWorldBuild} role={role} canAccessSourceForge={canAccessSourceForge} />
 

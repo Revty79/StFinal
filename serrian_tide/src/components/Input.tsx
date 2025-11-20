@@ -17,9 +17,10 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const base =
     "w-full rounded-2xl border bg-slate-900/40 text-slate-100 " +
-    "px-4 py-2 shadow-inner backdrop-blur " +
+    "px-4 py-3 min-h-[48px] text-base shadow-inner backdrop-blur " +
     "placeholder:text-slate-500 " +
-    "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950";
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 " +
+    "touch-manipulation";
 
   const normalBorder = "border-slate-700/70";
   const errorBorder =

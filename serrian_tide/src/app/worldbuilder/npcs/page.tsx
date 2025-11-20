@@ -1072,19 +1072,19 @@ export default function NPCsPage() {
   /* ---------- render ---------- */
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 px-4 py-8">
-      <header className="max-w-7xl mx-auto space-y-4">
+    <main className="min-h-screen bg-slate-950 text-slate-100 px-3 sm:px-4 py-6 sm:py-8">
+      <header className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
         <WBNav current="npcs" />
         <div className="flex flex-col gap-2">
           <GradientText
             as="h1"
             variant="title"
             glow
-            className="font-evanescent text-3xl sm:text-4xl tracking-tight"
+            className="font-evanescent text-2xl sm:text-3xl md:text-4xl tracking-tight"
           >
             NPC Builder
           </GradientText>
-          <p className="text-sm text-zinc-300/90 max-w-2xl">
+          <p className="text-xs sm:text-sm text-zinc-300/90 max-w-2xl">
             Create reusable NPCs for your worlds, eras, and campaigns.
             This tool focuses on fast identity, clean stats, and sharp
             story hooks, so your GM brain can stay in G.O.D mode.
@@ -1092,7 +1092,7 @@ export default function NPCsPage() {
         </div>
       </header>
 
-      <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-6 mt-6">
+      <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-4 sm:gap-6 mt-4 sm:mt-6">
           {/* LEFT: library */}
           <Card
             padded={false}
@@ -1130,7 +1130,7 @@ export default function NPCsPage() {
                 </span>
               </div>
 
-            <div className="max-h-[420px] overflow-auto">
+            <div className="max-h-[420px] overflow-auto mobile-scroll-container">
               {loading ? (
                 <div className="px-3 py-6 text-center text-xs text-zinc-500">
                   Loading NPCs...
@@ -1140,7 +1140,8 @@ export default function NPCsPage() {
                   No NPCs yet. Create your first character.
                 </div>
               ) : (
-                <table className="w-full text-xs">
+                <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[300px]">
                   <thead className="text-left text-zinc-400">
                     <tr>
                       <th className="px-3 py-1">Name</th>
@@ -1176,6 +1177,7 @@ export default function NPCsPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 
