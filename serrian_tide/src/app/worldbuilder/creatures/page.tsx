@@ -15,10 +15,10 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "creatures",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+  current?: "cosmos" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
-    { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
+    { href: "/worldbuilder/cosmos", key: "cosmos", label: "Cosmos" },
     { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
@@ -57,6 +57,7 @@ export type Creature = {
   id: string | number;
   name: string;
   is_free?: boolean;
+  createdBy?: string;
   alt_names?: string | null;
   challenge_rating?: string | null;
   encounter_scale?: string | null;
@@ -125,6 +126,7 @@ export default function CreaturesPage() {
   const [activeTab, setActiveTab] = useState<CreatureTabKey>("identity");
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
 
   // Load creatures from database on mount
   useEffect(() => {

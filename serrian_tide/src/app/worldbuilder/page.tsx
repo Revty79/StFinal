@@ -94,7 +94,7 @@ export default async function SourceForgePage() {
             The Source Forge
           </GradientText>
           <p className="mt-1 text-sm text-zinc-300/90">
-            Welcome, {user.username}. You are G.O.D here. This is where worlds,
+            Welcome, {user.username}. You are G.O.D here. This is where cosmos,
             peoples, systems, and stuff all come online.
           </p>
         </div>
@@ -118,7 +118,7 @@ export default async function SourceForgePage() {
           <p className="text-sm text-zinc-200 text-center">
             <span className="font-semibold text-violet-200">Start here:</span> Use the{" "}
             <span className="text-amber-200">World Builder's Toolbox</span> to create reusable components.
-            Then head to <span className="text-emerald-200">The G.O.D's Playground</span> to assemble your worlds.
+            Then head to <span className="text-emerald-200">The G.O.D's Playground</span> to assemble your cosmos.
           </p>
         </Card>
 
@@ -167,11 +167,11 @@ export default async function SourceForgePage() {
               The G.O.D's Playground
             </GradientText>
             <p className="mt-3 text-base text-zinc-300/90 leading-relaxed">
-              Assemble complete worlds by combining your tools and defining cosmology, eras, and the rules that govern reality.
+              Assemble complete cosmos by combining your tools and defining cosmology, eras, and the rules that govern reality.
             </p>
             
             <div className="mt-6">
-              <Link href="/worldbuilder/worlds">
+              <Link href="/worldbuilder/cosmos">
                 <Button variant="primary" size="md" className="w-full">
                   Enter Playground
                 </Button>

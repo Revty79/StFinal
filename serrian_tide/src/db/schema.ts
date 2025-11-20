@@ -349,6 +349,49 @@ export const inventoryArmor = pgTable('inventory_armor', {
   byCreator: index('idx_inventory_armor_created_by').on(t.createdBy),
 }));
 
+// Cosmos table
+export const cosmos = pgTable('cosmos', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Basic Info
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  shortPitch: text('short_pitch'),
+  status: varchar('status', { length: 50 }).notNull().default('draft'), // draft, ready, published
+  
+  // Detail Fields - Overview Tab
+  description: text('description'),
+  originStory: text('origin_story'),
+  cosmicOperationNotes: text('cosmic_operation_notes'),
+  designerNotes: text('designer_notes'),
+  
+  // Detail Fields - Cosmic Rules Tab
+  existenceOrigin: text('existence_origin'),
+  energyConsciousnessFramework: text('energy_consciousness_framework'),
+  cosmicConstants: text('cosmic_constants'),
+  realityInteractionFramework: text('reality_interaction_framework'),
+  planeTravelPossible: boolean('plane_travel_possible').default(true),
+  
+  // Detail Fields - Time & Cycles Tab
+  cosmicCalendarName: varchar('cosmic_calendar_name', { length: 255 }),
+  cyclesEpochsAges: text('cycles_epochs_ages'),
+  timeFlowRules: text('time_flow_rules'),
+  majorCosmicEvents: text('major_cosmic_events'),
+  
+  // Metadata
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_cosmos_created_by').on(t.createdBy),
+  bySlug: index('idx_cosmos_slug').on(t.slug),
+  byStatus: index('idx_cosmos_status').on(t.status),
+}));
+
 // NPCs table
 export const npcs = pgTable('npcs', {
   id: varchar('id', { length: 36 }).primaryKey(),

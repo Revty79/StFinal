@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { GradientText } from "@/components/GradientText";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
+import { Tabs } from "@/components/Tabs";
 
 type UserRole =
   | "admin"
@@ -18,17 +19,17 @@ type UserRole =
 
 // TODO: replace this with your real auth/role + billing source once wired
 const CURRENT_USER_ROLE: UserRole = "admin"; // change for testing other roles
-const EXTRA_WORLD_SLOTS_PURCHASED = 0; // e.g. 1 = one extra slot purchased
+const EXTRA_COSMOS_SLOTS_PURCHASED = 0; // e.g. 1 = one extra slot purchased
 
 /* ---------- Worldbuilder local nav (same as races/inventory/etc) ---------- */
 
 function WBNav({
-  current = "worlds",
+  current = "cosmos",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+  current?: "cosmos" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
-    { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
+    { href: "/worldbuilder/cosmos", key: "cosmos", label: "Cosmos" },
     { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
@@ -65,7 +66,7 @@ function WBNav({
  * Base world limit per role (before purchased slots).
  * - null = unlimited
  */
-function getBaseWorldLimitForRole(role: UserRole): number | null {
+function getBaseCosmosLimitForRole(role: UserRole): number | null {
   switch (role) {
     case "admin":
     case "privileged":
@@ -86,34 +87,46 @@ function getBaseWorldLimitForRole(role: UserRole): number | null {
  * Effective limit including purchased slots.
  * - null = unlimited
  */
-function getEffectiveWorldLimit(
+function getEffectiveCosmosLimit(
   role: UserRole,
   extraSlots: number
 ): number | null {
-  const base = getBaseWorldLimitForRole(role);
+  const base = getBaseCosmosLimitForRole(role);
   if (base === null) return null; // unlimited stays unlimited
   return base + Math.max(0, extraSlots);
 }
 
 /* ---------- Types ---------- */
 
-type WorldStatus = "draft" | "ready" | "published";
+type CosmosStatus = "draft" | "ready" | "published";
 
-type WorldSummary = {
+type CosmosSummary = {
   id: string;
   slug: string; // for URLs, e.g. "eldarion"
   name: string;
   shortPitch: string;
-  status: WorldStatus;
-  toneTags?: string[];
-  genreFamily?: string[];
+  status: CosmosStatus;
   createdAt?: string;
   owned: boolean; // user-created
   purchased: boolean; // bought from store/marketplace
+  // Detail fields
+  description?: string;
+  originStory?: string;
+  cosmicOperationNotes?: string;
+  designerNotes?: string;
+  existenceOrigin?: string;
+  energyConsciousnessFramework?: string;
+  cosmicConstants?: string;
+  realityInteractionFramework?: string;
+  planeTravelPossible?: boolean;
+  cosmicCalendarName?: string;
+  cyclesEpochsAges?: string;
+  timeFlowRules?: string;
+  majorCosmicEvents?: string;
 };
 
 // TEMP: mock data for layout. Replace with real data later.
-const MOCK_WORLDS: WorldSummary[] = [
+const MOCK_COSMOS: CosmosSummary[] = [
   // {
   //   id: "1",
   //   slug: "eldarion",
@@ -130,12 +143,12 @@ const MOCK_WORLDS: WorldSummary[] = [
 
 /* ---------- Helpers ---------- */
 
-function slugifyWorldName(name: string, existing: WorldSummary[]): string {
+function slugifyCosmosName(name: string, existing: CosmosSummary[]): string {
   const base =
     name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "world";
+      .replace(/(^-|-$)/g, "") || "cosmos";
 
   let slug = base;
   let suffix = 1;
@@ -147,34 +160,59 @@ function slugifyWorldName(name: string, existing: WorldSummary[]): string {
 
 /* ---------- Page ---------- */
 
-export default function WorldChooserPage() {
-  const [worlds, setWorlds] = useState<WorldSummary[]>(MOCK_WORLDS);
+export default function CosmosChooserPage() {
+  const [cosmos, setCosmos] = useState<CosmosSummary[]>([]);
   const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Create-world modal state
+  // Create-cosmos modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newWorldName, setNewWorldName] = useState("");
-  const [newWorldPitch, setNewWorldPitch] = useState("");
+  const [newCosmosName, setNewCosmosName] = useState("");
+  const [newCosmosPitch, setNewCosmosPitch] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const { ownedWorlds, purchasedWorlds, totalOwnedCount } = useMemo(() => {
-    const owned = worlds.filter((w) => w.owned);
-    const purchased = worlds.filter((w) => w.purchased && !w.owned);
+  // Fetch cosmos on mount
+  useEffect(() => {
+    async function fetchCosmos() {
+      try {
+        const response = await fetch('/api/worldbuilder/cosmos');
+        if (response.ok) {
+          const data = await response.json();
+          // Transform DB data to match CosmosSummary type
+          const transformed = data.map((c: any) => ({
+            ...c,
+            owned: true,
+            purchased: false,
+          }));
+          setCosmos(transformed);
+        }
+      } catch (error) {
+        console.error('Failed to fetch cosmos:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchCosmos();
+  }, []);
+
+  const { ownedCosmos, purchasedCosmos, totalOwnedCount } = useMemo(() => {
+    const owned = cosmos.filter((w) => w.owned);
+    const purchased = cosmos.filter((w) => w.purchased && !w.owned);
     return {
-      ownedWorlds: owned,
-      purchasedWorlds: purchased,
+      ownedCosmos: owned,
+      purchasedCosmos: purchased,
       totalOwnedCount: owned.length,
     };
-  }, [worlds]);
+  }, [cosmos]);
 
-  const maxWorldsForRole = getEffectiveWorldLimit(
+  const maxCosmosForRole = getEffectiveCosmosLimit(
     CURRENT_USER_ROLE,
-    EXTRA_WORLD_SLOTS_PURCHASED
+    EXTRA_COSMOS_SLOTS_PURCHASED
   );
-  const isUnlimited = maxWorldsForRole === null;
+  const isUnlimited = maxCosmosForRole === null;
 
   const hasAnySlots =
-    isUnlimited || (maxWorldsForRole !== null && maxWorldsForRole > 0);
+    isUnlimited || (maxCosmosForRole !== null && maxCosmosForRole > 0);
 
   // If truly free and has not purchased any slots, lock the page.
   if (CURRENT_USER_ROLE === "free" && !hasAnySlots) {
@@ -191,11 +229,11 @@ export default function WorldChooserPage() {
               glow
               className="font-evanescent text-3xl sm:text-4xl tracking-tight mb-2"
             >
-              World Builder Locked
+              Cosmos Builder Locked
             </GradientText>
             <p className="text-sm text-zinc-300/90">
-              This account level can&apos;t create or manage worlds yet. Upgrade
-              your role or purchase a world slot to access the Source Forge.
+              This account level can&apos;t create or manage cosmos yet. Upgrade
+              your role or purchase a cosmos slot to access the Source Forge.
             </p>
           </Card>
         </section>
@@ -205,38 +243,36 @@ export default function WorldChooserPage() {
 
   const remainingSlots = isUnlimited
     ? null
-    : Math.max(0, maxWorldsForRole - totalOwnedCount);
+    : Math.max(0, maxCosmosForRole - totalOwnedCount);
 
-  const canCreateWorld =
+  const canCreateCosmos =
     isUnlimited || (remainingSlots !== null && remainingSlots > 0);
 
-  const allWorlds = useMemo(() => {
-    const all = [...ownedWorlds, ...purchasedWorlds];
+  const allCosmos = useMemo(() => {
+    const all = [...ownedCosmos, ...purchasedCosmos];
     if (!search.trim()) return all;
 
     const q = search.toLowerCase();
     return all.filter((w) => {
       return (
         w.name.toLowerCase().includes(q) ||
-        w.shortPitch.toLowerCase().includes(q) ||
-        (w.toneTags || []).some((t) => t.toLowerCase().includes(q)) ||
-        (w.genreFamily || []).some((g) => g.toLowerCase().includes(q))
+        w.shortPitch.toLowerCase().includes(q)
       );
     });
-  }, [ownedWorlds, purchasedWorlds, search]);
+  }, [ownedCosmos, purchasedCosmos, search]);
 
   const isCompletelyEmpty =
-    ownedWorlds.length === 0 && purchasedWorlds.length === 0;
+    ownedCosmos.length === 0 && purchasedCosmos.length === 0;
 
-  const searchId = "world-search";
+  const searchId = "cosmos-search";
 
   const showPurchaseSlotCta = !isUnlimited; // any capped role can buy more
 
   function openCreateModal() {
-    if (!canCreateWorld) return;
+    if (!canCreateCosmos) return;
     setCreateError(null);
-    setNewWorldName("");
-    setNewWorldPitch("");
+    setNewCosmosName("");
+    setNewCosmosPitch("");
     setIsCreateModalOpen(true);
   }
 
@@ -245,19 +281,19 @@ export default function WorldChooserPage() {
     setCreateError(null);
   }
 
-  function handleCreateWorldSubmit(e: React.FormEvent) {
+  function handleCreateCosmosSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!canCreateWorld) {
-      setCreateError("You have no remaining world slots.");
+    if (!canCreateCosmos) {
+      setCreateError("You have no remaining cosmos slots.");
       return;
     }
 
-    const name = newWorldName.trim();
-    const pitch = newWorldPitch.trim();
+    const name = newCosmosName.trim();
+    const pitch = newCosmosPitch.trim();
 
     if (!name) {
-      setCreateError("World name is required.");
+      setCreateError("Cosmos name is required.");
       return;
     }
     if (!pitch) {
@@ -265,36 +301,61 @@ export default function WorldChooserPage() {
       return;
     }
 
-    const slug = slugifyWorldName(name, worlds);
-    const now = new Date().toISOString();
+    const slug = slugifyCosmosName(name, cosmos);
 
-    const newWorld: WorldSummary = {
-      id: `world_${Date.now()}`,
-      slug,
-      name,
-      shortPitch: pitch,
-      status: "draft",
-      toneTags: [],
-      genreFamily: [],
-      createdAt: now,
-      owned: true,
-      purchased: false,
-    };
-
-    setWorlds((prev) => [...prev, newWorld]);
-    closeCreateModal();
+    // Create cosmos via API
+    setCreateError(null);
+    fetch('/api/worldbuilder/cosmos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, shortPitch: pitch, slug }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Failed to create cosmos');
+        }
+        return res.json();
+      })
+      .then((newCosmos) => {
+        // Transform to match CosmosSummary
+        const transformed = {
+          ...newCosmos,
+          owned: true,
+          purchased: false,
+        };
+        setCosmos((prev) => [...prev, transformed]);
+        closeCreateModal();
+      })
+      .catch((err) => {
+        setCreateError(err.message);
+      });
   }
 
-  function handleDeleteWorld(id: string) {
-    const world = worlds.find((w) => w.id === id);
-    if (!world) return;
+  function handleDeleteCosmos(id: string) {
+    const singleCosmos = cosmos.find((w) => w.id === id);
+    if (!singleCosmos) return;
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete the world "${world.name}"? This cannot be undone.`
+      `Are you sure you want to delete the cosmos "${singleCosmos.name}"? This cannot be undone.`
     );
     if (!confirmed) return;
 
-    setWorlds((prev) => prev.filter((w) => w.id !== id));
+    // Delete via API
+    fetch(`/api/worldbuilder/cosmos/${singleCosmos.slug}`, {
+      method: 'DELETE',
+    })
+      .then((res) => {
+        if (res.ok) {
+          setCosmos((prev) => prev.filter((w) => w.id !== id));
+        } else {
+          alert('Failed to delete cosmos');
+        }
+      })
+      .catch((err) => {
+        console.error('Delete error:', err);
+        alert('Failed to delete cosmos');
+      });
   }
 
   return (
@@ -309,10 +370,10 @@ export default function WorldChooserPage() {
               glow
               className="font-evanescent text-4xl sm:text-5xl tracking-tight"
             >
-              The Source Forge — Worlds
+              The Source Forge — Cosmos
             </GradientText>
             <p className="mt-1 text-sm text-zinc-300/90 max-w-2xl">
-              This is your world shelf. Each world is a universe root that eras,
+              This is your cosmos shelf. Each cosmos is a universe root that eras,
               settings, campaigns, and sessions will inherit from.
             </p>
           </div>
@@ -333,25 +394,25 @@ export default function WorldChooserPage() {
               <div className="flex flex-col gap-1">
                 <span className="font-semibold">
                   {isUnlimited
-                    ? `${totalOwnedCount} worlds`
-                    : `${totalOwnedCount} / ${maxWorldsForRole} world slots used`}
+                    ? `${totalOwnedCount} cosmos`
+                    : `${totalOwnedCount} / ${maxCosmosForRole} cosmos slots used`}
                 </span>
                 <span className="text-xs text-zinc-400">
                   {isUnlimited
-                    ? "This role can create unlimited worlds."
+                    ? "This role can create unlimited cosmos."
                     : remainingSlots && remainingSlots > 0
                     ? `${remainingSlots} open slot${
                         remainingSlots === 1 ? "" : "s"
                       } remaining.`
-                    : "World limit reached. Archive, clear, or purchase a new slot to create more worlds."}
+                    : "Cosmos limit reached. Archive, clear, or purchase a new slot to create more cosmos."}  
                 </span>
 
                 {showPurchaseSlotCta && (
                   <Link
-                    href="/store/world-slots"
+                    href="/store/cosmos-slots"
                     className="mt-1 text-xs text-emerald-300 underline hover:text-emerald-200"
                   >
-                    Need more room? Purchase another world slot.
+                    Need more room? Purchase another cosmos slot.
                   </Link>
                 )}
               </div>
@@ -360,7 +421,7 @@ export default function WorldChooserPage() {
         </div>
 
         <div className="flex justify-end">
-          <WBNav current="worlds" />
+          <WBNav current="cosmos" />
         </div>
       </header>
 
@@ -372,19 +433,19 @@ export default function WorldChooserPage() {
             className="max-w-xl mx-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8 shadow-2xl text-center"
           >
             <h2 className="text-2xl font-semibold text-zinc-50 mb-2">
-              No worlds yet.
+              No cosmos yet.
             </h2>
             <p className="mb-6 text-sm text-zinc-300">
-              Start by crafting your first world. You can always add Eras,
+              Start by crafting your first cosmos. You can always add Eras,
               Settings, and Campaigns later – but everything begins here.
             </p>
 
             <Button
-              disabled={!canCreateWorld}
-              variant={canCreateWorld ? "primary" : "ghost"}
+              disabled={!canCreateCosmos}
+              variant={canCreateCosmos ? "primary" : "ghost"}
               onClick={openCreateModal}
             >
-              Create your first world
+              Create your first cosmos
             </Button>
           </Card>
         </section>
@@ -393,7 +454,7 @@ export default function WorldChooserPage() {
           {/* Search */}
           <section className="flex flex-col items-stretch gap-4 md:flex-row md:items-end md:justify-between">
             <div className="w-full max-w-md">
-              <FormField label="Search worlds" htmlFor={searchId}>
+              <FormField label="Search cosmos" htmlFor={searchId}>
                 <Input
                   id={searchId}
                   value={search}
@@ -407,14 +468,14 @@ export default function WorldChooserPage() {
           {/* World cards */}
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {/* Optional: Create card inside grid if we still have slots */}
-            {canCreateWorld && (
+            {canCreateCosmos && (
               <Card
                 padded={false}
                 className="flex flex-col justify-between rounded-3xl border border-white/10 bg-white/5 backdrop-blur px-6 py-5 shadow-2xl"
               >
                 <div>
                   <h2 className="text-lg font-semibold text-zinc-50">
-                    Create a new world
+                    Create a new cosmos
                   </h2>
                   <p className="mt-2 text-sm text-zinc-300">
                     Start fresh with a new universe root. Overview first, then
@@ -423,17 +484,17 @@ export default function WorldChooserPage() {
                 </div>
                 <div className="mt-4">
                   <Button size="sm" onClick={openCreateModal}>
-                    Begin world creation
+                    Begin cosmos creation
                   </Button>
                 </div>
               </Card>
             )}
 
-            {allWorlds.map((world) => (
-              <WorldCard
-                key={world.id}
-                world={world}
-                onDelete={handleDeleteWorld}
+            {allCosmos.map((singleCosmos) => (
+              <CosmosCard
+                key={singleCosmos.id}
+                cosmos={singleCosmos}
+                onDelete={handleDeleteCosmos}
               />
             ))}
           </section>
@@ -448,29 +509,29 @@ export default function WorldChooserPage() {
             className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950/90 backdrop-blur p-6 shadow-2xl"
           >
             <h2 className="mb-3 text-xl font-semibold text-zinc-50">
-              Create New World
+              Create New Cosmos
             </h2>
             <p className="mb-4 text-sm text-zinc-300">
-              Give your world a name and a short pitch. You can fill in the deep
+              Give your cosmos a name and a short pitch. You can fill in the deep
               details on the next screen.
             </p>
 
-            <form onSubmit={handleCreateWorldSubmit} className="space-y-4">
-              <FormField label="World Name" htmlFor="new-world-name">
+            <form onSubmit={handleCreateCosmosSubmit} className="space-y-4">
+              <FormField label="Cosmos Name" htmlFor="new-cosmos-name">
                 <Input
-                  id="new-world-name"
-                  value={newWorldName}
-                  onChange={(e) => setNewWorldName(e.target.value)}
+                  id="new-cosmos-name"
+                  value={newCosmosName}
+                  onChange={(e) => setNewCosmosName(e.target.value)}
                   placeholder="e.g. Eldarion, The Fractured Chain"
                 />
               </FormField>
 
-              <FormField label="Short Pitch" htmlFor="new-world-pitch">
+              <FormField label="Short Pitch" htmlFor="new-cosmos-pitch">
                 <Input
-                  id="new-world-pitch"
-                  value={newWorldPitch}
-                  onChange={(e) => setNewWorldPitch(e.target.value)}
-                  placeholder="One or two sentences about this world…"
+                  id="new-cosmos-pitch"
+                  value={newCosmosPitch}
+                  onChange={(e) => setNewCosmosPitch(e.target.value)}
+                  placeholder="One or two sentences about this cosmos…"
                 />
               </FormField>
 
@@ -491,7 +552,7 @@ export default function WorldChooserPage() {
                   type="submit"
                   size="sm"
                   variant="primary"
-                  disabled={!canCreateWorld}
+                  disabled={!canCreateCosmos}
                 >
                   Save &amp; Continue
                 </Button>
@@ -504,16 +565,16 @@ export default function WorldChooserPage() {
   );
 }
 
-/* ---------- World card ---------- */
+/* ---------- Cosmos card ---------- */
 
-type WorldCardProps = {
-  world: WorldSummary;
+type CosmosCardProps = {
+  cosmos: CosmosSummary;
   onDelete: (id: string) => void;
 };
 
-function WorldCard({ world, onDelete }: WorldCardProps) {
+function CosmosCard({ cosmos, onDelete }: CosmosCardProps) {
   const statusLabel = (() => {
-    switch (world.status) {
+    switch (cosmos.status) {
       case "draft":
         return "Draft";
       case "ready":
@@ -521,7 +582,7 @@ function WorldCard({ world, onDelete }: WorldCardProps) {
       case "published":
         return "Published";
       default:
-        return world.status;
+        return cosmos.status;
     }
   })();
 
@@ -532,18 +593,18 @@ function WorldCard({ world, onDelete }: WorldCardProps) {
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-50">{world.name}</h2>
-          {world.shortPitch && (
+          <h2 className="text-lg font-semibold text-zinc-50">{cosmos.name}</h2>
+          {cosmos.shortPitch && (
             <p className="mt-1 line-clamp-2 text-sm text-zinc-300">
-              {world.shortPitch}
+              {cosmos.shortPitch}
             </p>
           )}
         </div>
         <span
           className={`rounded-full px-2 py-1 text-xs font-semibold ${
-            world.status === "published"
+            cosmos.status === "published"
               ? "bg-emerald-700/30 text-emerald-300"
-              : world.status === "ready"
+              : cosmos.status === "ready"
               ? "bg-amber-700/30 text-amber-300"
               : "bg-zinc-700/40 text-zinc-200"
           }`}
@@ -552,35 +613,14 @@ function WorldCard({ world, onDelete }: WorldCardProps) {
         </span>
       </div>
 
-      {(world.toneTags?.length || world.genreFamily?.length) && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {world.genreFamily?.map((g) => (
-            <span
-              key={`genre-${g}`}
-              className="rounded-full bg-zinc-900/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-300"
-            >
-              {g}
-            </span>
-          ))}
-          {world.toneTags?.map((t) => (
-            <span
-              key={`tone-${t}`}
-              className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300"
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-
       <div className="mt-auto flex items-center justify-between pt-3 text-xs text-zinc-400">
         <div className="flex flex-col">
-          {world.owned && <span>Owned world</span>}
-          {world.purchased && !world.owned && <span>Purchased template</span>}
-          {world.createdAt && (
+          {cosmos.owned && <span>Owned cosmos</span>}
+          {cosmos.purchased && !cosmos.owned && <span>Purchased template</span>}
+          {cosmos.createdAt && (
             <span>
               Created:{" "}
-              {new Date(world.createdAt).toLocaleDateString(undefined, {
+              {new Date(cosmos.createdAt).toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -589,27 +629,16 @@ function WorldCard({ world, onDelete }: WorldCardProps) {
           )}
         </div>
         <div className="flex gap-2">
-          <Link
-            href={`/worldbuilder/worlds/${world.slug}/overview`}
-            className="inline-block"
-          >
+          <Link href={`/worldbuilder/cosmos/${cosmos.slug}`}>
             <Button size="sm" variant="ghost">
               Edit details
-            </Button>
-          </Link>
-          <Link
-            href={`/worldbuilder/worlds/${world.slug}/timeline`}
-            className="inline-block"
-          >
-            <Button size="sm" variant="ghost">
-              View world timeline
             </Button>
           </Link>
           <Button
             size="sm"
             variant="ghost"
             className="text-red-300 hover:text-red-200"
-            onClick={() => onDelete(world.id)}
+            onClick={() => onDelete(cosmos.id)}
           >
             Delete
           </Button>

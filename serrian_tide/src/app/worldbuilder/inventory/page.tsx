@@ -15,10 +15,10 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "inventory",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+  current?: "cosmos" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
-    { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
+    { href: "/worldbuilder/cosmos", key: "cosmos", label: "Cosmos" },
     { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
@@ -58,6 +58,7 @@ export type ItemRow = {
   id: string | number;
   name: string;
   is_free?: boolean;
+  createdBy?: string;
   timeline_tag?: string | null;
   cost_credits?: number | null;
   category?: string | null;
@@ -72,6 +73,7 @@ export type WeaponRow = {
   id: string | number;
   name: string;
   is_free?: boolean;
+  createdBy?: string;
   timeline_tag?: string | null;
   cost_credits?: number | null;
   category?: string | null;
@@ -90,6 +92,7 @@ export type ArmorRow = {
   id: string | number;
   name: string;
   is_free?: boolean;
+  createdBy?: string;
   timeline_tag?: string | null;
   cost_credits?: number | null;
   area_covered?: string | null;
@@ -145,11 +148,19 @@ export default function InventoryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
 
   // Load inventory from database on mount
   useEffect(() => {
     async function loadInventory() {
       try {
+        // Load current user
+        const userResponse = await fetch("/api/profile/me");
+        const userData = await userResponse.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
         const [itemsRes, weaponsRes, armorRes] = await Promise.all([
           fetch("/api/worldbuilder/inventory/items"),
           fetch("/api/worldbuilder/inventory/weapons"),

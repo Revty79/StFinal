@@ -16,10 +16,10 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "npcs",
 }: {
-  current?: "worlds" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+  current?: "cosmos" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
-    { href: "/worldbuilder/worlds", key: "worlds", label: "Worlds" },
+    { href: "/worldbuilder/cosmos", key: "cosmos", label: "Cosmos" },
     { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
