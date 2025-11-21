@@ -12,11 +12,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const creatures = await db
-      .select()
-      .from(schema.creatures)
-      .where(eq(schema.creatures.createdBy, user.id))
-      .orderBy(schema.creatures.name);
+    // Admins can see all creatures, regular users see only their own
+    const creatures = user.role === 'admin'
+      ? await db.select().from(schema.creatures).orderBy(schema.creatures.name)
+      : await db
+          .select()
+          .from(schema.creatures)
+          .where(eq(schema.creatures.createdBy, user.id))
+          .orderBy(schema.creatures.name);
 
     return NextResponse.json({ ok: true, creatures });
   } catch (err) {

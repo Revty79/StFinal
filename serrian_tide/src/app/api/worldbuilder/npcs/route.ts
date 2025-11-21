@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, or, asc } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
@@ -12,16 +12,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const npcs = await db
-      .select()
-      .from(schema.npcs)
-      .where(
-        or(
-          eq(schema.npcs.createdBy, user.id),
-          eq(schema.npcs.isFree, true)
-        )
-      )
-      .orderBy(asc(schema.npcs.name));
+    // Admins see all, users see their own + free content
+    const npcs = user.role === 'admin'
+      ? await db.select().from(schema.npcs).orderBy(schema.npcs.name)
+      : await db
+          .select()
+          .from(schema.npcs)
+          .where(
+            or(
+              eq(schema.npcs.createdBy, user.id),
+              eq(schema.npcs.isFree, true)
+            )
+          )
+          .orderBy(schema.npcs.name);
 
     return NextResponse.json({ ok: true, npcs });
   } catch (err) {

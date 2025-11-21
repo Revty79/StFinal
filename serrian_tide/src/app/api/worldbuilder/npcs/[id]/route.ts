@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/worldbuilder/npcs/:id
@@ -16,10 +16,21 @@ export async function GET(
 
     const { id } = await context.params;
 
+    // Admins can view all, users can view their own + free content
+    const whereClause = user.role === 'admin'
+      ? eq(schema.npcs.id, id)
+      : and(
+          eq(schema.npcs.id, id),
+          or(
+            eq(schema.npcs.createdBy, user.id),
+            eq(schema.npcs.isFree, true)
+          )
+        );
+
     const npc = await db
       .select()
       .from(schema.npcs)
-      .where(and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id)))
+      .where(whereClause)
       .limit(1);
 
     if (npc.length === 0) {
@@ -27,7 +38,7 @@ export async function GET(
     }
 
     const npcData = npc[0]!;
-    const canEdit = npcData.createdBy === user.id;
+    const canEdit = user.role === 'admin' || npcData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, npc: npcData, canEdit });
   } catch (err) {
@@ -119,7 +130,11 @@ export async function PUT(
     await db
       .update(schema.npcs)
       .set(updates)
-      .where(and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id)));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.npcs.id, id)
+          : and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id))
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -143,7 +158,11 @@ export async function DELETE(
 
     await db
       .delete(schema.npcs)
-      .where(and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id)));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.npcs.id, id)
+          : and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id))
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

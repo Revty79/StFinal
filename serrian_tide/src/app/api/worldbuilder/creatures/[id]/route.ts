@@ -16,13 +16,18 @@ export async function GET(
 
     const { id } = await params;
 
+    // Admins can view all creatures, users only their own
+    const whereClause = user.role === 'admin'
+      ? eq(schema.creatures.id, id)
+      : and(
+          eq(schema.creatures.id, id),
+          eq(schema.creatures.createdBy, user.id)
+        );
+
     const creature = await db
       .select()
       .from(schema.creatures)
-      .where(and(
-        eq(schema.creatures.id, id),
-        eq(schema.creatures.createdBy, user.id)
-      ))
+      .where(whereClause)
       .limit(1);
 
     if (creature.length === 0) {
@@ -30,7 +35,7 @@ export async function GET(
     }
 
     const creatureData = creature[0]!;
-    const canEdit = creatureData.createdBy === user.id;
+    const canEdit = user.role === 'admin' || creatureData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, creature: creatureData, canEdit });
   } catch (err) {
@@ -122,10 +127,14 @@ export async function DELETE(
 
     await db
       .delete(schema.creatures)
-      .where(and(
-        eq(schema.creatures.id, id),
-        eq(schema.creatures.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.creatures.id, id)
+          : and(
+              eq(schema.creatures.id, id),
+              eq(schema.creatures.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

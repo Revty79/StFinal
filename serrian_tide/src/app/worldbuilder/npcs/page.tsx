@@ -71,6 +71,8 @@ function transformNpcFromApi(npc: any): any {
     attitude_toward_party: npc.attitudeTowardParty,
     is_free: npc.isFree,
     isPublished: npc.isPublished,
+    created_by: npc.createdBy,
+    can_edit: npc.canEdit !== undefined ? npc.canEdit : true, // Default true for backwards compatibility
   };
 }
 
@@ -85,6 +87,8 @@ export type NPC = {
   id: string | number;
   name: string;
   is_free?: boolean;
+  created_by?: string; // User ID of creator
+  can_edit?: boolean; // Whether current user can edit this NPC
 
   // Identity & tags
   alias?: string | null;

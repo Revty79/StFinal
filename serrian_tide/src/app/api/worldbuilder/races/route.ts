@@ -12,16 +12,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const races = await db
-      .select()
-      .from(schema.races)
-      .where(
-        or(
-          eq(schema.races.createdBy, user.id),
-          eq(schema.races.isFree, true)
-        )
-      )
-      .orderBy(asc(schema.races.name));
+    // Admins see all, users see their own + free content
+    const races = user.role === 'admin'
+      ? await db.select().from(schema.races).orderBy(schema.races.name)
+      : await db
+          .select()
+          .from(schema.races)
+          .where(
+            or(
+              eq(schema.races.createdBy, user.id),
+              eq(schema.races.isFree, true)
+            )
+          )
+          .orderBy(schema.races.name);
 
     // Transform races to include flattened max attributes for easier access
     const transformedRaces = races.map(race => {

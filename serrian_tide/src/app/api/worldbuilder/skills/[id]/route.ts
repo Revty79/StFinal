@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/worldbuilder/skills/[id]
@@ -16,13 +16,21 @@ export async function GET(
 
     const { id } = await params;
 
+    // Admins can view all, users can view their own + free content
+    const whereClause = user.role === 'admin'
+      ? eq(schema.skills.id, id)
+      : and(
+          eq(schema.skills.id, id),
+          or(
+            eq(schema.skills.createdBy, user.id),
+            eq(schema.skills.isFree, true)
+          )
+        );
+
     const skill = await db
       .select()
       .from(schema.skills)
-      .where(and(
-        eq(schema.skills.id, id),
-        eq(schema.skills.createdBy, user.id)
-      ))
+      .where(whereClause)
       .limit(1);
 
     if (skill.length === 0) {
@@ -30,7 +38,7 @@ export async function GET(
     }
 
     const skillData = skill[0]!;
-    const canEdit = skillData.createdBy === user.id;
+    const canEdit = user.role === 'admin' || skillData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, skill: skillData, canEdit });
   } catch (err) {
@@ -75,10 +83,14 @@ export async function PUT(
         isPublished: body.isPublished,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(schema.skills.id, id),
-        eq(schema.skills.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.skills.id, id)
+          : and(
+              eq(schema.skills.id, id),
+              eq(schema.skills.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -102,10 +114,14 @@ export async function DELETE(
 
     await db
       .delete(schema.skills)
-      .where(and(
-        eq(schema.skills.id, id),
-        eq(schema.skills.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.skills.id, id)
+          : and(
+              eq(schema.skills.id, id),
+              eq(schema.skills.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

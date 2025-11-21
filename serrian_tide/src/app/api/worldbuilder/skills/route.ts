@@ -19,13 +19,15 @@ export async function GET(req: Request) {
     const type = searchParams.get('type');
     const isSpecialAbility = searchParams.get('is_special_ability') === 'true';
 
-    // Build filters - include user's skills AND free skills
-    const conditions: any[] = [
-      or(
-        eq(schema.skills.createdBy, user.id),
-        eq(schema.skills.isFree, true)
-      )
-    ];
+    // Build filters - admins see all, users see their own + free content
+    const conditions: any[] = user.role === 'admin'
+      ? [] // No createdBy filter for admins
+      : [
+          or(
+            eq(schema.skills.createdBy, user.id),
+            eq(schema.skills.isFree, true)
+          )
+        ];
     
     if (tier) {
       const tierNum = tier === 'N/A' ? null : parseInt(tier);

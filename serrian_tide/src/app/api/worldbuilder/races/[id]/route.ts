@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/worldbuilder/races/[id]
@@ -16,13 +16,21 @@ export async function GET(
 
     const { id } = await params;
 
+    // Admins can view all, users can view their own + free content
+    const whereClause = user.role === 'admin'
+      ? eq(schema.races.id, id)
+      : and(
+          eq(schema.races.id, id),
+          or(
+            eq(schema.races.createdBy, user.id),
+            eq(schema.races.isFree, true)
+          )
+        );
+
     const race = await db
       .select()
       .from(schema.races)
-      .where(and(
-        eq(schema.races.id, id),
-        eq(schema.races.createdBy, user.id)
-      ))
+      .where(whereClause)
       .limit(1);
 
     if (race.length === 0) {
@@ -30,7 +38,7 @@ export async function GET(
     }
 
     const raceData = race[0]!;
-    const canEdit = raceData.createdBy === user.id;
+    const canEdit = user.role === 'admin' || raceData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, race: raceData, canEdit });
   } catch (err) {
@@ -69,10 +77,14 @@ export async function PUT(
         isPublished: body.isPublished,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(schema.races.id, id),
-        eq(schema.races.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.races.id, id)
+          : and(
+              eq(schema.races.id, id),
+              eq(schema.races.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -96,10 +108,14 @@ export async function DELETE(
 
     await db
       .delete(schema.races)
-      .where(and(
-        eq(schema.races.id, id),
-        eq(schema.races.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.races.id, id)
+          : and(
+              eq(schema.races.id, id),
+              eq(schema.races.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
