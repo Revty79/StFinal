@@ -8,11 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:seed": "npx tsx scripts/seed-roles.ts",
-    "db:setup": "npm run db:migrate && npm run db:seed",
-    "db:push": "npm run db:generate && npm run db:migrate"
+    "db:setup": "node setup-db.js",
+    "db:seed": "npx tsx scripts/seed-roles.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
