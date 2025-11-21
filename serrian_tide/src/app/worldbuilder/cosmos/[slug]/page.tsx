@@ -27,12 +27,12 @@ type RealityRigidity = (typeof REALITY_RIGIDITY_OPTIONS)[number];
 
 const PLANE_TYPE_OPTIONS = [
   "Material",
-  "Astral",
-  "Void",
-  "Divine",
-  "Dream",
-  "Shadow",
-  "Elemental",
+  "Metaphysical",
+  "Energetic/Alchemical",
+  "Shadow/Reflection/Mirror",
+  "Artificial/Engineered",
+  "Transitional/Boundary",
+  "Absolute/Prime/Root",
   "Custom / Other",
 ] as const;
 type PlaneTypeOption = (typeof PLANE_TYPE_OPTIONS)[number];
@@ -158,6 +158,17 @@ export default function CosmosDetailPage() {
         const response = await fetch(`/api/worldbuilder/cosmos/${slug}`);
         if (response.ok) {
           const data = await response.json();
+          
+          // Load planes from localStorage for now (until DB is ready)
+          const storedPlanes = localStorage.getItem(`cosmos_${slug}_planes`);
+          if (storedPlanes) {
+            try {
+              data.planes = JSON.parse(storedPlanes);
+            } catch (e) {
+              console.error('Failed to parse stored planes:', e);
+            }
+          }
+          
           setCosmos(data);
         } else if (response.status === 404) {
           router.push('/worldbuilder/cosmos');
@@ -201,8 +212,14 @@ export default function CosmosDetailPage() {
     const updated = { ...cosmos, ...patch };
     setCosmos(updated);
     
-    // Auto-save changes
-    saveCosmosToAPI(updated);
+    // If planes were updated, save to localStorage (until DB is ready)
+    if ('planes' in patch) {
+      localStorage.setItem(`cosmos_${slug}_planes`, JSON.stringify(patch.planes));
+    }
+    
+    // Auto-save other changes to API (but not planes yet)
+    const { planes, ...cosmosDataForAPI } = updated;
+    saveCosmosToAPI(cosmosDataForAPI);
   }
 
   async function saveCosmosToAPI(data: CosmosDetail) {
@@ -899,13 +916,11 @@ export default function CosmosDetailPage() {
                         )}
 
                         <div className="mt-3 flex justify-end gap-2">
-                          <button
+                         <button
                             type="button"
                             onClick={() => {
-                              // TODO: Replace with router.push to Plane Detail when that exists
-                              alert(
-                                "Plane details editor coming soon. This will open the Plane form."
-                              );
+                              // Go to the Plane detail editor
+                              router.push(`/worldbuilder/cosmos/${slug}/planes/${plane.id}`);
                             }}
                             className="px-3 py-1 rounded-full border border-white/20 bg-black/30 hover:bg-white/10 text-[11px] text-zinc-100 transition"
                           >
