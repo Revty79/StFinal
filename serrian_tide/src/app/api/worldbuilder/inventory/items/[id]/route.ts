@@ -29,7 +29,10 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, item: item[0] });
+    const itemData = item[0];
+    const canEdit = itemData.createdBy === user.id;
+
+    return NextResponse.json({ ok: true, item: itemData, canEdit });
   } catch (err) {
     console.error("Get inventory item error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

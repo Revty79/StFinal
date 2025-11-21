@@ -294,6 +294,9 @@ export default function RacesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
+  
+  // Read-only mode for races owned by others
+  const [readOnlyMode, setReadOnlyMode] = useState(false);
 
   // Skills for dropdowns
   const [tier1Skills, setTier1Skills] = useState<Array<{ id: string; name: string }>>([]);
@@ -395,6 +398,16 @@ export default function RacesPage() {
       races.find((r) => String(r.id) === String(selectedId ?? "")) ?? null,
     [races, selectedId]
   );
+
+  // Check if selected race is editable
+  useEffect(() => {
+    if (selected && currentUser) {
+      const isOwner = selected.createdBy === currentUser.id;
+      setReadOnlyMode(!isOwner);
+    } else {
+      setReadOnlyMode(false);
+    }
+  }, [selected, currentUser]);
 
   // ensure something is selected when the list changes
   useEffect(() => {
@@ -567,6 +580,12 @@ export default function RacesPage() {
 
   async function saveSelected() {
     if (!selected) return;
+    
+    // Prevent saving if in read-only mode
+    if (readOnlyMode) {
+      alert("You cannot edit this race. It was created by another user.");
+      return;
+    }
 
     try {
       // Transform bonusRows and specialRows into the JSONB format expected by the API
@@ -1149,6 +1168,11 @@ export default function RacesPage() {
                 </div>
 
                 <div className="shrink-0 flex flex-col items-end gap-2">
+                  {readOnlyMode && (
+                    <div className="text-xs text-amber-400 bg-amber-400/10 px-3 py-1 rounded border border-amber-400/30">
+                      Read-Only: Created by another user
+                    </div>
+                  )}
                   <Tabs
                     tabs={TAB_SECTIONS}
                     activeId={activeTab}
@@ -1160,6 +1184,7 @@ export default function RacesPage() {
                       size="sm"
                       type="button"
                       onClick={saveSelected}
+                      disabled={readOnlyMode}
                     >
                       Save
                     </Button>

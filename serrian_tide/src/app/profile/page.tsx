@@ -14,6 +14,7 @@ const BACKGROUND_OPTIONS = [
   { value: 'nebula.png', label: 'Nebula' },
   { value: 'SPBackground.png', label: 'Steampunk Background' },
   { value: 'WesternBG.png', label: 'Western Background' },
+  { value: 'HF.png' , label: 'High Fantasy' }
 ];
 
 const GEAR_OPTIONS = [

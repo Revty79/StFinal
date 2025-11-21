@@ -22,11 +22,14 @@ export async function GET(
       .where(and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id)))
       .limit(1);
 
-    if (!npc || npc.length === 0) {
+    if (npc.length === 0) {
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, npc: npc[0] });
+    const npcData = npc[0];
+    const canEdit = npcData.createdBy === user.id;
+
+    return NextResponse.json({ ok: true, npc: npcData, canEdit });
   } catch (err) {
     console.error("Get npc error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });

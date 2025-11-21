@@ -29,7 +29,10 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, skill: skill[0] });
+    const skillData = skill[0];
+    const canEdit = skillData.createdBy === user.id;
+
+    return NextResponse.json({ ok: true, skill: skillData, canEdit });
   } catch (err) {
     console.error("Get skill error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
