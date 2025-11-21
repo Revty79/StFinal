@@ -26,7 +26,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const npcData = npc[0];
+    const npcData = npc[0]!;
     const canEdit = npcData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, npc: npcData, canEdit });

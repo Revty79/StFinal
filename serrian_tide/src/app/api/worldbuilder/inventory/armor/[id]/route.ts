@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const armorData = armor[0];
+    const armorData = armor[0]!;
     const canEdit = armorData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, armor: armorData, canEdit });

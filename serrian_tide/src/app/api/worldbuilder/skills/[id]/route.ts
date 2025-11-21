@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const skillData = skill[0];
+    const skillData = skill[0]!;
     const canEdit = skillData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, skill: skillData, canEdit });

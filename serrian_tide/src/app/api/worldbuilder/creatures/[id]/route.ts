@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const creatureData = creature[0];
+    const creatureData = creature[0]!;
     const canEdit = creatureData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, creature: creatureData, canEdit });
