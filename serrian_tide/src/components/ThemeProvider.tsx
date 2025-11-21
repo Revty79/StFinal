@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  
   useEffect(() => {
     async function loadPreferences() {
       try {
@@ -47,6 +50,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
                 }
               `;
             }
+          } else if (res.status === 401) {
+            // User not logged in, apply defaults
+            document.documentElement.className = 'theme-void';
+            document.body.style.backgroundImage = `
+              linear-gradient(var(--st-tint), var(--st-tint)),
+              url("/nebula.png"),
+              linear-gradient(to bottom, var(--st-top), var(--st-deep))
+            `.replace(/\s+/g, ' ').trim();
+            
+            const styleEl = document.getElementById('user-gear-style');
+            if (styleEl) {
+              styleEl.textContent = 'body::before { display: none !important; }';
+            }
           }
         }
       } catch (err) {
@@ -55,7 +71,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
     
     loadPreferences();
-  }, []);
+  }, [pathname]); // Reload when navigating (including after login)
   
   return <>{children}</>;
 }

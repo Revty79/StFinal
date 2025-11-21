@@ -11,6 +11,21 @@ export function LogoutButton() {
   const handleLogout = async () => {
     try {
       setIsLoading(true);
+      
+      // Reset visual preferences to defaults
+      document.documentElement.className = 'theme-void';
+      document.body.style.backgroundImage = `
+        linear-gradient(var(--st-tint), var(--st-tint)),
+        url("/nebula.png"),
+        linear-gradient(to bottom, var(--st-top), var(--st-deep))
+      `.replace(/\s+/g, ' ').trim();
+      
+      // Remove gear overlay
+      const styleEl = document.getElementById('user-gear-style');
+      if (styleEl) {
+        styleEl.textContent = 'body::before { display: none !important; }';
+      }
+      
       const response = await fetch('/api/auth/logout', {
         method: 'POST',
       });
