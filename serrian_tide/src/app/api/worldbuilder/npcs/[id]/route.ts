@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/db/client";
-import { eq, and, or } from "drizzle-orm";
+import { Pool } from "pg";
 import { getSessionUser } from "@/server/session";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 // GET /api/worldbuilder/npcs/:id
 export async function GET(
@@ -17,30 +20,85 @@ export async function GET(
     const { id } = await context.params;
 
     // Admins can view all, users can view their own + free content
-    const whereClause = user.role === 'admin'
-      ? eq(schema.npcs.id, id)
-      : and(
-          eq(schema.npcs.id, id),
-          or(
-            eq(schema.npcs.createdBy, user.id),
-            eq(schema.npcs.isFree, true)
-          )
-        );
+    const query = user.role === 'admin'
+      ? 'SELECT * FROM npcs WHERE id = $1'
+      : 'SELECT * FROM npcs WHERE id = $1 AND (created_by = $2 OR is_free = true)';
+    
+    const params = user.role === 'admin' ? [id] : [id, user.id];
+    const result = await pool.query(query, params);
 
-    const npc = await db
-      .select()
-      .from(schema.npcs)
-      .where(whereClause)
-      .limit(1);
-
-    if (npc.length === 0) {
+    if (result.rows.length === 0) {
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const npcData = npc[0]!;
-    const canEdit = user.role === 'admin' || npcData.createdBy === user.id;
+    const row = result.rows[0];
+    const canEdit = user.role === 'admin' || row.created_by === user.id;
 
-    return NextResponse.json({ ok: true, npc: npcData, canEdit });
+    const npc = {
+      id: row.id,
+      name: row.name,
+      alias: row.alias,
+      importance: row.importance,
+      role: row.role,
+      race: row.race,
+      occupation: row.occupation,
+      location: row.location,
+      timelineTag: row.timeline_tag,
+      tags: row.tags,
+      age: row.age,
+      gender: row.gender,
+      
+      descriptionShort: row.description_short,
+      appearance: row.appearance,
+      
+      strength: row.strength,
+      dexterity: row.dexterity,
+      constitution: row.constitution,
+      intelligence: row.intelligence,
+      wisdom: row.wisdom,
+      charisma: row.charisma,
+      
+      baseMovement: row.base_movement,
+      hpTotal: row.hp_total,
+      initiative: row.initiative,
+      armorSoak: row.armor_soak,
+      defenseNotes: row.defense_notes,
+      
+      challengeRating: row.challenge_rating,
+      skillAllocations: row.skill_allocations,
+      skillCheckpoint: row.skill_checkpoint,
+      isInitialSetupLocked: row.is_initial_setup_locked,
+      xpSpent: row.xp_spent,
+      xpCheckpoint: row.xp_checkpoint,
+      
+      personality: row.personality,
+      ideals: row.ideals,
+      bonds: row.bonds,
+      flaws: row.flaws,
+      goals: row.goals,
+      secrets: row.secrets,
+      backstory: row.backstory,
+      motivations: row.motivations,
+      hooks: row.hooks,
+      
+      faction: row.faction,
+      relationships: row.relationships,
+      attitudeTowardParty: row.attitude_toward_party,
+      allies: row.allies,
+      enemies: row.enemies,
+      affiliations: row.affiliations,
+      resources: row.resources,
+      
+      notes: row.notes,
+      isFree: row.is_free,
+      isPublished: row.is_published,
+      createdBy: row.created_by,
+      canEdit,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+
+    return NextResponse.json({ ok: true, npc, canEdit });
   } catch (err) {
     console.error("Get npc error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
@@ -65,76 +123,102 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
 
-    const updates: any = {
-      updatedAt: new Date(),
+    // Build dynamic update query
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    // Helper to add field to update
+    const addField = (dbField: string, bodyField: string, transform?: (v: any) => any) => {
+      if (body[bodyField] !== undefined) {
+        updates.push(`${dbField} = $${paramCount}`);
+        values.push(transform ? transform(body[bodyField]) : body[bodyField]);
+        paramCount++;
+      }
     };
 
-    // Map all possible fields
-    if (body.name !== undefined) updates.name = body.name;
-    if (body.alias !== undefined) updates.alias = body.alias;
-    if (body.importance !== undefined) updates.importance = body.importance;
-    if (body.role !== undefined) updates.role = body.role;
-    if (body.Race !== undefined) updates.race = body.Race;
-    if (body.race !== undefined) updates.race = body.race;
-    if (body.occupation !== undefined) updates.occupation = body.occupation;
-    if (body.location !== undefined) updates.location = body.location;
-    if (body.timelineTag !== undefined) updates.timelineTag = body.timelineTag;
-    if (body.tags !== undefined) updates.tags = body.tags;
-    if (body.age !== undefined) updates.age = body.age;
-    if (body.gender !== undefined) updates.gender = body.gender;
+    addField('name', 'name');
+    addField('alias', 'alias');
+    addField('importance', 'importance');
+    addField('role', 'role');
+    addField('race', 'Race');
+    if (body.race !== undefined) {
+      updates.push(`race = $${paramCount}`);
+      values.push(body.race);
+      paramCount++;
+    }
+    addField('occupation', 'occupation');
+    addField('location', 'location');
+    addField('timeline_tag', 'timelineTag');
+    addField('tags', 'tags');
+    addField('age', 'age');
+    addField('gender', 'gender');
     
-    if (body.descriptionShort !== undefined) updates.descriptionShort = body.descriptionShort;
-    if (body.appearance !== undefined) updates.appearance = body.appearance;
+    addField('description_short', 'descriptionShort');
+    addField('appearance', 'appearance');
     
-    if (body.strength !== undefined) updates.strength = body.strength;
-    if (body.dexterity !== undefined) updates.dexterity = body.dexterity;
-    if (body.constitution !== undefined) updates.constitution = body.constitution;
-    if (body.intelligence !== undefined) updates.intelligence = body.intelligence;
-    if (body.wisdom !== undefined) updates.wisdom = body.wisdom;
-    if (body.charisma !== undefined) updates.charisma = body.charisma;
+    addField('strength', 'strength');
+    addField('dexterity', 'dexterity');
+    addField('constitution', 'constitution');
+    addField('intelligence', 'intelligence');
+    addField('wisdom', 'wisdom');
+    addField('charisma', 'charisma');
     
-    if (body.baseMovement !== undefined) updates.baseMovement = body.baseMovement;
-    if (body.hpTotal !== undefined) updates.hpTotal = body.hpTotal;
-    if (body.initiative !== undefined) updates.initiative = body.initiative;
-    if (body.armorSoak !== undefined) updates.armorSoak = body.armorSoak;
-    if (body.defenseNotes !== undefined) updates.defenseNotes = body.defenseNotes;
+    addField('base_movement', 'baseMovement');
+    addField('hp_total', 'hpTotal');
+    addField('initiative', 'initiative');
+    addField('armor_soak', 'armorSoak');
+    addField('defense_notes', 'defenseNotes');
     
-    if (body.challengeRating !== undefined) updates.challengeRating = body.challengeRating;
-    if (body.skillAllocations !== undefined) updates.skillAllocations = body.skillAllocations;
-    if (body.skillCheckpoint !== undefined) updates.skillCheckpoint = body.skillCheckpoint;
-    if (body.isInitialSetupLocked !== undefined) updates.isInitialSetupLocked = body.isInitialSetupLocked;
-    if (body.xpSpent !== undefined) updates.xpSpent = body.xpSpent;
-    if (body.xpCheckpoint !== undefined) updates.xpCheckpoint = body.xpCheckpoint;
+    addField('challenge_rating', 'challengeRating');
+    addField('skill_allocations', 'skillAllocations', JSON.stringify);
+    addField('skill_checkpoint', 'skillCheckpoint', JSON.stringify);
+    addField('is_initial_setup_locked', 'isInitialSetupLocked');
+    addField('xp_spent', 'xpSpent');
+    addField('xp_checkpoint', 'xpCheckpoint');
     
-    if (body.personality !== undefined) updates.personality = body.personality;
-    if (body.ideals !== undefined) updates.ideals = body.ideals;
-    if (body.bonds !== undefined) updates.bonds = body.bonds;
-    if (body.flaws !== undefined) updates.flaws = body.flaws;
-    if (body.goals !== undefined) updates.goals = body.goals;
-    if (body.secrets !== undefined) updates.secrets = body.secrets;
-    if (body.backstory !== undefined) updates.backstory = body.backstory;
-    if (body.hooks !== undefined) updates.hooks = body.hooks;
+    addField('personality', 'personality');
+    addField('ideals', 'ideals');
+    addField('bonds', 'bonds');
+    addField('flaws', 'flaws');
+    addField('goals', 'goals');
+    addField('secrets', 'secrets');
+    addField('backstory', 'backstory');
+    addField('motivations', 'motivations');
+    addField('hooks', 'hooks');
     
-    if (body.faction !== undefined) updates.faction = body.faction;
-    if (body.relationships !== undefined) updates.relationships = body.relationships;
-    if (body.attitudeTowardParty !== undefined) updates.attitudeTowardParty = body.attitudeTowardParty;
-    if (body.resources !== undefined) updates.resources = body.resources;
-    if (body.allies !== undefined) updates.allies = body.allies;
-    if (body.enemies !== undefined) updates.enemies = body.enemies;
-    if (body.affiliations !== undefined) updates.affiliations = body.affiliations;
+    addField('faction', 'faction');
+    addField('relationships', 'relationships');
+    addField('attitude_toward_party', 'attitudeTowardParty');
+    addField('allies', 'allies');
+    addField('enemies', 'enemies');
+    addField('affiliations', 'affiliations');
+    addField('resources', 'resources');
     
-    if (body.notes !== undefined) updates.notes = body.notes;
-    if (body.isFree !== undefined) updates.isFree = body.isFree;
-    if (body.isPublished !== undefined) updates.isPublished = body.isPublished;
+    addField('notes', 'notes');
+    addField('is_free', 'isFree');
+    addField('is_published', 'isPublished');
 
-    await db
-      .update(schema.npcs)
-      .set(updates)
-      .where(
-        user.role === 'admin'
-          ? eq(schema.npcs.id, id)
-          : and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id))
-      );
+    // Always update timestamp
+    updates.push(`updated_at = NOW()`);
+
+    if (updates.length === 1) {
+      // Only timestamp update, nothing else to do
+      return NextResponse.json({ ok: true });
+    }
+
+    // Build and execute query
+    const whereClause = user.role === 'admin'
+      ? `id = $${paramCount}`
+      : `id = $${paramCount} AND created_by = $${paramCount + 1}`;
+    
+    values.push(id);
+    if (user.role !== 'admin') {
+      values.push(user.id);
+    }
+
+    const query = `UPDATE npcs SET ${updates.join(', ')} WHERE ${whereClause}`;
+    await pool.query(query, values);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -156,13 +240,12 @@ export async function DELETE(
 
     const { id } = await context.params;
 
-    await db
-      .delete(schema.npcs)
-      .where(
-        user.role === 'admin'
-          ? eq(schema.npcs.id, id)
-          : and(eq(schema.npcs.id, id), eq(schema.npcs.createdBy, user.id))
-      );
+    const query = user.role === 'admin'
+      ? 'DELETE FROM npcs WHERE id = $1'
+      : 'DELETE FROM npcs WHERE id = $1 AND created_by = $2';
+    
+    const params = user.role === 'admin' ? [id] : [id, user.id];
+    await pool.query(query, params);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
