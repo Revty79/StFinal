@@ -959,6 +959,33 @@ export default function NPCsPage() {
     return baseInit * movement;
   };
 
+  // Derive location HP from total HP using predefined percentages
+  const locationHP = useMemo(() => {
+    const total = selected?.hp_total ?? 0;
+    const segments = [
+      ["head", 0.1],
+      ["chest", 0.3],
+      ["leftArm", 0.15],
+      ["rightArm", 0.15],
+      ["leftLeg", 0.15],
+      ["rightLeg", 0.15],
+    ] as const;
+
+    let allocated = 0;
+    const baseValues = segments.reduce((acc, [key, pct]) => {
+      const value = Math.floor(total * pct);
+      allocated += value;
+      acc[key] = value;
+      return acc;
+    }, {} as Record<(typeof segments)[number][0], number>);
+
+    const remainder = total - allocated;
+    return {
+      ...baseValues,
+      chest: baseValues.chest + remainder, // Assign any rounding difference to chest so sums match total
+    };
+  }, [selected?.hp_total]);
+
   // Auto-calculate derived stats when attributes change
   useEffect(() => {
     if (!selected) return;
@@ -1722,6 +1749,36 @@ export default function NPCsPage() {
                               />
                             </FormField>
                           </div>
+
+                          <Card className="mt-2 rounded-2xl border border-white/10 bg-black/30 p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-zinc-100">Location Hit Points</p>
+                                <p className="text-[11px] text-zinc-400">Split from total HP for called shots and injuries.</p>
+                              </div>
+                              <span className="text-xs text-emerald-200 font-semibold">Total: {selected.hp_total ?? 0}</span>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {[
+                                ["Head", locationHP.head],
+                                ["Chest", locationHP.chest],
+                                ["Left Arm", locationHP.leftArm],
+                                ["Right Arm", locationHP.rightArm],
+                                ["Left Leg", locationHP.leftLeg],
+                                ["Right Leg", locationHP.rightLeg],
+                              ].map(([label, value]) => (
+                                <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                                  <p className="text-[11px] text-zinc-400">{label}</p>
+                                  <p className="text-sm font-semibold text-zinc-100">{value}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            <p className="mt-3 text-[11px] text-zinc-400">
+                              Auto-calculated from HP Total (Head 10%, Chest 30%, each limb 15%).
+                            </p>
+                          </Card>
 
                           <FormField
                             label="Defense Notes"

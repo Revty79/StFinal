@@ -1236,6 +1236,35 @@ export default function InventoryPage() {
         </div>
       </header>
 
+      {/* Quick help */}
+      <section className="max-w-7xl mx-auto mb-4">
+        <Card className="bg-white/5 border border-white/10 rounded-3xl p-4 shadow-lg">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold text-zinc-200">How this page works</h2>
+            <p className="text-xs text-zinc-400">
+              This quick-start is already baked into your repo so teammates can
+              see the latest Inventory workflow at a glance.
+            </p>
+            <ol className="list-decimal pl-5 text-sm text-zinc-300 space-y-1">
+              <li>
+                Choose a tab (Items, Weapons, Armor, Artifacts, Services, or Pets &amp;
+                Companions) to filter the library and the form fields for that type.
+              </li>
+              <li>
+                Use <span className="font-medium text-zinc-100">Search</span> to find an
+                entry, then click a row to load it into the editor. Use
+                <span className="font-medium text-zinc-100"> + New {kindLabel}</span> to
+                start from scratch.
+              </li>
+              <li>
+                Fill in the form on the right; the Preview tab shows the formatted block
+                to copy into your docs or shops.
+              </li>
+            </ol>
+          </div>
+        </Card>
+      </section>
+
       <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-6">
         {/* LEFT: library */}
         <Card
