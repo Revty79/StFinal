@@ -77,6 +77,9 @@ export async function POST(req: Request) {
       lootHarvest: body.lootHarvest || null,
       storyHooks: body.storyHooks || null,
       notes: body.notes || null,
+      canBeMount: body.canBeMount !== undefined ? body.canBeMount : false,
+      canBePet: body.canBePet !== undefined ? body.canBePet : false,
+      canBeCompanion: body.canBeCompanion !== undefined ? body.canBeCompanion : false,
       isFree: body.isFree !== undefined ? body.isFree : true,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };

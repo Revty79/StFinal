@@ -22,7 +22,7 @@ export default async function ToolboxPage() {
             glow
             className="font-evanescent text-4xl sm:text-5xl tracking-tight"
           >
-            World Builder's Toolbox
+            World Builder&apos;s Toolbox
           </GradientText>
           <p className="mt-1 text-sm text-zinc-300/90">
             Create reusable components that you can use across all your worlds.
@@ -46,8 +46,8 @@ export default async function ToolboxPage() {
           className="mb-8 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 backdrop-blur"
         >
           <p className="text-sm text-zinc-200 text-center">
-            <span className="font-semibold text-amber-200">Build once, use everywhere:</span> Create
-            tools here, then reference them when building worlds in The G.O.D's Playground.
+            <span className="font-semibold text-amber-200">Build once, use everywhere:</span>{" "}
+            Create tools here, then reference them when building in The G.O.D&apos;s Realm.
           </p>
         </Card>
 
@@ -68,8 +68,7 @@ export default async function ToolboxPage() {
               Races
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Create peoples, lineages, and strange bloodlines that will live
-              in your worlds.
+              Create peoples, lineages, and strange bloodlines that will live in your worlds.
             </p>
             <div className="mt-4">
               <Link href="/worldbuilder/races">
@@ -96,8 +95,8 @@ export default async function ToolboxPage() {
               Skillsets
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Define skills, spell lists, disciplines, and other engines that
-              power characters and creatures.
+              Define skills, spell lists, disciplines, and other engines that power characters and
+              creatures.
             </p>
             <div className="mt-4">
               <Link href="/worldbuilder/skillsets">
@@ -124,8 +123,8 @@ export default async function ToolboxPage() {
               Creatures
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Build monsters, NPCs, and beasts that inhabit your worlds and
-              test your tables.
+              Build monsters, beasts, mounts, pets, and companions that inhabit your worlds and test
+              your tables.
             </p>
             <div className="mt-4">
               <Link href="/worldbuilder/creatures">
@@ -152,8 +151,8 @@ export default async function ToolboxPage() {
               Inventory
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Manage weapons, gear, artifacts, and other tangible stuff that
-              flows through your worlds.
+              Manage weapons, gear, artifacts, services, and other tangible stuff that flows through
+              your worlds.
             </p>
             <div className="mt-4">
               <Link href="/worldbuilder/inventory">
@@ -164,7 +163,34 @@ export default async function ToolboxPage() {
             </div>
           </Card>
 
-          {/* Coming Soon Tools */}
+          {/* NPCs */}
+          <Card
+            padded={false}
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition"
+          >
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/20">
+              <div className="h-3 w-3 rounded-full bg-purple-300" />
+            </div>
+            <GradientText
+              as="h2"
+              variant="card-title"
+              className="font-portcullion text-lg md:text-xl"
+            >
+              NPCs
+            </GradientText>
+            <p className="mt-2 text-base text-zinc-300/90">
+              Create NPCs with personality and story hooks for your worlds and campaigns.
+            </p>
+            <div className="mt-4">
+              <Link href="/worldbuilder/npcs">
+                <Button variant="primary" size="sm">
+                  Enter NPCs
+                </Button>
+              </Link>
+            </div>
+          </Card>
+
+          {/* Calendars (Coming Soon) */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
@@ -189,6 +215,7 @@ export default async function ToolboxPage() {
             </div>
           </Card>
 
+          {/* Factions (Coming Soon) */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
@@ -213,48 +240,23 @@ export default async function ToolboxPage() {
             </div>
           </Card>
 
-          <Card
-            padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] transition"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/20">
-              <div className="h-3 w-3 rounded-full bg-purple-300" />
-            </div>
-            <GradientText
-              as="h2"
-              variant="card-title"
-              className="font-portcullion text-lg md:text-xl"
-            >
-              NPCs
-            </GradientText>
-            <p className="mt-2 text-base text-zinc-300/90">
-              Create NPCs with stats, personality, and story hooks for your worlds and campaigns.
-            </p>
-            <div className="mt-4">
-              <Link href="/worldbuilder/npcs">
-                <Button variant="primary" size="sm">
-                  Enter NPCs
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
+          {/* World Map Builder (Coming Soon) */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/20">
-              <div className="h-3 w-3 rounded-full bg-cyan-300" />
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/20">
+              <div className="h-3 w-3 rounded-full bg-emerald-300" />
             </div>
             <GradientText
               as="h2"
               variant="card-title"
               className="font-portcullion text-lg md:text-xl"
             >
-              Cosmology
+              Geography & Regions Builder
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Map planes of existence, realms, and the structure of reality itself.
+              Shape continents, regions, and locations to define the physical canvas of your worlds.
             </p>
             <div className="mt-4">
               <Button variant="ghost" size="sm" disabled>
@@ -263,22 +265,23 @@ export default async function ToolboxPage() {
             </div>
           </Card>
 
+          {/* Plot Hooks (Coming Soon) */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-500/20">
-              <div className="h-3 w-3 rounded-full bg-teal-300" />
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-pink-500/20">
+              <div className="h-3 w-3 rounded-full bg-pink-300" />
             </div>
             <GradientText
               as="h2"
               variant="card-title"
               className="font-portcullion text-lg md:text-xl"
             >
-              Timeline Builder
+              Plot Hooks
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Chronicle ages, eras, and major historical events across your worlds.
+              Craft reusable story seeds, rumors, and quests to drive your campaigns and sessions.
             </p>
             <div className="mt-4">
               <Button variant="ghost" size="sm" disabled>
@@ -295,8 +298,8 @@ export default async function ToolboxPage() {
           className="mt-10 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 backdrop-blur"
         >
           <p className="text-sm text-zinc-200">
-            Active Tools: <span className="font-medium text-amber-200">5</span> | 
-            Coming Soon: <span className="font-medium text-zinc-400">4</span>
+            Active Tools: <span className="font-medium text-amber-200">5</span> | Coming Soon:{" "}
+            <span className="font-medium text-zinc-400">4</span>
           </p>
         </Card>
       </section>

@@ -31,8 +31,9 @@
    Global Background (nebula + alchemy)
    ======================= */
 
-html, body { 
-  min-height: 100%; 
+html,
+body {
+  min-height: 100%;
   min-height: 100vh;
   min-height: 100dvh; /* dynamic viewport height for mobile */
   width: 100%;
@@ -41,7 +42,8 @@ html, body {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
-html { 
+
+html {
   background-color: var(--st-deep);
   /* Better font rendering on mobile */
   text-size-adjust: 100%;
@@ -106,35 +108,51 @@ body::before {
     height: min(70vw, 70vh);
   }
 }
+
 @keyframes st-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Accessibility: respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  body::before { animation: none; }
+  body::before {
+    animation: none;
+  }
 }
 
 /* =======================
    Fonts
    ======================= */
 @font-face {
-  font-family: "Evanescent";
-  src: url("/evanescent.ttf") format("truetype");
+  /* Dragonspire – your custom font */
+  font-family: "Dragonspire";
+  src: url("/Dragonspire.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
+
 @font-face {
+  /* Portcullion – title / heading font */
   font-family: "Portcullion";
   src: url("/Portcullion.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
-.font-evanescent { font-family: "Evanescent", ui-serif, Georgia, "Times New Roman", serif; }
-.font-portcullion { font-family: "Portcullion", ui-serif, Georgia, "Times New Roman", serif; }
+
+/* Utility classes */
+.font-dragonspire {
+  font-family: "Dragonspire", ui-serif, Georgia, "Times New Roman", serif;
+}
+.font-portcullion {
+  font-family: "Portcullion", ui-serif, Georgia, "Times New Roman", serif;
+}
 
 /* =======================
    Title / Card Gradients
@@ -144,7 +162,10 @@ body::before {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  /* 🔥 Force hero/GradientText titles to use Dragonspire */
+  font-family: "Dragonspire", ui-serif, Georgia, "Times New Roman", serif;
 }
+
 .st-card-title-gradient {
   background: linear-gradient(90deg, #fbbf24 0%, #a855f7 50%, #fbbf24 100%);
   -webkit-background-clip: text;
@@ -154,19 +175,21 @@ body::before {
 
 /* Glow effect for dramatic emphasis */
 .st-glow {
-  filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.4)) 
+  filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.4))
           drop-shadow(0 0 24px rgba(168, 85, 247, 0.3));
 }
 
 /* Legacy card title support (deprecated - use GradientText component instead) */
-.card h2, .card h3,
-.dashboard-card h2, .dashboard-card h3,
+.card h2,
+.card h3,
+.dashboard-card h2,
+.dashboard-card h3,
 [data-card-title] {
   font-family: "Portcullion", ui-serif, Georgia, "Times New Roman", serif;
-  letter-spacing: .5px;
+  letter-spacing: 0.5px;
   font-size: clamp(1.125rem, 0.7vw + 1rem, 1.375rem);
   line-height: 1.2;
-  margin: .15rem 0;
+  margin: 0.15rem 0;
   background: linear-gradient(90deg, #fbbf24 0%, #a855f7 50%, #fbbf24 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -177,28 +200,47 @@ body::before {
    Buttons
    ======================= */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .75rem 1.25rem; border-radius: 9999px; font-weight: 600; text-decoration: none;
-  transition: background .2s, border-color .2s, color .2s, box-shadow .2s, transform .05s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.05s;
   -webkit-tap-highlight-color: transparent;
 }
 .btn-gold {
-  background: rgba(251,191,36,.18);
-  border: 1px solid rgba(251,191,36,.45);
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.45);
   color: #fde68a;
   backdrop-filter: saturate(120%) blur(2px);
-  box-shadow: 0 0 0 rgba(251,191,36,0);
+  box-shadow: 0 0 0 rgba(251, 191, 36, 0);
 }
 .btn-gold:hover {
-  background: rgba(251,191,36,.28);
-  border-color: rgba(251,191,36,.70);
-  box-shadow: 0 0 24px rgba(251,191,36,.15);
+  background: rgba(251, 191, 36, 0.28);
+  border-color: rgba(251, 191, 36, 0.7);
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.15);
 }
-.btn-gold:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(251,191,36,.5); }
-.btn-gold:active { transform: translateY(.5px) scale(.99); }
+.btn-gold:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5);
+}
+.btn-gold:active {
+  transform: translateY(0.5px) scale(0.99);
+}
 
 /* Selection highlight */
-::selection { background: rgba(251,191,36,0.22); color: #fff; }
+::selection {
+  background: rgba(251, 191, 36, 0.22);
+  color: #fff;
+}
 
 /* =======================
    Mobile-Specific Utilities
@@ -218,7 +260,7 @@ body::before {
 }
 
 /* Prevent text selection on interactive elements */
-button, 
+button,
 a,
 [role="button"],
 [role="tab"] {
@@ -228,8 +270,8 @@ a,
 }
 
 /* Allow text selection in content areas */
-p, 
-li, 
+p,
+li,
 textarea,
 input,
 [contenteditable] {
@@ -264,13 +306,13 @@ input,
 /* Larger clickable areas on mobile */
 @media (max-width: 768px) {
   /* Better spacing for form elements */
-  input:not([type="checkbox"]):not([type="radio"]), 
+  input:not([type="checkbox"]):not([type="radio"]),
   textarea,
   select {
     font-size: 16px !important; /* Prevent zoom on iOS */
     min-height: 48px;
   }
-  
+
   /* Ensure textareas have adequate padding */
   textarea {
     padding: 0.75rem;

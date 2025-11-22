@@ -15,10 +15,9 @@ import { Tabs } from "@/components/Tabs";
 function WBNav({
   current = "creatures",
 }: {
-  current?: "cosmos" | "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+  current?: "creatures" | "skillsets" | "races" | "inventory" | "npcs";
 }) {
   const items = [
-    { href: "/worldbuilder/cosmos", key: "cosmos", label: "Cosmos" },
     { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
     { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
     { href: "/worldbuilder/races", key: "races", label: "Races" },
@@ -88,6 +87,11 @@ export type Creature = {
   loot_harvest?: string | null;
   story_hooks?: string | null;
   notes?: string | null;
+
+  // New: usage flags (mount / pet / companion)
+  can_be_mount?: boolean | null;
+  can_be_pet?: boolean | null;
+  can_be_companion?: boolean | null;
 };
 
 const CREATURE_TABS: { id: CreatureTabKey; label: string }[] = [
@@ -141,15 +145,25 @@ export default function CreaturesPage() {
 
         const response = await fetch("/api/worldbuilder/creatures");
         const data = await response.json();
-        
+
         if (!data.ok) {
           throw new Error(data.error || "Failed to load creatures");
         }
 
-        setCreatures(data.creatures || []);
+        setCreatures((data.creatures || []).map((c: any) => ({
+          ...c,
+          is_free: c.isFree,
+          can_be_mount: c.canBeMount,
+          can_be_pet: c.canBePet,
+          can_be_companion: c.canBeCompanion,
+        })));
       } catch (error) {
         console.error("Error loading creatures:", error);
-        alert(`Failed to load creatures: ${error instanceof Error ? error.message : "Unknown error"}`);
+        alert(
+          `Failed to load creatures: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
       } finally {
         setLoading(false);
       }
@@ -231,6 +245,9 @@ export default function CreaturesPage() {
       loot_harvest: null,
       story_hooks: null,
       notes: null,
+      can_be_mount: false,
+      can_be_pet: false,
+      can_be_companion: false,
     };
     setCreatures((prev) => [row, ...prev]);
     setSelectedId(id);
@@ -238,18 +255,18 @@ export default function CreaturesPage() {
 
   async function deleteSelected() {
     if (!selected || !currentUser) return;
-    
+
     const idStr = String(selected.id);
     const isNew = typeof selected.id === "string" && selected.id.length < 20;
-    
+
     const isAdmin = currentUser.role?.toLowerCase() === "admin";
     const isCreator = selected.createdBy === currentUser.id;
-    
+
     if (!isNew && !isAdmin && !isCreator) {
       alert("You can only delete creatures you created. Admins can delete any creature.");
       return;
     }
-    
+
     if (!confirm("Delete this creature?")) return;
 
     if (isNew) {
@@ -274,7 +291,11 @@ export default function CreaturesPage() {
       alert("Creature deleted successfully!");
     } catch (error) {
       console.error("Error deleting creature:", error);
-      alert(`Failed to delete creature: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to delete creature: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
@@ -300,7 +321,7 @@ export default function CreaturesPage() {
 
   async function saveSelected() {
     if (!selected) return;
-    
+
     try {
       const payload = {
         name: selected.name,
@@ -335,6 +356,9 @@ export default function CreaturesPage() {
         lootHarvest: selected.loot_harvest,
         storyHooks: selected.story_hooks,
         notes: selected.notes,
+        canBeMount: selected.can_be_mount ?? false,
+        canBePet: selected.can_be_pet ?? false,
+        canBeCompanion: selected.can_be_companion ?? false,
       };
 
       const isNew = typeof selected.id === "string" && selected.id.length < 20;
@@ -375,7 +399,11 @@ export default function CreaturesPage() {
       alert("Creature saved successfully!");
     } catch (error) {
       console.error("Error saving creature:", error);
-      alert(`Failed to save creature: ${error instanceof Error ? error.message : "Unknown error"}`);
+      alert(
+        `Failed to save creature: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
@@ -388,6 +416,11 @@ export default function CreaturesPage() {
     const nvLocal = (x: unknown) =>
       x === null || x === undefined || x === "" ? "—" : String(x);
 
+    const usages: string[] = [];
+    if (c.can_be_mount) usages.push("Mount");
+    if (c.can_be_pet) usages.push("Pet");
+    if (c.can_be_companion) usages.push("Companion");
+
     return [
       `Creature: ${c.name}`,
       `Alt Names: ${nvLocal(c.alt_names)}`,
@@ -397,6 +430,7 @@ export default function CreaturesPage() {
         c.role
       )}`,
       `Size: ${nvLocal(c.size)}   Tags: ${nvLocal(c.genre_tags)}`,
+      `Usage: ${usages.length ? usages.join(", ") : "—"}`,
       "",
       "— Description —",
       nvLocal(c.description_short),
@@ -448,9 +482,8 @@ export default function CreaturesPage() {
               The Source Forge — Creatures
             </GradientText>
             <p className="mt-1 text-sm text-zinc-300/90 max-w-2xl">
-              Design monsters, NPCs, and creatures your worlds, eras, and
-              campaigns can adopt. This screen is UI-only; DB/API wiring comes
-              next.
+              Design monsters, beasts, mounts, pets, and companions your worlds,
+              eras, and campaigns can adopt.
             </p>
           </div>
           <div className="flex gap-3 justify-end">
@@ -564,7 +597,12 @@ export default function CreaturesPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
+                disabled={
+                  !selected ||
+                  !currentUser ||
+                  (currentUser.role?.toLowerCase() !== "admin" &&
+                    selected.createdBy !== currentUser.id)
+                }
                 onClick={deleteSelected}
               >
                 Delete
@@ -579,9 +617,7 @@ export default function CreaturesPage() {
           className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
         >
           {loading ? (
-            <p className="text-sm text-zinc-400">
-              Loading creatures...
-            </p>
+            <p className="text-sm text-zinc-400">Loading creatures...</p>
           ) : !selected ? (
             <p className="text-sm text-zinc-400">
               Select a creature on the left or create a new one to begin
@@ -600,7 +636,7 @@ export default function CreaturesPage() {
                     This is the label your players and other tools will see
                     everywhere.
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-col gap-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -614,6 +650,51 @@ export default function CreaturesPage() {
                         Free (available to all users)
                       </span>
                     </label>
+
+                    {/* Usage flags: mount / pet / companion */}
+                    <div className="flex flex-wrap gap-4 mt-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected.can_be_mount}
+                          onChange={(e) =>
+                            updateSelected({ can_be_mount: e.target.checked })
+                          }
+                          className="w-4 h-4 rounded border-white/20 bg-black/30 text-emerald-500 focus:ring-emerald-500/50"
+                        />
+                        <span className="text-xs text-zinc-300">
+                          Can be used as a mount
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected.can_be_pet}
+                          onChange={(e) =>
+                            updateSelected({ can_be_pet: e.target.checked })
+                          }
+                          className="w-4 h-4 rounded border-white/20 bg-black/30 text-sky-500 focus:ring-sky-500/50"
+                        />
+                        <span className="text-xs text-zinc-300">
+                          Can be used as a pet
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected.can_be_companion}
+                          onChange={(e) =>
+                            updateSelected({
+                              can_be_companion: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded border-white/20 bg-black/30 text-amber-500 focus:ring-amber-500/50"
+                        />
+                        <span className="text-xs text-zinc-300">
+                          Can be used as a companion
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -621,9 +702,7 @@ export default function CreaturesPage() {
                   <Tabs
                     tabs={CREATURE_TABS}
                     activeId={activeTab}
-                    onChange={(id) =>
-                      setActiveTab(id as CreatureTabKey)
-                    }
+                    onChange={(id) => setActiveTab(id as CreatureTabKey)}
                   />
                   <div className="flex gap-2">
                     <Button
@@ -1141,9 +1220,8 @@ export default function CreaturesPage() {
 
                     <div className="mt-2 text-[11px] text-zinc-500">
                       Creature identity, stats, combat, and lore all roll into
-                      this export block. Later, the DB schema will mirror these
-                      fields and connect into encounters, campaigns, and
-                      session prep.
+                      this export block, including whether it can be used as a
+                      mount, pet, or companion.
                     </div>
                   </div>
                 )}

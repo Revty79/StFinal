@@ -262,6 +262,11 @@ export const creatures = pgTable('creatures', {
   storyHooks: text('story_hooks'),
   notes: text('notes'),
   
+  // Usage flags for mount/pet/companion
+  canBeMount: boolean('can_be_mount').default(false),
+  canBePet: boolean('can_be_pet').default(false),
+  canBeCompanion: boolean('can_be_companion').default(false),
+  
   isFree: boolean('is_free').notNull().default(true),
   isPublished: boolean('is_published').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -183,6 +183,12 @@ CREATE TABLE IF NOT EXISTS "creatures" (
   "loot_harvest" text,
   "story_hooks" text,
   "notes" text,
+  
+  -- Usage flags for mount/pet/companion
+  "can_be_mount" boolean DEFAULT false,
+  "can_be_pet" boolean DEFAULT false,
+  "can_be_companion" boolean DEFAULT false,
+  
   "is_free" boolean DEFAULT true NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
