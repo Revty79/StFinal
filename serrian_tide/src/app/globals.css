@@ -129,9 +129,9 @@ body::before {
    Fonts
    ======================= */
 @font-face {
-  /* Dragonspire – your custom font */
-  font-family: "Dragonspire";
-  src: url("/Dragonspire.ttf") format("truetype");
+  /* Evanescent – your custom font */
+  font-family: "Evanescent";
+  src: url("/Evanescent.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -147,8 +147,8 @@ body::before {
 }
 
 /* Utility classes */
-.font-dragonspire {
-  font-family: "Dragonspire", ui-serif, Georgia, "Times New Roman", serif;
+.font-evanescent {
+  font-family: "Evanescent", ui-serif, Georgia, "Times New Roman", serif;
 }
 .font-portcullion {
   font-family: "Portcullion", ui-serif, Georgia, "Times New Roman", serif;
@@ -162,8 +162,8 @@ body::before {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  /* 🔥 Force hero/GradientText titles to use Dragonspire */
-  font-family: "Dragonspire", ui-serif, Georgia, "Times New Roman", serif;
+  /* 🔥 Force hero/GradientText titles to use Evanescent */
+  font-family: "Evanescent", ui-serif, Georgia, "Times New Roman", serif;
 }
 
 .st-card-title-gradient {
