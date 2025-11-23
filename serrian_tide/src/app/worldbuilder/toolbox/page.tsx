@@ -190,10 +190,10 @@ export default async function ToolboxPage() {
             </div>
           </Card>
 
-          {/* Calendars (Coming Soon) */}
+          {/* Calendars */}
           <Card
             padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl opacity-60"
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 shadow-2xl hover:shadow-[0_0_40px_rgba(139,92,246,0.15)] transition"
           >
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-500/20">
               <div className="h-3 w-3 rounded-full bg-violet-300" />
@@ -209,9 +209,11 @@ export default async function ToolboxPage() {
               Design custom calendars with unique days, months, and celestial cycles.
             </p>
             <div className="mt-4">
-              <Button variant="ghost" size="sm" disabled>
-                Coming Soon
-              </Button>
+              <Link href="/worldbuilder/calendars">
+                <Button variant="primary" size="sm">
+                  Enter Calendars
+                </Button>
+              </Link>
             </div>
           </Card>
 
@@ -298,8 +300,8 @@ export default async function ToolboxPage() {
           className="mt-10 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 backdrop-blur"
         >
           <p className="text-sm text-zinc-200">
-            Active Tools: <span className="font-medium text-amber-200">5</span> | Coming Soon:{" "}
-            <span className="font-medium text-zinc-400">4</span>
+            Active Tools: <span className="font-medium text-amber-200">6</span> | Coming Soon:{" "}
+            <span className="font-medium text-zinc-400">3</span>
           </p>
         </Card>
       </section>

@@ -434,3 +434,108 @@ export const npcs = pgTable('npcs', {
   byCR: index('idx_npcs_challenge_rating').on(t.challengeRating),
 }));
 
+// ===== CALENDARS =====
+
+export const calendars = pgTable('calendars', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  
+  // Time & Day/Night Cycle
+  hoursPerDay: integer('hours_per_day').notNull().default(24),
+  minutesPerHour: integer('minutes_per_hour').notNull().default(60),
+  daylightHours: integer('daylight_hours').notNull().default(12),
+  nightHours: integer('night_hours').notNull().default(10),
+  dawnDuskHours: integer('dawn_dusk_hours').notNull().default(2),
+  
+  // Year structure
+  daysPerYear: integer('days_per_year').notNull().default(365),
+  
+  // Leap year rules
+  hasLeapYear: boolean('has_leap_year').notNull().default(false),
+  leapYearFrequency: integer('leap_year_frequency'),
+  leapYearExceptions: text('leap_year_exceptions'),
+  leapDaysAdded: integer('leap_days_added'),
+  
+  // Content flags
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  
+  // Timestamps
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_calendars_created_by').on(t.createdBy),
+}));
+
+export const calendarWeekdays = pgTable('calendar_weekdays', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 })
+    .notNull()
+    .references(() => calendars.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  order: integer('order').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCalendar: index('idx_calendar_weekdays_calendar_id').on(t.calendarId),
+}));
+
+export const calendarMonths = pgTable('calendar_months', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 })
+    .notNull()
+    .references(() => calendars.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  order: integer('order').notNull(),
+  seasonTag: varchar('season_tag', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCalendar: index('idx_calendar_months_calendar_id').on(t.calendarId),
+}));
+
+export const calendarMonthWeeks = pgTable('calendar_month_weeks', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  monthId: varchar('month_id', { length: 36 })
+    .notNull()
+    .references(() => calendarMonths.id, { onDelete: 'cascade' }),
+  weekNumber: integer('week_number').notNull(),
+  daysInWeek: integer('days_in_week').notNull(),
+  repeatPattern: boolean('repeat_pattern').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byMonth: index('idx_calendar_month_weeks_month_id').on(t.monthId),
+}));
+
+export const calendarSeasons = pgTable('calendar_seasons', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 })
+    .notNull()
+    .references(() => calendars.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  startDayOfYear: integer('start_day_of_year').notNull(),
+  description: text('description'),
+  // Optional: Override daylight hours for this season
+  daylightHours: integer('daylight_hours'),
+  dawnDuskHours: integer('dawn_dusk_hours'),
+  nightHours: integer('night_hours'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCalendar: index('idx_calendar_seasons_calendar_id').on(t.calendarId),
+}));
+
+export const calendarFestivals = pgTable('calendar_festivals', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 })
+    .notNull()
+    .references(() => calendars.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  dayRule: varchar('day_rule', { length: 255 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCalendar: index('idx_calendar_festivals_calendar_id').on(t.calendarId),
+}));
+

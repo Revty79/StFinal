@@ -349,6 +349,106 @@ CREATE INDEX IF NOT EXISTS "idx_npcs_race" ON "npcs"("race");
 CREATE INDEX IF NOT EXISTS "idx_npcs_challenge_rating" ON "npcs"("challenge_rating");
 
 -- ============================================
+-- WORLDBUILDER: CALENDARS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS "calendars" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "description" text,
+  
+  -- Time & Day/Night Cycle
+  "hours_per_day" integer NOT NULL DEFAULT 24,
+  "minutes_per_hour" integer NOT NULL DEFAULT 60,
+  "daylight_hours" integer NOT NULL DEFAULT 12,
+  "night_hours" integer NOT NULL DEFAULT 10,
+  "dawn_dusk_hours" integer NOT NULL DEFAULT 2,
+  
+  -- Year structure
+  "days_per_year" integer NOT NULL DEFAULT 365,
+  
+  -- Leap year rules
+  "has_leap_year" boolean NOT NULL DEFAULT false,
+  "leap_year_frequency" integer,
+  "leap_year_exceptions" text,
+  "leap_days_added" integer,
+  
+  -- Content flags
+  "is_free" boolean DEFAULT true NOT NULL,
+  "is_published" boolean DEFAULT false NOT NULL,
+  
+  -- Timestamps
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendars_created_by" ON "calendars"("created_by");
+
+-- Weekday definitions
+CREATE TABLE IF NOT EXISTS "calendar_weekdays" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "calendar_id" varchar(36) NOT NULL REFERENCES "calendars"("id") ON DELETE CASCADE,
+  "name" varchar(100) NOT NULL,
+  "order" integer NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_weekdays_calendar_id" ON "calendar_weekdays"("calendar_id");
+
+-- Month definitions with flexible week structures
+CREATE TABLE IF NOT EXISTS "calendar_months" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "calendar_id" varchar(36) NOT NULL REFERENCES "calendars"("id") ON DELETE CASCADE,
+  "name" varchar(100) NOT NULL,
+  "order" integer NOT NULL,
+  "season_tag" varchar(100),
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_months_calendar_id" ON "calendar_months"("calendar_id");
+
+-- Week structure within months (allows flexible week patterns)
+CREATE TABLE IF NOT EXISTS "calendar_month_weeks" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "month_id" varchar(36) NOT NULL REFERENCES "calendar_months"("id") ON DELETE CASCADE,
+  "week_number" integer NOT NULL,
+  "days_in_week" integer NOT NULL,
+  "repeat_pattern" boolean DEFAULT false,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_month_weeks_month_id" ON "calendar_month_weeks"("month_id");
+
+-- Season definitions
+CREATE TABLE IF NOT EXISTS "calendar_seasons" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "calendar_id" varchar(36) NOT NULL REFERENCES "calendars"("id") ON DELETE CASCADE,
+  "name" varchar(100) NOT NULL,
+  "start_day_of_year" integer NOT NULL,
+  "description" text,
+  -- Optional: Override daylight hours for this season
+  "daylight_hours" integer,
+  "dawn_dusk_hours" integer,
+  "night_hours" integer,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_seasons_calendar_id" ON "calendar_seasons"("calendar_id");
+
+-- Festival/Observance definitions
+CREATE TABLE IF NOT EXISTS "calendar_festivals" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "calendar_id" varchar(36) NOT NULL REFERENCES "calendars"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "day_rule" varchar(255) NOT NULL,
+  "description" text,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_festivals_calendar_id" ON "calendar_festivals"("calendar_id");
+
+-- ============================================
 -- SEED DEFAULT ROLES
 -- ============================================
 
