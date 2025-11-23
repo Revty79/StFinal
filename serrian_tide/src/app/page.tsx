@@ -12,7 +12,7 @@ export default function Home() {
           glow 
           className="font-evanescent text-6xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tight"
         >
-          Serrian Tide
+          SERRIAN TIDE
         </GradientText>
         <p className="max-w-xl mx-auto text-lg text-slate-200">
           Enter your imagination.
