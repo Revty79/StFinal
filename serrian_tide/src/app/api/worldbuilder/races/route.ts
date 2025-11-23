@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       attributes: body.attributes || null,
       bonusSkills: body.bonusSkills || null,
       specialAbilities: body.specialAbilities || null,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };
 

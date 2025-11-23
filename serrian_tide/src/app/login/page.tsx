@@ -160,6 +160,7 @@ export default function LoginPage() {
                   placeholder="adventurer"
                   value={loginUser}
                   onChange={e => setLoginUser(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   autoComplete="username"
                   data-testid="input-login-username"
                 />
@@ -175,6 +176,7 @@ export default function LoginPage() {
                   type="password"
                   value={loginPass}
                   onChange={e => setLoginPass(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   autoComplete="current-password"
                   data-testid="input-login-password"
                 />
@@ -211,6 +213,7 @@ export default function LoginPage() {
                   placeholder="adventurer"
                   value={regUser}
                   onChange={e => setRegUser(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
                   autoComplete="username"
                   data-testid="input-register-username"
                 />
@@ -227,6 +230,7 @@ export default function LoginPage() {
                   placeholder="you@realm.com"
                   value={regEmail}
                   onChange={e => setRegEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
                   autoComplete="email"
                   data-testid="input-register-email"
                 />
@@ -242,6 +246,7 @@ export default function LoginPage() {
                   type="password"
                   value={regPass}
                   onChange={e => setRegPass(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
                   autoComplete="new-password"
                   data-testid="input-register-password"
                 />
@@ -257,6 +262,7 @@ export default function LoginPage() {
                   type="password"
                   value={regConfirm}
                   onChange={e => setRegConfirm(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
                   autoComplete="new-password"
                   data-testid="input-register-confirm"
                 />

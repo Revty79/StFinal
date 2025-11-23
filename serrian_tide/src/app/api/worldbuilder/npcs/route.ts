@@ -184,7 +184,7 @@ export async function POST(req: Request) {
       body.resources || null,
       
       body.notes || null,
-      body.isFree !== undefined ? body.isFree : true,
+      body.isFree !== undefined ? body.isFree : false,
       body.isPublished !== undefined ? body.isPublished : false,
     ];
 

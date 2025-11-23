@@ -161,7 +161,7 @@ export async function POST(req: Request) {
         body.leapYearFrequency || null,
         body.leapYearExceptions || null,
         body.leapDaysAdded || null,
-        body.isFree !== undefined ? body.isFree : true,
+        body.isFree !== undefined ? body.isFree : false,
         body.isPublished !== undefined ? body.isPublished : false,
       ]
     );

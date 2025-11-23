@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       canBeMount: body.canBeMount !== undefined ? body.canBeMount : false,
       canBePet: body.canBePet !== undefined ? body.canBePet : false,
       canBeCompanion: body.canBeCompanion !== undefined ? body.canBeCompanion : false,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };
 

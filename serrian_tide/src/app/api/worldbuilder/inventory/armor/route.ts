@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       encumbrancePenalty: body.encumbrancePenalty || null,
       effect: body.effect || null,
       narrativeNotes: body.narrativeNotes || null,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };
 

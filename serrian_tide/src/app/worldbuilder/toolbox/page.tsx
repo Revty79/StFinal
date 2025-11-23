@@ -32,7 +32,7 @@ export default async function ToolboxPage() {
         <div className="flex gap-3">
           <Link href="/worldbuilder">
             <Button variant="secondary" size="sm">
-              ← Source Forge
+              ← Source Forge Hub
             </Button>
           </Link>
         </div>

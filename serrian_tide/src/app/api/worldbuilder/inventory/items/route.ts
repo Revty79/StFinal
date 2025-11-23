@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       mechanicalEffect: body.mechanicalEffect || null,
       weight: body.weight || null,
       narrativeNotes: body.narrativeNotes || null,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };
 

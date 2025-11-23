@@ -10,43 +10,7 @@ import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
-
-/* ---------- local nav ---------- */
-function WBNav({
-  current = "skillsets",
-}: {
-  current?: "creatures" | "skillsets" | "races" | "inventory" | "npcs";
-}) {
-  const items = [
-    { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
-    { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
-    { href: "/worldbuilder/races", key: "races", label: "Races" },
-    { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
-    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
-  ] as const;
-
-  return (
-    <nav className="flex flex-wrap gap-2">
-      {items.map((it) => {
-        const active = current === it.key;
-        return (
-          <Link
-            key={it.key}
-            href={it.href}
-            className={[
-              "rounded-xl px-3 py-1.5 text-sm border transition",
-              active
-                ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
-                : "border-white/15 text-zinc-200 hover:bg-white/10",
-            ].join(" ")}
-          >
-            {it.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
+import { WBNav } from "@/components/worldbuilder/WBNav";
 
 /* ---------- core types & constants ---------- */
 
@@ -105,7 +69,7 @@ function transformApiSkill(s: any): Skill {
     tier: s.tier,
     primary_attribute: s.primaryAttribute,
     secondary_attribute: s.secondaryAttribute,
-    is_free: s.isFree ?? true,
+    is_free: s.isFree ?? false,
     definition: s.definition ?? "",
     parent_id: s.parentId ?? null,
     parent2_id: s.parent2Id ?? null,
@@ -1438,7 +1402,7 @@ export default function SkillsetsPage() {
         tier: selected.tier,
         primaryAttribute: selected.primary_attribute,
         secondaryAttribute: selected.secondary_attribute,
-        isFree: selected.is_free ?? true,
+        isFree: selected.is_free ?? false,
         definition: selected.definition || null,
         parentId: selected.parent_id || null,
         parent2Id: selected.parent2_id || null,
@@ -1606,7 +1570,7 @@ export default function SkillsetsPage() {
           tier: row.tier,
           primaryAttribute: row.primaryAttribute,
           secondaryAttribute: row.secondaryAttribute,
-          isFree: true,
+          isFree: false,
           definition: row.definition,
           parentId,
         };
@@ -1674,9 +1638,9 @@ export default function SkillsetsPage() {
             </p>
           </div>
           <div className="flex gap-3 justify-end">
-            <Link href="/worldbuilder">
+            <Link href="/worldbuilder/toolbox">
               <Button variant="secondary" size="sm" type="button">
-                ← Source Forge
+                ← Toolbox
               </Button>
             </Link>
           </div>

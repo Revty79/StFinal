@@ -325,7 +325,7 @@ export default function CreaturesPage() {
     try {
       const payload = {
         name: selected.name,
-        isFree: selected.is_free ?? true,
+        isFree: selected.is_free ?? false,
         altNames: selected.alt_names,
         challengeRating: selected.challenge_rating,
         encounterScale: selected.encounter_scale,
@@ -487,9 +487,9 @@ export default function CreaturesPage() {
             </p>
           </div>
           <div className="flex gap-3 justify-end">
-            <Link href="/worldbuilder">
+            <Link href="/worldbuilder/toolbox">
               <Button variant="secondary" size="sm" type="button">
-                ← Source Forge
+                ← Toolbox
               </Button>
             </Link>
           </div>

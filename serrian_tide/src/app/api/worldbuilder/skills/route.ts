@@ -97,7 +97,7 @@ export async function POST(req: Request) {
       parentId: body.parentId || null,
       parent2Id: body.parent2Id || null,
       parent3Id: body.parent3Id || null,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
       createdAt: new Date(),
       updatedAt: new Date(),

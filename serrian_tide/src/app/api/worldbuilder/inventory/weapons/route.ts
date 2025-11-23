@@ -56,7 +56,7 @@ export async function POST(req: Request) {
       damage: body.damage || null,
       effect: body.effect || null,
       narrativeNotes: body.narrativeNotes || null,
-      isFree: body.isFree !== undefined ? body.isFree : true,
+      isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };
 
