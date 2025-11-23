@@ -197,7 +197,7 @@ export default function InventoryItemsPage() {
     const newItem: ItemRow = {
       id,
       name: "New Item",
-      is_free: true,
+      is_free: false,
       shop_ready: true,
       shop_role: "shop_stock",
       item_role: "mundane",
@@ -666,7 +666,20 @@ export default function InventoryItemsPage() {
                     />
                   </FormField>
                 </div>
-                <div className="shrink-0 flex items-end">
+                <div className="shrink-0 flex items-end gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.is_free ?? false}
+                        onChange={(e) =>
+                          updateSelected({ is_free: e.target.checked })
+                        }
+                        className="w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
+                      />
+                      <span className="text-xs text-zinc-300">Share publicly</span>
+                    </label>
+                  </div>
                   <Button
                     variant="primary"
                     size="sm"

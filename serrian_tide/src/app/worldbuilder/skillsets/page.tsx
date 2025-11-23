@@ -1307,7 +1307,7 @@ export default function SkillsetsPage() {
       tier: 1,
       primary_attribute: "STR",
       secondary_attribute: "NA",
-      is_free: true,
+      is_free: false,
       definition: "",
       parent_id: null,
       parent2_id: null,
@@ -1995,7 +1995,7 @@ export default function SkillsetsPage() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selected.is_free ?? true}
+                        checked={selected.is_free ?? false}
                         onChange={(e) =>
                           updateSelected({ is_free: e.target.checked })
                         }

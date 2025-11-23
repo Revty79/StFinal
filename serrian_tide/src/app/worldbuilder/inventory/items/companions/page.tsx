@@ -163,7 +163,7 @@ export default function InventoryCompanionsPage() {
     const row: CompanionRow = {
       id,
       name: "New Companion",
-      is_free: true,
+      is_free: false,
       shop_ready: true,
       shop_role: "shop_stock",
       timeline_tag: null,
@@ -551,10 +551,10 @@ export default function InventoryCompanionsPage() {
                     />
                   </FormField>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selected.is_free ?? true}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.is_free ?? false}
                       onChange={(e) =>
                         updateSelected({ is_free: e.target.checked })
                       }

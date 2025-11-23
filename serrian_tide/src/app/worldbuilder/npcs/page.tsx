@@ -283,7 +283,7 @@ export default function NPCsPage() {
     const row: NPC = {
       id,
       name: "New NPC",
-      is_free: true,
+      is_free: false,
       alias: null,
       importance: null,
       role: null,
@@ -1230,7 +1230,7 @@ export default function NPCsPage() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selected.is_free ?? true}
+                        checked={selected.is_free ?? false}
                         onChange={(e) =>
                           updateSelected({
                             is_free: e.target.checked,

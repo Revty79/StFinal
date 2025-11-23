@@ -10,43 +10,7 @@ import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
-
-/* ---------- local nav ---------- */
-function WBNav({
-  current = "creatures",
-}: {
-  current?: "creatures" | "skillsets" | "races" | "inventory" | "npcs";
-}) {
-  const items = [
-    { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
-    { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
-    { href: "/worldbuilder/races", key: "races", label: "Races" },
-    { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
-    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
-  ] as const;
-
-  return (
-    <nav className="flex flex-wrap gap-2">
-      {items.map((it) => {
-        const active = current === it.key;
-        return (
-          <Link
-            key={it.key}
-            href={it.href}
-            className={[
-              "rounded-xl px-3 py-1.5 text-sm border transition",
-              active
-                ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
-                : "border-white/15 text-zinc-200 hover:bg-white/10",
-            ].join(" ")}
-          >
-            {it.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
+import { WBNav } from "@/components/worldbuilder/WBNav";
 
 /* ---------- types & helpers ---------- */
 
@@ -214,7 +178,7 @@ export default function CreaturesPage() {
     const row: Creature = {
       id,
       name: "New Creature",
-      is_free: true,
+      is_free: false,
       alt_names: null,
       challenge_rating: null,
       encounter_scale: null,
@@ -640,7 +604,7 @@ export default function CreaturesPage() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selected.is_free ?? true}
+                        checked={selected.is_free ?? false}
                         onChange={(e) =>
                           updateSelected({ is_free: e.target.checked })
                         }

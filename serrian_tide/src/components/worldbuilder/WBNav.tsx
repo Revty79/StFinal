@@ -7,13 +7,9 @@ export type WBNavKey =
   | "inventory"
   | "calendars"
   | "npcs"
-  | "continents"
-  | "languages"
   | "factions"
-  | "religions"
-  | "magic-systems"
-  | "economies"
-  | "timelines";
+  | "geography"
+  | "plot-hooks";
 
 interface NavItem {
   href: string;
@@ -29,13 +25,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
   { href: "/worldbuilder/calendars", key: "calendars", label: "Calendars" },
   { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
-  { href: "/worldbuilder/coming-soon", key: "continents", label: "Continents", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "languages", label: "Languages", comingSoon: true },
   { href: "/worldbuilder/coming-soon", key: "factions", label: "Factions", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "religions", label: "Religions", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "magic-systems", label: "Magic Systems", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "economies", label: "Economies", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "timelines", label: "Timelines", comingSoon: true },
+  { href: "/worldbuilder/coming-soon", key: "geography", label: "Geography & Regions", comingSoon: true },
+  { href: "/worldbuilder/coming-soon", key: "plot-hooks", label: "Plot Hooks", comingSoon: true },
 ];
 
 export function WBNav({ current }: { current?: WBNavKey }) {
@@ -48,7 +40,7 @@ export function WBNav({ current }: { current?: WBNavKey }) {
             key={it.key}
             href={it.href}
             className={[
-              "rounded-xl px-3 py-1.5 text-sm border transition relative",
+              "rounded-xl px-3 py-1.5 text-sm border transition",
               active
                 ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
                 : "border-white/15 text-zinc-200 hover:bg-white/10",

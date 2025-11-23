@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "skills" (
   "parent_id" varchar(36) REFERENCES "skills"("id") ON DELETE SET NULL,
   "parent2_id" varchar(36) REFERENCES "skills"("id") ON DELETE SET NULL,
   "parent3_id" varchar(36) REFERENCES "skills"("id") ON DELETE SET NULL,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS "races" (
   "attributes" jsonb,
   "bonus_skills" jsonb,
   "special_abilities" jsonb,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS "creatures" (
   "can_be_pet" boolean DEFAULT false,
   "can_be_companion" boolean DEFAULT false,
   
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS "inventory_items" (
   "mechanical_effect" text,
   "weight" integer,
   "narrative_notes" text,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS "inventory_weapons" (
   "damage" integer,
   "effect" text,
   "narrative_notes" text,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS "inventory_armor" (
   "encumbrance_penalty" integer,
   "effect" text,
   "narrative_notes" text,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS "npcs" (
   
   -- Metadata
   "notes" text,
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -375,7 +375,7 @@ CREATE TABLE IF NOT EXISTS "calendars" (
   "leap_days_added" integer,
   
   -- Content flags
-  "is_free" boolean DEFAULT true NOT NULL,
+  "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   
   -- Timestamps

@@ -163,7 +163,7 @@ export default function InventoryArtifactsPage() {
     const row: ArtifactRow = {
       id,
       name: "New Artifact",
-      is_free: true,
+      is_free: false,
       shop_ready: false,
       shop_role: "exclusive",
       timeline_tag: null,
@@ -560,10 +560,10 @@ export default function InventoryArtifactsPage() {
                     />
                   </FormField>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selected.is_free ?? true}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.is_free ?? false}
                       onChange={(e) =>
                         updateSelected({ is_free: e.target.checked })
                       }

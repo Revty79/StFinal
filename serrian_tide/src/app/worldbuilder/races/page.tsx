@@ -206,7 +206,7 @@ function parseTSVToRaceRecords(raw: string): RaceRecord[] {
       id: uid(),
       name,
       tagline: "", // can be filled manually later if desired
-      is_free: true,
+      is_free: false,
       def: {
         legacy_description: legacy || null,
         physical_characteristics: physChars || null,
@@ -407,7 +407,7 @@ export default function RacesPage() {
       id,
       name: "New Race",
       tagline: "",
-      is_free: true,
+      is_free: false,
       def: {},
       attr: {},
       bonusRows: makeBonusRows(MAX_BONUS_SKILLS),
@@ -1114,7 +1114,7 @@ export default function RacesPage() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selected.is_free ?? true}
+                        checked={selected.is_free ?? false}
                         onChange={(e) =>
                           updateSelected({
                             is_free: e.target.checked,
