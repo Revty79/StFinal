@@ -1,0 +1,1004 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+import { GradientText } from "@/components/GradientText";
+import { Card } from "@/components/Card";
+import { Button } from "@/components/Button";
+import { FormField } from "@/components/FormField";
+import { Input } from "@/components/Input";
+
+/* ---------- local nav ---------- */
+function WBNav({
+  current = "inventory",
+}: {
+  current?: "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+}) {
+  const items = [
+    { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
+    { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
+    { href: "/worldbuilder/races", key: "races", label: "Races" },
+    { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
+  ] as const;
+
+  return (
+    <nav className="flex flex-wrap gap-2">
+      {items.map((it) => {
+        const active = current === it.key;
+        return (
+          <Link
+            key={it.key}
+            href={it.href}
+            className={[
+              "rounded-xl px-3 py-1.5 text-sm border transition",
+              active
+                ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
+                : "border-white/15 text-zinc-200 hover:bg-white/10",
+            ].join(" ")}
+          >
+            {it.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ---------- types & helpers ---------- */
+
+type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
+
+export type ItemRow = {
+  id: string | number;
+  name: string;
+
+  // common meta
+  is_free?: boolean;
+  createdBy?: string;
+  timeline_tag?: string | null;
+  cost_credits?: number | null;
+  genre_tags?: string | null;
+
+  // inventory logic for this page
+  category?: string | null;
+  subtype?: string | null;
+  weight?: number | null;
+
+  mechanical_effect?: string | null;
+  narrative_notes?: string | null;
+
+  // still exist in DB but invisible here
+  shop_ready?: boolean;
+  shop_role?: ShopRole;
+  item_role?:
+    | "mundane"
+    | "magic"
+    | "artifact"
+    | "service"
+    | "pet_mount_companion"
+    | null;
+};
+
+/** Local-only system hook prototype */
+type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "other";
+type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "other";
+
+type ItemHook = {
+  id: string;
+  trigger: ItemHookTrigger;
+  target: ItemHookTarget;
+  label: string; // plain effect text (e.g. "Restore 5 HP")
+};
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+const nv = (x: unknown) =>
+  x === null || x === undefined || x === "" ? "—" : String(x);
+
+// some quick genre-tag presets to click-add
+const GENRE_PRESETS = [
+  "fantasy",
+  "dark_fantasy",
+  "sci_fi",
+  "cyberpunk",
+  "post_apoc",
+  "steampunk",
+  "modern",
+] as const;
+
+/* ---------- main page ---------- */
+
+export default function InventoryItemsPage() {
+  const router = useRouter();
+
+  // Escape → back/hub
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          router.back();
+        } else {
+          router.push("/worldbuilder/inventory");
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [router]);
+
+  const [items, setItems] = useState<ItemRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [qtext, setQtext] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    role: string;
+  } | null>(null);
+
+  /** Local system hooks per item id (not persisted yet) */
+  const [hooksByItem, setHooksByItem] = useState<Record<string, ItemHook[]>>(
+    {}
+  );
+
+  // Load user + items
+  useEffect(() => {
+    async function loadItems() {
+      try {
+        const userRes = await fetch("/api/profile/me");
+        const userData = await userRes.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
+        const itemsRes = await fetch("/api/worldbuilder/inventory/items");
+        const itemsData = await itemsRes.json();
+
+        if (!itemsData.ok) {
+          throw new Error(itemsData.error || "Failed to load items");
+        }
+
+        const mapped: ItemRow[] = (itemsData.items || []).map((i: any) => ({
+          ...i,
+          is_free: i.isFree,
+          shop_ready: i.shopReady,
+          shop_role: i.shopRole ?? null,
+        }));
+
+        setItems(mapped);
+
+        if (mapped.length > 0 && mapped[0]) {
+          setSelectedId(String(mapped[0].id));
+        }
+      } catch (err) {
+        console.error("Error loading items:", err);
+        alert(
+          `Failed to load items: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadItems();
+  }, []);
+
+  const filteredItems = useMemo(() => {
+    const q = qtext.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((r) => {
+      const base = [
+        r.name,
+        r.category ?? "",
+        r.subtype ?? "",
+        r.genre_tags ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return base.includes(q);
+    });
+  }, [items, qtext]);
+
+  const selected: ItemRow | null = useMemo(
+    () =>
+      filteredItems.find((r) => String(r.id) === String(selectedId ?? "")) ??
+      null,
+    [filteredItems, selectedId]
+  );
+
+  // ensure we always have a selection if list changes
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selected && filteredItems[0]) {
+      setSelectedId(String(filteredItems[0].id));
+    }
+  }, [filteredItems, selected]);
+
+  const currentHooks: ItemHook[] = useMemo(() => {
+    if (!selected) return [];
+    return hooksByItem[String(selected.id)] ?? [];
+  }, [hooksByItem, selected]);
+
+  /* ---------- CRUD helpers ---------- */
+
+  function createItem() {
+    const id = uid();
+    const newItem: ItemRow = {
+      id,
+      name: "New Item",
+      is_free: true,
+      shop_ready: true,
+      shop_role: "shop_stock",
+      item_role: "mundane",
+      timeline_tag: null,
+      cost_credits: null,
+      category: "gear",
+      subtype: null,
+      genre_tags: "",
+      weight: null,
+      mechanical_effect: "",
+      narrative_notes: "",
+    };
+
+    setItems((prev) => [newItem, ...prev]);
+    setSelectedId(id);
+  }
+
+  async function deleteSelected() {
+    if (!selected || !currentUser) return;
+    const idStr = String(selected.id);
+
+    const isNew = typeof selected.id === "string" && selected.id.length < 20;
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+    const isCreator = selected.createdBy === currentUser.id;
+
+    if (!isNew && !isAdmin && !isCreator) {
+      alert("You can only delete items you created (admins can delete any).");
+      return;
+    }
+
+    if (!confirm("Delete this item from the inventory?")) return;
+
+    const removeFromState = () => {
+      setItems((prev) => prev.filter((r) => String(r.id) !== idStr));
+      setHooksByItem((prev) => {
+        const next = { ...prev };
+        delete next[idStr];
+        return next;
+      });
+    };
+
+    if (isNew) {
+      removeFromState();
+      setSelectedId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/worldbuilder/inventory/items/${selected.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to delete item");
+      }
+      removeFromState();
+      setSelectedId(null);
+      alert("Item deleted.");
+    } catch (err) {
+      console.error("Error deleting item:", err);
+      alert(
+        `Failed to delete item: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  function renameSelected(newName: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setItems((prev) =>
+      prev.map((r) => (String(r.id) === idStr ? { ...r, name: newName } : r))
+    );
+  }
+
+  function updateSelected(patch: Partial<ItemRow>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setItems((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr ? ({ ...r, ...patch } as ItemRow) : r
+      )
+    );
+  }
+
+  async function saveSelected() {
+    if (!selected) return;
+
+    try {
+      const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+      // payload aligned to existing API fields
+      const payload: any = {
+        name: selected.name,
+        isFree: selected.is_free ?? true,
+        shopReady: true,
+        shopRole: "shop_stock",
+        itemRole: selected.item_role ?? null,
+        timelineTag: selected.timeline_tag ?? null,
+        costCredits: selected.cost_credits ?? null,
+        category: selected.category ?? null,
+        subtype: selected.subtype ?? null,
+        genreTags: selected.genre_tags ?? null,
+        weight: selected.weight ?? null,
+        mechanicalEffect: selected.mechanical_effect ?? null,
+        narrativeNotes: selected.narrative_notes ?? null,
+      };
+
+      let res;
+      if (isNew) {
+        res = await fetch("/api/worldbuilder/inventory/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch(
+          `/api/worldbuilder/inventory/items/${selected.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+      }
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save item");
+      }
+
+      if (isNew) {
+        const oldId = selected.id;
+        const saved = data.item;
+        if (saved) {
+          const transformed: ItemRow = {
+            ...saved,
+            is_free: saved.isFree,
+            shop_ready: saved.shopReady,
+            shop_role: saved.shopRole ?? null,
+          };
+
+          setItems((prev) =>
+            prev.map((r) =>
+              String(r.id) === String(oldId) ? transformed : r
+            )
+          );
+          setSelectedId(String(saved.id));
+
+          // move hooks to the new id if any
+          setHooksByItem((prev) => {
+            const next = { ...prev };
+            const hooksForOld = next[String(oldId)];
+            if (hooksForOld) {
+              delete next[String(oldId)];
+              next[String(saved.id)] = hooksForOld;
+            }
+            return next;
+          });
+        }
+      }
+
+      alert("Item saved.");
+    } catch (err) {
+      console.error("Error saving item:", err);
+      alert(
+        `Failed to save item: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  /* ---------- system hooks helpers (local only) ---------- */
+
+  function addHook() {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    const newHook: ItemHook = {
+      id: uid(),
+      trigger: "on_use",
+      target: "self",
+      label: "",
+    };
+    setHooksByItem((prev) => ({
+      ...prev,
+      [idStr]: [...(prev[idStr] ?? []), newHook],
+    }));
+  }
+
+  function updateHook(hookId: string, patch: Partial<ItemHook>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setHooksByItem((prev) => {
+      const curr = prev[idStr] ?? [];
+      return {
+        ...prev,
+        [idStr]: curr.map((h) =>
+          h.id === hookId ? ({ ...h, ...patch } as ItemHook) : h
+        ),
+      };
+    });
+  }
+
+  function removeHook(hookId: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setHooksByItem((prev) => {
+      const curr = prev[idStr] ?? [];
+      return {
+        ...prev,
+        [idStr]: curr.filter((h) => h.id !== hookId),
+      };
+    });
+  }
+
+  function appendGenreTag(tag: string) {
+    if (!selected) return;
+    const current = selected.genre_tags ?? "";
+    const bits = current
+      .split(/[,\s]+/)
+      .map((b) => b.trim())
+      .filter(Boolean);
+    if (bits.includes(tag)) return;
+    const next = [...bits, tag].join(", ");
+    updateSelected({ genre_tags: next });
+  }
+
+  /* ---------- preview text ---------- */
+
+  const previewText = useMemo(() => {
+    if (!selected) return "";
+    const lines: string[] = [];
+
+    lines.push(`Item: ${selected.name}`);
+    lines.push(
+      `Timeline: ${nv(selected.timeline_tag)}   Cost: ${nv(
+        selected.cost_credits
+      )}`
+    );
+    lines.push(
+      `Category/Subtype: ${nv(selected.category)} / ${nv(selected.subtype)}`
+    );
+    lines.push(`Tags: ${nv(selected.genre_tags)}`);
+    lines.push(`Weight: ${nv(selected.weight)}`);
+    lines.push("");
+    lines.push(`Effect: ${nv(selected.mechanical_effect)}`);
+
+    if (currentHooks.length > 0) {
+      lines.push("");
+      lines.push("System Hooks (prototype):");
+      currentHooks.forEach((h, idx) => {
+        lines.push(
+          `  ${idx + 1}. [${h.trigger} → ${h.target}] ${h.label || "(no text)"}`
+        );
+      });
+    }
+
+    if (selected.narrative_notes) {
+      lines.push("");
+      lines.push("Notes:");
+      lines.push(selected.narrative_notes);
+    }
+
+    return lines.join("\n");
+  }, [selected, currentHooks]);
+
+  /* ---------- render ---------- */
+
+  return (
+    <main className="min-h-screen px-6 py-10">
+      {/* Header */}
+      <header className="max-w-7xl mx-auto mb-8 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <GradientText
+              as="h1"
+              variant="title"
+              glow
+              className="font-evanescent text-3xl sm:text-4xl tracking-tight"
+            >
+              Items &amp; Gear Builder
+            </GradientText>
+            <p className="mt-2 text-sm text-zinc-300/90 max-w-2xl">
+              Build lanterns, potions, rations, tools, and oddities. This window
+              focuses on general gear &amp; consumables—clean categories now,
+              deeper automation later in the Session Tracker.
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Link href="/worldbuilder/inventory">
+              <Button variant="secondary" size="sm" type="button">
+                ← Inventory Hub
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <WBNav current="inventory" />
+        </div>
+      </header>
+
+      {/* Quick help strip */}
+      <section className="max-w-7xl mx-auto mb-4">
+        <Card className="bg-white/5 border border-white/10 rounded-3xl p-4 shadow-lg">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold text-zinc-200">
+              How this window works
+            </h2>
+            <ol className="list-decimal pl-5 text-xs text-zinc-300 space-y-1">
+              <li>
+                Use the <span className="font-semibold">library</span> on the
+                left to search and select items.
+              </li>
+              <li>
+                Edit <span className="font-semibold">Basics</span> (category,
+                subtype, cost, tags) in the center.
+              </li>
+              <li>
+                Use <span className="font-semibold">System Hooks</span> to
+                sketch how this item will behave later in the Session Tracker
+                (prototype, not yet saved to DB).
+              </li>
+              <li>
+                The <span className="font-semibold">Preview</span> on the right
+                shows what you can paste into docs or quick-reference sheets.
+              </li>
+            </ol>
+          </div>
+        </Card>
+      </section>
+
+      {/* Main layout */}
+      <section className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[320px,1.4fr,1.1fr] gap-6">
+        {/* LEFT: library */}
+        <Card
+          padded={false}
+          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-2xl flex flex-col gap-4"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-zinc-200">
+              Item Library
+            </h2>
+            <Button
+              variant="primary"
+              size="sm"
+              type="button"
+              onClick={createItem}
+            >
+              + New Item
+            </Button>
+          </div>
+
+          <Input
+            value={qtext}
+            onChange={(e) => setQtext(e.target.value)}
+            placeholder="Search items by name, category, or tags…"
+          />
+
+          <div className="mt-2 flex-1 min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-b border-white/10">
+              <span>Items: {filteredItems.length}</span>
+              <span className="uppercase tracking-wide text-[10px] text-zinc-500">
+                Library
+              </span>
+            </div>
+
+            <div className="max-h-[420px] overflow-auto">
+              {loading ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  Loading items…
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  No items yet. Create your first one.
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="text-left text-zinc-400">
+                    <tr>
+                      <th className="px-3 py-1">Name</th>
+                      <th className="px-3 py-1">Category</th>
+                      <th className="px-3 py-1">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((r) => {
+                      const idStr = String(r.id);
+                      const isSel = selectedId === idStr;
+                      return (
+                        <tr
+                          key={idStr}
+                          className={`border-t border-white/5 cursor-pointer hover:bg-white/5 ${
+                            isSel ? "bg-white/10" : ""
+                          }`}
+                          onClick={() => setSelectedId(idStr)}
+                        >
+                          <td className="px-3 py-1.5">
+                            {r.name || "(unnamed)"}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {nv(r.category ?? "")}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {nv(r.cost_credits ?? "")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <span>Rename:</span>
+                <input
+                  className="rounded-md border border-white/15 bg-black/50 px-2 py-1 text-xs text-zinc-100 outline-none"
+                  disabled={!selected}
+                  value={selected?.name ?? ""}
+                  onChange={(e) => renameSelected(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={
+                  !selected ||
+                  !currentUser ||
+                  (currentUser.role?.toLowerCase() !== "admin" &&
+                    selected?.createdBy !== currentUser.id)
+                }
+                onClick={deleteSelected}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        {/* MIDDLE: item editor */}
+        <Card
+          padded={false}
+          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
+        >
+          {selected ? (
+            <div className="space-y-4">
+              {/* Name + save row */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                <div className="flex-1">
+                  <FormField
+                    label="Item Name"
+                    htmlFor="item-name"
+                    description="What your players will see in shops and character sheets."
+                  >
+                    <Input
+                      id="item-name"
+                      value={selected.name}
+                      onChange={(e) =>
+                        updateSelected({ name: e.target.value })
+                      }
+                    />
+                  </FormField>
+                </div>
+                <div className="shrink-0 flex items-end">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    onClick={saveSelected}
+                  >
+                    Save Item
+                  </Button>
+                </div>
+              </div>
+
+              {/* Basics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  label="Category"
+                  htmlFor="item-category"
+                  description="High-level grouping used for filters and shops."
+                >
+                  <select
+                    id="item-category"
+                    className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                    value={selected.category ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        category: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">(unset)</option>
+                    <option value="gear">General Gear</option>
+                    <option value="tool">Tool / Kit</option>
+                    <option value="consumable">Consumable</option>
+                    <option value="focus">Spell Focus</option>
+                    <option value="ammo">Ammunition</option>
+                    <option value="service_token">Service Token</option>
+                    <option value="pet_mount_item">Pet / Mount Gear</option>
+                    <option value="other">Other</option>
+                  </select>
+                </FormField>
+
+                <FormField
+                  label="Subtype"
+                  htmlFor="item-subtype"
+                  description="Optional finer tag: lantern, rope, potion_healing, etc."
+                >
+                  <Input
+                    id="item-subtype"
+                    value={selected.subtype ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        subtype: e.target.value,
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField label="Timeline Tag" htmlFor="item-timeline">
+                  <Input
+                    id="item-timeline"
+                    value={selected.timeline_tag ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        timeline_tag: e.target.value,
+                      })
+                    }
+                  />
+                </FormField>
+
+                <FormField label="Cost (Credits)" htmlFor="item-cost">
+                  <Input
+                    id="item-cost"
+                    type="number"
+                    value={selected.cost_credits ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        cost_credits:
+                          e.target.value === ""
+                            ? null
+                            : Number(e.target.value),
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField label="Weight" htmlFor="item-weight">
+                  <Input
+                    id="item-weight"
+                    type="number"
+                    value={selected.weight ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        weight:
+                          e.target.value === ""
+                            ? null
+                            : Number(e.target.value),
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+
+              {/* Tags with presets */}
+              <FormField
+                label="Genre Tags"
+                htmlFor="item-tags"
+                description="Comma- or space-separated tags. Use the chips to append quickly."
+              >
+                <div className="space-y-2">
+                  <Input
+                    id="item-tags"
+                    value={selected.genre_tags ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        genre_tags: e.target.value,
+                      })
+                    }
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {GENRE_PRESETS.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => appendGenreTag(tag)}
+                        className="rounded-full border border-violet-400/40 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-100 hover:bg-violet-500/20 transition"
+                      >
+                        + {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </FormField>
+
+              {/* Mechanical effect */}
+              <FormField
+                label="Mechanical Effect"
+                htmlFor="item-effect"
+                description="What this does at the table: bonuses, checks, healing, special usage rules."
+              >
+                <textarea
+                  id="item-effect"
+                  className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.mechanical_effect ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      mechanical_effect: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              {/* Narrative notes */}
+              <FormField
+                label="Flavor / Narrative Notes"
+                htmlFor="item-notes"
+                description="How it looks, feels, and fits into the lore."
+              >
+                <textarea
+                  id="item-notes"
+                  className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.narrative_notes ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      narrative_notes: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              No item selected. Create or select one from the library.
+            </p>
+          )}
+        </Card>
+
+        {/* RIGHT: system hooks + preview */}
+        <div className="space-y-4">
+          {/* System Hooks (local prototype) */}
+          <Card className="rounded-3xl border border-emerald-400/30 bg-emerald-500/5 backdrop-blur p-4 shadow-xl">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-emerald-100">
+                  System Hooks (Prototype)
+                </h2>
+                <p className="text-[11px] text-emerald-200/70">
+                  These are local-only sketches of how this item will behave
+                  later in the Session Tracker. Not yet persisted to the DB.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                disabled={!selected}
+                onClick={addHook}
+              >
+                + Add Hook
+              </Button>
+            </div>
+
+            {!selected ? (
+              <p className="text-xs text-emerald-200/70">
+                Select an item to attach hooks to it.
+              </p>
+            ) : currentHooks.length === 0 ? (
+              <p className="text-xs text-emerald-200/70">
+                No hooks yet. Try something like{" "}
+                <span className="italic">
+                  “on_use → self → Restore 5 HP”
+                </span>{" "}
+                for a basic healing potion.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {currentHooks.map((hook) => (
+                  <div
+                    key={hook.id}
+                    className="rounded-2xl border border-emerald-400/30 bg-emerald-500/5 px-3 py-2 flex flex-col gap-2"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                        value={hook.trigger}
+                        onChange={(e) =>
+                          updateHook(hook.id, {
+                            trigger: e.target.value as ItemHookTrigger,
+                          })
+                        }
+                      >
+                        <option value="on_use">on_use</option>
+                        <option value="on_equip">on_equip</option>
+                        <option value="passive">passive</option>
+                        <option value="other">other</option>
+                      </select>
+
+                      <select
+                        className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                        value={hook.target}
+                        onChange={(e) =>
+                          updateHook(hook.id, {
+                            target: e.target.value as ItemHookTarget,
+                          })
+                        }
+                      >
+                        <option value="self">self</option>
+                        <option value="ally">ally</option>
+                        <option value="enemy">enemy</option>
+                        <option value="area">area</option>
+                        <option value="other">other</option>
+                      </select>
+
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        type="button"
+                        onClick={() => removeHook(hook.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+
+                    <textarea
+                      className="w-full rounded-lg border border-emerald-400/30 bg-black/40 px-2 py-1 text-[11px] text-emerald-50"
+                      placeholder='e.g. "Restore 5 HP" or "Grant +1 to next attack roll"'
+                      value={hook.label}
+                      onChange={(e) =>
+                        updateHook(hook.id, { label: e.target.value })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Preview */}
+          <Card className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-xl">
+            <FormField
+              label="Item Preview"
+              htmlFor="item-preview"
+              description="Copy-paste ready block for docs, handouts, or quick-reference."
+            >
+              <textarea
+                id="item-preview"
+                readOnly
+                className="w-full h-[260px] rounded-lg border border-white/10 bg-neutral-950/70 px-3 py-2 text-xs text-zinc-200 font-mono"
+                value={previewText}
+              />
+            </FormField>
+          </Card>
+        </div>
+      </section>
+    </main>
+  );
+}

@@ -1,0 +1,871 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+import { GradientText } from "@/components/GradientText";
+import { Card } from "@/components/Card";
+import { Button } from "@/components/Button";
+import { FormField } from "@/components/FormField";
+import { Input } from "@/components/Input";
+
+/* ---------- local nav ---------- */
+function WBNav({
+  current = "inventory",
+}: {
+  current?: "creatures" | "skillsets" | "races" | "inventory" | "npcs";
+}) {
+  const items = [
+    { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
+    { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
+    { href: "/worldbuilder/races", key: "races", label: "Races" },
+    { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
+    { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
+  ] as const;
+
+  return (
+    <nav className="flex flex-wrap gap-2">
+      {items.map((it) => {
+        const active = current === it.key;
+        return (
+          <Link
+            key={it.key}
+            href={it.href}
+            className={[
+              "rounded-xl px-3 py-1.5 text-sm border transition",
+              active
+                ? "border-violet-400/40 text-violet-200 bg-violet-400/10"
+                : "border-white/15 text-zinc-200 hover:bg-white/10",
+            ].join(" ")}
+          >
+            {it.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ---------- types & helpers ---------- */
+
+type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
+
+export type ArtifactRow = {
+  id: string | number;
+  name: string;
+
+  is_free?: boolean;
+  createdBy?: string;
+
+  timeline_tag?: string | null;
+  cost_credits?: number | null;
+
+  category?: string | null; // weapon, armor, wondrous, etc
+  rarity?: string | null;
+  attunement?: string | null;
+
+  genre_tags?: string | null;
+  mechanical_effect?: string | null;
+  curse?: string | null;
+  origin_lore?: string | null;
+  weight?: number | null;
+  narrative_notes?: string | null;
+
+  shop_ready?: boolean;
+  shop_role?: ShopRole;
+};
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const nv = (x: unknown) =>
+  x === null || x === undefined || x === "" ? "—" : String(x);
+
+const GENRE_PRESETS = [
+  "mythic",
+  "relic",
+  "eldritch",
+  "divine",
+  "infernal",
+  "void",
+  "artifact",
+] as const;
+
+/* ---------- main page ---------- */
+
+export default function InventoryArtifactsPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (typeof window !== "undefined" && window.history.length > 1) {
+          router.back();
+        } else {
+          router.push("/worldbuilder/inventory");
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [router]);
+
+  const [artifacts, setArtifacts] = useState<ArtifactRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [qtext, setQtext] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    role: string;
+  } | null>(null);
+
+  useEffect(() => {
+    async function loadArtifacts() {
+      try {
+        const userRes = await fetch("/api/profile/me");
+        const userData = await userRes.json();
+        if (userData.ok && userData.user) {
+          setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
+        const res = await fetch("/api/worldbuilder/inventory/artifacts");
+        const data = await res.json();
+        if (!data.ok) {
+          throw new Error(data.error || "Failed to load artifacts");
+        }
+
+        const mapped: ArtifactRow[] = (data.artifacts || []).map((a: any) => ({
+          ...a,
+          is_free: a.isFree,
+          shop_ready: a.shopReady,
+          shop_role: a.shopRole ?? null,
+        }));
+
+        setArtifacts(mapped);
+        if (mapped.length > 0 && mapped[0]) {
+          setSelectedId(String(mapped[0].id));
+        }
+      } catch (err) {
+        console.error("Error loading artifacts:", err);
+        alert(
+          `Failed to load artifacts: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadArtifacts();
+  }, []);
+
+  const filteredArtifacts = useMemo(() => {
+    const q = qtext.trim().toLowerCase();
+    if (!q) return artifacts;
+    return artifacts.filter((r) => {
+      const base = [
+        r.name,
+        r.category ?? "",
+        r.rarity ?? "",
+        r.genre_tags ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return base.includes(q);
+    });
+  }, [artifacts, qtext]);
+
+  const selected: ArtifactRow | null = useMemo(
+    () =>
+      filteredArtifacts.find((r) => String(r.id) === String(selectedId ?? "")) ??
+      null,
+    [filteredArtifacts, selectedId]
+  );
+
+  useEffect(() => {
+    if (!filteredArtifacts.length) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selected && filteredArtifacts[0]) {
+      setSelectedId(String(filteredArtifacts[0].id));
+    }
+  }, [filteredArtifacts, selected]);
+
+  /* ---------- helpers ---------- */
+
+  function createArtifact() {
+    const id = uid();
+    const row: ArtifactRow = {
+      id,
+      name: "New Artifact",
+      is_free: true,
+      shop_ready: false,
+      shop_role: "exclusive",
+      timeline_tag: null,
+      cost_credits: null,
+      category: "",
+      rarity: "",
+      attunement: "",
+      genre_tags: "",
+      mechanical_effect: "",
+      curse: "",
+      origin_lore: "",
+      weight: null,
+      narrative_notes: "",
+    };
+    setArtifacts((prev) => [row, ...prev]);
+    setSelectedId(id);
+  }
+
+  async function deleteSelected() {
+    if (!selected || !currentUser) return;
+    const idStr = String(selected.id);
+
+    const isNew = typeof selected.id === "string" && selected.id.length < 20;
+    const isAdmin = currentUser.role?.toLowerCase() === "admin";
+    const isCreator = selected.createdBy === currentUser.id;
+
+    if (!isNew && !isAdmin && !isCreator) {
+      alert("You can only delete artifacts you created (admins can delete any).");
+      return;
+    }
+
+    if (!confirm("Delete this artifact from the inventory?")) return;
+
+    const removeFromState = () => {
+      setArtifacts((prev) => prev.filter((r) => String(r.id) !== idStr));
+    };
+
+    if (isNew) {
+      removeFromState();
+      setSelectedId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/worldbuilder/inventory/artifacts/${selected.id}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to delete artifact");
+      }
+      removeFromState();
+      setSelectedId(null);
+      alert("Artifact deleted.");
+    } catch (err) {
+      console.error("Error deleting artifact:", err);
+      alert(
+        `Failed to delete artifact: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  function renameSelected(newName: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setArtifacts((prev) =>
+      prev.map((r) => (String(r.id) === idStr ? { ...r, name: newName } : r))
+    );
+  }
+
+  function updateSelected(patch: Partial<ArtifactRow>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setArtifacts((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr ? ({ ...r, ...patch } as ArtifactRow) : r
+      )
+    );
+  }
+
+  async function saveSelected() {
+    if (!selected) return;
+
+    try {
+      const isNew = typeof selected.id === "string" && selected.id.length < 20;
+
+      const payload: any = {
+        name: selected.name,
+        isFree: selected.is_free ?? true,
+        shopReady: selected.shop_ready ?? false,
+        shopRole: selected.shop_role ?? "exclusive",
+        timelineTag: selected.timeline_tag ?? null,
+        costCredits: selected.cost_credits ?? null,
+        category: selected.category ?? null,
+        rarity: selected.rarity ?? null,
+        attunement: selected.attunement ?? null,
+        genreTags: selected.genre_tags ?? null,
+        mechanicalEffect: selected.mechanical_effect ?? null,
+        curse: selected.curse ?? null,
+        originLore: selected.origin_lore ?? null,
+        weight: selected.weight ?? null,
+        narrativeNotes: selected.narrative_notes ?? null,
+      };
+
+      let res;
+      if (isNew) {
+        res = await fetch("/api/worldbuilder/inventory/artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch(
+          `/api/worldbuilder/inventory/artifacts/${selected.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+      }
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save artifact");
+      }
+
+      if (isNew) {
+        const oldId = selected.id;
+        const saved = data.artifact;
+        if (saved) {
+          const transformed: ArtifactRow = {
+            ...saved,
+            is_free: saved.isFree,
+            shop_ready: saved.shopReady,
+            shop_role: saved.shopRole ?? null,
+          };
+          setArtifacts((prev) =>
+            prev.map((r) =>
+              String(r.id) === String(oldId) ? transformed : r
+            )
+          );
+          setSelectedId(String(saved.id));
+        }
+      }
+
+      alert("Artifact saved.");
+    } catch (err) {
+      console.error("Error saving artifact:", err);
+      alert(
+        `Failed to save artifact: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    }
+  }
+
+  function appendGenreTag(tag: string) {
+    if (!selected) return;
+    const current = selected.genre_tags ?? "";
+    const bits = current
+      .split(/[,\s]+/)
+      .map((b) => b.trim())
+      .filter(Boolean);
+    if (bits.includes(tag)) return;
+    const next = [...bits, tag].join(", ");
+    updateSelected({ genre_tags: next });
+  }
+
+  const previewText = useMemo(() => {
+    if (!selected) return "";
+    const a = selected;
+    const lines: string[] = [];
+
+    lines.push(`Artifact: ${a.name}`);
+    lines.push(
+      `Rarity: ${nv(a.rarity)}   Category: ${nv(a.category)}   Attunement: ${nv(
+        a.attunement
+      )}`
+    );
+    lines.push(
+      `Timeline: ${nv(a.timeline_tag)}   Cost: ${nv(a.cost_credits)}   Weight: ${nv(
+        a.weight
+      )}`
+    );
+    lines.push(`Tags: ${nv(a.genre_tags)}`);
+    lines.push("");
+    lines.push(`Effect: ${nv(a.mechanical_effect)}`);
+    if (a.curse) {
+      lines.push("");
+      lines.push(`Curse / Drawbacks: ${a.curse}`);
+    }
+    if (a.origin_lore) {
+      lines.push("");
+      lines.push("Origin Lore:");
+      lines.push(a.origin_lore);
+    }
+    if (a.narrative_notes) {
+      lines.push("");
+      lines.push("Notes:");
+      lines.push(a.narrative_notes);
+    }
+
+    return lines.join("\n");
+  }, [selected]);
+
+  /* ---------- render ---------- */
+
+  return (
+    <main className="min-h-screen px-6 py-10">
+      {/* Header */}
+      <header className="max-w-7xl mx-auto mb-8 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <GradientText
+              as="h1"
+              variant="title"
+              glow
+              className="font-evanescent text-3xl sm:text-4xl tracking-tight"
+            >
+              Artifacts &amp; Relics Builder
+            </GradientText>
+            <p className="mt-2 text-sm text-zinc-300/90 max-w-2xl">
+              Singular items that bend worlds: cursed relics, mythic weapons,
+              legendary wonders. This window captures their rules, curses, and
+              origin stories in one place.
+            </p>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Link href="/worldbuilder/inventory">
+              <Button variant="secondary" size="sm" type="button">
+                ← Inventory Hub
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <WBNav current="inventory" />
+        </div>
+      </header>
+
+      {/* Quick help */}
+      <section className="max-w-7xl mx-auto mb-4">
+        <Card className="bg-white/5 border border-white/10 rounded-3xl p-4 shadow-lg">
+          <h2 className="text-sm font-semibold text-zinc-200 mb-1">
+            How this window works
+          </h2>
+          <ol className="list-decimal pl-5 text-xs text-zinc-300 space-y-1">
+            <li>Use the library on the left to search and select artifacts.</li>
+            <li>
+              Fill out rarity, attunement, effects, and curses in the editor.
+            </li>
+            <li>
+              Use the preview on the right when you drop the artifact into
+              worlds, eras, and campaign modules.
+            </li>
+          </ol>
+        </Card>
+      </section>
+
+      {/* Main layout */}
+      <section className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[320px,1.4fr,1.1fr] gap-6">
+        {/* LEFT: library */}
+        <Card
+          padded={false}
+          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-2xl flex flex-col gap-4"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-zinc-200">
+              Artifacts Library
+            </h2>
+            <Button
+              variant="primary"
+              size="sm"
+              type="button"
+              onClick={createArtifact}
+            >
+              + New Artifact
+            </Button>
+          </div>
+
+          <Input
+            value={qtext}
+            onChange={(e) => setQtext(e.target.value)}
+            placeholder="Search artifacts by name, rarity, or tags…"
+          />
+
+          <div className="mt-2 flex-1 min-h-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-b border-white/10">
+              <span>Artifacts: {filteredArtifacts.length}</span>
+              <span className="uppercase tracking-wide text-[10px] text-zinc-500">
+                Library
+              </span>
+            </div>
+
+            <div className="max-h-[420px] overflow-auto">
+              {loading ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  Loading artifacts…
+                </div>
+              ) : filteredArtifacts.length === 0 ? (
+                <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                  No artifacts yet. Forge your first one.
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="text-left text-zinc-400">
+                    <tr>
+                      <th className="px-3 py-1">Name</th>
+                      <th className="px-3 py-1">Rarity</th>
+                      <th className="px-3 py-1">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredArtifacts.map((r) => {
+                      const idStr = String(r.id);
+                      const isSel = selectedId === idStr;
+                      return (
+                        <tr
+                          key={idStr}
+                          className={`border-t border-white/5 cursor-pointer hover:bg-white/5 ${
+                            isSel ? "bg-white/10" : ""
+                          }`}
+                          onClick={() => setSelectedId(idStr)}
+                        >
+                          <td className="px-3 py-1.5">
+                            {r.name || "(unnamed)"}
+                          </td>
+                          <td className="px-3 py-1.5">{nv(r.rarity ?? "")}</td>
+                          <td className="px-3 py-1.5">
+                            {nv(r.category ?? "")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-2 text-xs text-zinc-400 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <span>Rename:</span>
+                <input
+                  className="rounded-md border border-white/15 bg-black/50 px-2 py-1 text-xs text-zinc-100 outline-none"
+                  disabled={!selected}
+                  value={selected?.name ?? ""}
+                  onChange={(e) => renameSelected(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={
+                  !selected ||
+                  !currentUser ||
+                  (currentUser.role?.toLowerCase() !== "admin" &&
+                    selected?.createdBy !== currentUser.id)
+                }
+                onClick={deleteSelected}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        {/* MIDDLE: editor */}
+        <Card
+          padded={false}
+          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
+        >
+          {selected ? (
+            <div className="space-y-4">
+              {/* name + save + flags */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <FormField
+                    label="Artifact Name"
+                    htmlFor="artifact-name"
+                    description="Name players and modules will see."
+                  >
+                    <Input
+                      id="artifact-name"
+                      value={selected.name}
+                      onChange={(e) =>
+                        updateSelected({ name: e.target.value })
+                      }
+                    />
+                  </FormField>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selected.is_free ?? true}
+                      onChange={(e) =>
+                        updateSelected({ is_free: e.target.checked })
+                      }
+                      className="w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
+                    />
+                    <span className="text-xs text-zinc-300">
+                      Free (available to all users)
+                    </span>
+                  </label>
+                </div>
+                <div className="shrink-0 flex items-end">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    onClick={saveSelected}
+                  >
+                    Save Artifact
+                  </Button>
+                </div>
+              </div>
+
+              {/* rarity / category */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  label="Rarity"
+                  htmlFor="artifact-rarity"
+                  description="How hard this should be to obtain."
+                >
+                  <select
+                    id="artifact-rarity"
+                    className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                    value={selected.rarity ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        rarity: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">(unset)</option>
+                    <option value="common">Common</option>
+                    <option value="uncommon">Uncommon</option>
+                    <option value="rare">Rare</option>
+                    <option value="very_rare">Very Rare</option>
+                    <option value="legendary">Legendary</option>
+                    <option value="mythic">Mythic</option>
+                    <option value="unique">Unique</option>
+                  </select>
+                </FormField>
+
+                <FormField
+                  label="Category"
+                  htmlFor="artifact-category"
+                  description="Weapon, armor, relic, wondrous, etc."
+                >
+                  <select
+                    id="artifact-category"
+                    className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                    value={selected.category ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        category: e.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">(unset)</option>
+                    <option value="weapon">Weapon</option>
+                    <option value="armor">Armor</option>
+                    <option value="wondrous">Wondrous Item</option>
+                    <option value="relic">Relic</option>
+                    <option value="artifact">Artifact</option>
+                    <option value="other">Other</option>
+                  </select>
+                </FormField>
+              </div>
+
+              {/* attunement */}
+              <FormField
+                label="Attunement"
+                htmlFor="artifact-attunement"
+                description="Requirements, costs, or limits for wielding this artifact."
+              >
+                <Input
+                  id="artifact-attunement"
+                  value={selected.attunement ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      attunement: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              {/* timeline / cost */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField label="Timeline Tag" htmlFor="artifact-timeline">
+                  <Input
+                    id="artifact-timeline"
+                    value={selected.timeline_tag ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        timeline_tag: e.target.value,
+                      })
+                    }
+                  />
+                </FormField>
+                <FormField label="Cost (Credits)" htmlFor="artifact-cost">
+                  <Input
+                    id="artifact-cost"
+                    type="number"
+                    value={selected.cost_credits ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        cost_credits:
+                          e.target.value === ""
+                            ? null
+                            : Number(e.target.value),
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+
+              {/* tags & weight */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  label="Genre Tags"
+                  htmlFor="artifact-tags"
+                  description="Comma- or space-separated; use chips to append."
+                >
+                  <div className="space-y-2">
+                    <Input
+                      id="artifact-tags"
+                      value={selected.genre_tags ?? ""}
+                      onChange={(e) =>
+                        updateSelected({
+                          genre_tags: e.target.value,
+                        })
+                      }
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {GENRE_PRESETS.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => appendGenreTag(tag)}
+                          className="rounded-full border border-violet-400/40 bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-100 hover:bg-violet-500/20 transition"
+                        >
+                          + {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </FormField>
+
+                <FormField label="Weight" htmlFor="artifact-weight">
+                  <Input
+                    id="artifact-weight"
+                    type="number"
+                    value={selected.weight ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        weight:
+                          e.target.value === ""
+                            ? null
+                            : Number(e.target.value),
+                      })
+                    }
+                  />
+                </FormField>
+              </div>
+
+              {/* mechanical effect */}
+              <FormField
+                label="Mechanical Effect"
+                htmlFor="artifact-effect"
+                description="How this relic behaves at the table."
+              >
+                <textarea
+                  id="artifact-effect"
+                  className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.mechanical_effect ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      mechanical_effect: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              {/* curse */}
+              <FormField
+                label="Curse / Drawbacks"
+                htmlFor="artifact-curse"
+                description="Side effects, madness, corruption, oaths, or obligations."
+              >
+                <textarea
+                  id="artifact-curse"
+                  className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.curse ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      curse: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              {/* origin & notes */}
+              <FormField
+                label="Origin Lore"
+                htmlFor="artifact-origin"
+                description="Who forged this, where it came from, why the cosmos cares."
+              >
+                <textarea
+                  id="artifact-origin"
+                  className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.origin_lore ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      origin_lore: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField
+                label="Narrative Notes"
+                htmlFor="artifact-notes"
+                description="GM guidance, role in prophecy, or how it should feel in play."
+              >
+                <textarea
+                  id="artifact-notes"
+                  className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.narrative_notes ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      narrative_notes: e.target.value,
+                    })
+                  }
+                />
+              </FormField>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              No artifact selected. Create or select one from the library.
+            </p>
+          )}
+        </Card>
+
+        {/* RIGHT: preview */}
+        <Card className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-xl">
+          <FormField
+            label="Artifact Preview"
+            htmlFor="artifact-preview"
+            description="Copy-paste ready block for sheets, handouts, and modules."
+          >
+            <textarea
+              id="artifact-preview"
+              readOnly
+              className="w-full h-[320px] rounded-lg border border-white/10 bg-neutral-950/70 px-3 py-2 text-xs text-zinc-200 font-mono"
+              value={previewText}
+            />
+          </FormField>
+        </Card>
+      </section>
+    </main>
+  );
+}
