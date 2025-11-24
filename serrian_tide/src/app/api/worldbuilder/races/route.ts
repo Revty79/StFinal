@@ -29,8 +29,10 @@ export async function GET(req: Request) {
     // Transform races to include flattened max attributes for easier access
     const transformedRaces = races.map(race => {
       const attrs = race.attributes as any || {};
+      const canEdit = user.role === 'admin' || race.createdBy === user.id;
       return {
         ...race,
+        canEdit, // Add explicit canEdit flag
         maxStrength: attrs.strength_max ? parseInt(attrs.strength_max) : 50,
         maxDexterity: attrs.dexterity_max ? parseInt(attrs.dexterity_max) : 50,
         maxConstitution: attrs.constitution_max ? parseInt(attrs.constitution_max) : 50,

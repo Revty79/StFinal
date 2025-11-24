@@ -1065,7 +1065,7 @@ export default function NPCsPage() {
   /* ---------- render ---------- */
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 px-3 sm:px-4 py-6 sm:py-8">
+    <main className="min-h-screen px-3 sm:px-4 py-6 sm:py-8">
       <header className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
         <WBNav current="npcs" />
         <div className="flex flex-col gap-2">

@@ -54,6 +54,7 @@ type RaceRecord = {
   tagline: string;
   is_free?: boolean;
   createdBy?: string;
+  canEdit?: boolean; // Add canEdit flag from API
   def: RaceDefinition;
   attr: RaceAttributes;
   bonusRows: BonusRow[];
@@ -319,6 +320,7 @@ export default function RacesPage() {
           tagline: r.tagline || "",
           is_free: r.isFree ?? false,
           createdBy: r.createdBy,
+          canEdit: r.canEdit ?? true, // Use canEdit from API
           def: r.definition || {},
           attr: r.attributes || {},
           bonusRows: [
@@ -363,13 +365,13 @@ export default function RacesPage() {
 
   // Check if selected race is editable
   useEffect(() => {
-    if (selected && currentUser) {
-      const isOwner = selected.createdBy === currentUser.id;
-      setReadOnlyMode(!isOwner);
+    if (selected) {
+      // Use canEdit flag from API response
+      setReadOnlyMode(!selected.canEdit);
     } else {
       setReadOnlyMode(false);
     }
-  }, [selected, currentUser]);
+  }, [selected]);
 
   // ensure something is selected when the list changes
   useEffect(() => {
