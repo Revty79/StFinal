@@ -140,7 +140,7 @@ export default async function Dashboard() {
             </div>
           </Card>
 
-          {/* Character Creator (everyone) */}
+          {/* Free Tools (everyone) */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl hover:shadow-[0_0_40px_rgba(139,92,246,0.15)] transition"
@@ -153,15 +153,15 @@ export default async function Dashboard() {
               variant="card-title" 
               className="font-portcullion text-lg md:text-xl"
             >
-              Character Creator
+              Free Tools
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Create and design characters for fun.
+              Access character creators and other free utilities.
             </p>
             <div className="mt-4">
-              <Link href="/character-creator">
+              <Link href="/free-tools">
                 <Button variant="primary" size="sm">
-                  Create Character
+                  Open Tools
                 </Button>
               </Link>
             </div>
