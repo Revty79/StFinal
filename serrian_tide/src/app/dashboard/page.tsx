@@ -140,39 +140,68 @@ export default async function Dashboard() {
             </div>
           </Card>
 
-          {/* Bazaar (everyone can browse; publish needs developer/admin later) */}
+          {/* Character Creator (everyone) */}
           <Card
             padded={false}
-            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] transition"
+            className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl hover:shadow-[0_0_40px_rgba(139,92,246,0.15)] transition"
           >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-400/20">
-              <div className="h-3 w-3 rounded-full bg-blue-300" />
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-400/20">
+              <div className="h-3 w-3 rounded-full bg-violet-300" />
             </div>
             <GradientText 
               as="h3" 
               variant="card-title" 
               className="font-portcullion text-lg md:text-xl"
             >
-              The Bazaar
+              Character Creator
             </GradientText>
             <p className="mt-2 text-base text-zinc-300/90">
-              Grab world packs, tools, and modules.
+              Create and design characters for fun.
             </p>
-            <div className="mt-4 flex gap-2">
-              <Link href="#">
+            <div className="mt-4">
+              <Link href="/character-creator">
                 <Button variant="primary" size="sm">
-                  Enter Shop
+                  Create Character
                 </Button>
               </Link>
-              {canPublish && (
-                <Link href="#">
-                  <Button variant="secondary" size="sm">
-                    Publish
-                  </Button>
-                </Link>
-              )}
             </div>
           </Card>
+
+          {/* Bazaar (admin/privileged only) */}
+          {canAccessSourceForge && (
+            <Card
+              padded={false}
+              className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] transition"
+            >
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-400/20">
+                <div className="h-3 w-3 rounded-full bg-blue-300" />
+              </div>
+              <GradientText 
+                as="h3" 
+                variant="card-title" 
+                className="font-portcullion text-lg md:text-xl"
+              >
+                The Bazaar
+              </GradientText>
+              <p className="mt-2 text-base text-zinc-300/90">
+                Grab world packs, tools, and modules.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <Link href="#">
+                  <Button variant="primary" size="sm">
+                    Enter Shop
+                  </Button>
+                </Link>
+                {canPublish && (
+                  <Link href="#">
+                    <Button variant="secondary" size="sm">
+                      Publish
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* Admin Console (admin only) */}

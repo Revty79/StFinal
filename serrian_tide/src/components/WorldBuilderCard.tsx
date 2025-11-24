@@ -14,7 +14,11 @@ export default function WorldBuilderCard({
   role,
   canAccessSourceForge,
 }: WorldBuilderCardProps) {
-  // Always show Source Forge card
+  // Only show Source Forge card to admin or privileged users
+  if (!canAccessSourceForge) {
+    return null;
+  }
+
   return (
     <Card
       padded={false}
