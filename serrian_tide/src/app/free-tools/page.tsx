@@ -99,7 +99,7 @@ export default async function FreeToolsPage() {
               Calculate spell costs, effects, and modifiers. Perfect for quickly building custom spells on the fly.
             </p>
             <div className="mt-4">
-              <Link href="/free-tools/spell-calculator">
+              <Link href="/spell-calculator">
                 <Button variant="primary" size="sm">
                   Open Calculator
                 </Button>
