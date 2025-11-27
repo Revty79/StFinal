@@ -105,9 +105,9 @@ export default async function Dashboard() {
               Design arcs, sessions, and encounters.
             </p>
             <div className="mt-4">
-              <Link href="/campaign">
+              <Link href="/gods-realm">
                 <Button variant="primary" size="sm">
-                  Build Campaign
+                  Enter Realm
                 </Button>
               </Link>
             </div>
