@@ -64,7 +64,9 @@ export async function POST(req: Request) {
       startingCredits: body.startingCredits ?? 0,
     };
 
+    console.log("Attempting to insert campaign:", newCampaign);
     await db.insert(schema.campaigns).values(newCampaign);
+    console.log("Campaign inserted successfully");
 
     return NextResponse.json({ ok: true, id, campaign: newCampaign });
   } catch (err) {
