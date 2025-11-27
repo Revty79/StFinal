@@ -539,3 +539,78 @@ export const calendarFestivals = pgTable('calendar_festivals', {
   byCalendar: index('idx_calendar_festivals_calendar_id').on(t.calendarId),
 }));
 
+/** ===== CAMPAIGN MANAGEMENT ===== **/
+
+export const campaigns = pgTable('campaigns', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  genre: varchar('genre', { length: 100 }),
+  
+  // Character Configuration
+  attributePoints: integer('attribute_points').notNull().default(150),
+  skillPoints: integer('skill_points').notNull().default(50),
+  maxPointsInSkill: integer('max_points_in_skill'),
+  pointsNeededForNextTier: integer('points_needed_for_next_tier'),
+  maxAllowedInTier: integer('max_allowed_in_tier'),
+  
+  // Enabled Systems
+  tier1Enabled: boolean('tier1_enabled').notNull().default(false),
+  tier2Enabled: boolean('tier2_enabled').notNull().default(false),
+  tier3Enabled: boolean('tier3_enabled').notNull().default(false),
+  spellcraftEnabled: boolean('spellcraft_enabled').notNull().default(false),
+  talismanismEnabled: boolean('talismanism_enabled').notNull().default(false),
+  faithEnabled: boolean('faith_enabled').notNull().default(false),
+  psyonicsEnabled: boolean('psyonics_enabled').notNull().default(false),
+  bardicResonancesEnabled: boolean('bardic_resonances_enabled').notNull().default(false),
+  specialAbilitiesEnabled: boolean('special_abilities_enabled').notNull().default(false),
+  
+  // Allowed Races (array of race IDs)
+  allowedRaces: jsonb('allowed_races').$type<string[]>().notNull().default([]),
+  
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_campaigns_created_by').on(t.createdBy),
+}));
+
+export const campaignCurrencies = pgTable('campaign_currencies', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  campaignId: varchar('campaign_id', { length: 36 })
+    .notNull()
+    .references(() => campaigns.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  creditValue: integer('credit_value').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCampaign: index('idx_campaign_currencies_campaign_id').on(t.campaignId),
+}));
+
+export const campaignPlayers = pgTable('campaign_players', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  campaignId: varchar('campaign_id', { length: 36 })
+    .notNull()
+    .references(() => campaigns.id, { onDelete: 'cascade' }),
+  userId: varchar('user_id', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCampaign: index('idx_campaign_players_campaign_id').on(t.campaignId),
+  byUser: index('idx_campaign_players_user_id').on(t.userId),
+  unique: primaryKey({ columns: [t.campaignId, t.userId] }),
+}));
+
+export const campaignCharacters = pgTable('campaign_characters', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  campaignPlayerId: varchar('campaign_player_id', { length: 36 })
+    .notNull()
+    .references(() => campaignPlayers.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byPlayer: index('idx_campaign_characters_player_id').on(t.campaignPlayerId),
+}));
