@@ -613,6 +613,81 @@ export const campaignCharacters = pgTable('campaign_characters', {
     .notNull()
     .references(() => campaignPlayers.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
+  
+  // Identity Fields
+  playerName: varchar('player_name', { length: 255 }),
+  campaignName: varchar('campaign_name', { length: 255 }),
+  raceId: varchar('race_id', { length: 36 }).references(() => races.id, { onDelete: 'set null' }),
+  race: varchar('race', { length: 255 }), // Store race name for display
+  age: integer('age'),
+  baseMagic: integer('base_magic'),
+  baseMovement: integer('base_movement'),
+  sex: varchar('sex', { length: 50 }),
+  height: integer('height'), // in inches
+  weight: integer('weight'), // in pounds
+  skinColor: varchar('skin_color', { length: 100 }),
+  eyeColor: varchar('eye_color', { length: 100 }),
+  hairColor: varchar('hair_color', { length: 100 }),
+  deity: varchar('deity', { length: 255 }),
+  definingMarks: text('defining_marks'),
+  
+  // In-Game Values (GM assigned/earned)
+  fame: integer('fame').notNull().default(0),
+  experience: integer('experience').notNull().default(0),
+  totalExperience: integer('total_experience').notNull().default(0),
+  quintessence: integer('quintessence').notNull().default(0),
+  totalQuintessence: integer('total_quintessence').notNull().default(0),
+  
+  // Attributes
+  strength: integer('strength').notNull().default(25),
+  dexterity: integer('dexterity').notNull().default(25),
+  constitution: integer('constitution').notNull().default(25),
+  intelligence: integer('intelligence').notNull().default(25),
+  wisdom: integer('wisdom').notNull().default(25),
+  charisma: integer('charisma').notNull().default(25),
+  
+  // Skills - stored as {"skillId": points, "parentId:skillId": points}
+  skillAllocations: jsonb('skill_allocations').$type<Record<string, number>>().notNull().default({}),
+  
+  // Story & Personality
+  personality: text('personality'),
+  ideals: text('ideals'),
+  bonds: text('bonds'),
+  flaws: text('flaws'),
+  goals: text('goals'),
+  secrets: text('secrets'),
+  backstory: text('backstory'),
+  motivations: text('motivations'),
+  hooks: text('hooks'),
+  
+  // Connections & Power
+  faction: text('faction'),
+  relationships: text('relationships'),
+  attitudeTowardParty: text('attitude_toward_party'),
+  allies: text('allies'),
+  enemies: text('enemies'),
+  affiliations: text('affiliations'),
+  resources: text('resources'),
+  
+  // Equipment & Resources
+  creditsRemaining: integer('credits_remaining').notNull().default(0),
+  equipment: jsonb('equipment').$type<any[]>().notNull().default([]),
+  
+  // Combat Stats (calculated or assigned)
+  hpTotal: integer('hp_total'),
+  initiative: integer('initiative'),
+  mana: integer('mana'),
+  armorSoak: varchar('armor_soak', { length: 100 }),
+  defenseNotes: text('defense_notes'),
+  challengeRating: integer('challenge_rating'),
+  
+  // Skill Management
+  skillCheckpoint: jsonb('skill_checkpoint').$type<Record<string, number>>(),
+  isInitialSetupLocked: boolean('is_initial_setup_locked').notNull().default(false),
+  xpSpent: integer('xp_spent').notNull().default(0),
+  xpCheckpoint: integer('xp_checkpoint').notNull().default(0),
+  
+  notes: text('notes'),
   isSetupComplete: boolean('is_setup_complete').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
