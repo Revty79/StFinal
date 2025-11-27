@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
 // POST /api/campaigns/[id]/players - Add player to campaign
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -15,7 +15,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const campaignId = params.id;
+    const { id: campaignId } = await context.params;
     const body = await req.json().catch(() => null) as any;
 
     if (!body || !body.userId) {
@@ -42,8 +42,10 @@ export async function POST(
       .select()
       .from(schema.campaignPlayers)
       .where(
-        eq(schema.campaignPlayers.campaignId, campaignId) &&
-        eq(schema.campaignPlayers.userId, body.userId)
+        and(
+          eq(schema.campaignPlayers.campaignId, campaignId),
+          eq(schema.campaignPlayers.userId, body.userId)
+        )
       )
       .limit(1);
 
@@ -84,7 +86,7 @@ export async function POST(
 // DELETE /api/campaigns/[id]/players/[playerId] - Remove player from campaign
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -99,7 +101,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
 
-    const campaignId = params.id;
+    const { id: campaignId } = await context.params;
 
     // Check campaign ownership
     const [campaign] = await db

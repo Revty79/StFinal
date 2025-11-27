@@ -7,7 +7,7 @@ import crypto from "crypto";
 // GET /api/campaigns/[id] - Get single campaign with all related data
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await context.params;
 
     // Get campaign
     const [campaign] = await db
@@ -85,7 +85,7 @@ export async function GET(
 // PUT /api/campaigns/[id] - Update campaign
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -93,7 +93,7 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await context.params;
     const body = await req.json().catch(() => null) as any;
 
     if (!body) {
@@ -172,7 +172,7 @@ export async function PUT(
 // DELETE /api/campaigns/[id] - Delete campaign
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -180,7 +180,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const id = params.id;
+    const { id } = await context.params;
 
     // Check ownership
     const [existing] = await db

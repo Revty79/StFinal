@@ -7,7 +7,7 @@ import crypto from "crypto";
 // POST /api/campaigns/[id]/characters - Add character to player
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -15,7 +15,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const campaignId = params.id;
+    const { id: campaignId } = await context.params;
     const body = await req.json().catch(() => null) as any;
 
     if (!body || !body.playerId || !body.name) {
@@ -62,7 +62,7 @@ export async function POST(
 // PUT /api/campaigns/[id]/characters - Update character name
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -70,7 +70,7 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const campaignId = params.id;
+    const { id: campaignId } = await context.params;
     const body = await req.json().catch(() => null) as any;
 
     if (!body || !body.characterId || !body.name) {
@@ -107,7 +107,7 @@ export async function PUT(
 // DELETE /api/campaigns/[id]/characters - Remove character
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getSessionUser();
@@ -122,7 +122,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
 
-    const campaignId = params.id;
+    const { id: campaignId } = await context.params;
 
     // Check campaign ownership
     const [campaign] = await db

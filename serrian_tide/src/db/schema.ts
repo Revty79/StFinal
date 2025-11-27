@@ -8,6 +8,7 @@ import {
   text,
   integer,
   jsonb,
+  numeric,
 } from 'drizzle-orm/pg-core';
 
 /** ===== AUTH / RBAC ONLY ===== **/
@@ -582,7 +583,7 @@ export const campaignCurrencies = pgTable('campaign_currencies', {
     .notNull()
     .references(() => campaigns.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
-  creditValue: integer('credit_value').notNull().default(1),
+  creditValue: numeric('credit_value', { precision: 10, scale: 4 }).notNull().default('1'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byCampaign: index('idx_campaign_currencies_campaign_id').on(t.campaignId),

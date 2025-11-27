@@ -91,12 +91,14 @@ export default function CampaignPage() {
   const [qtext, setQtext] = useState("");
   const [showAddPlayerDropdown, setShowAddPlayerDropdown] = useState(false);
   const [activeUsers, setActiveUsers] = useState<{ id: string; name: string }[]>([]);
+  const [availableRaces, setAvailableRaces] = useState<{ id: string; name: string; tagline: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch campaigns on mount
   useEffect(() => {
     fetchCampaigns();
     fetchActiveUsers();
+    fetchAvailableRaces();
   }, []);
 
   async function fetchCampaigns() {
@@ -122,6 +124,18 @@ export default function CampaignPage() {
       }
     } catch (err) {
       console.error("Failed to fetch users:", err);
+    }
+  }
+
+  async function fetchAvailableRaces() {
+    try {
+      const res = await fetch("/api/campaigns/available-races");
+      const data = await res.json();
+      if (data.ok) {
+        setAvailableRaces(data.races || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch available races:", err);
     }
   }
 
@@ -186,6 +200,24 @@ export default function CampaignPage() {
       }
     } catch (err) {
       console.error("Failed to create campaign:", err);
+    }
+  }
+
+  async function deleteCampaign() {
+    if (!selected || !confirm(`Delete "${selected.name}"? This cannot be undone.`)) return;
+    
+    try {
+      const res = await fetch(`/api/campaigns/${selected.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setCampaigns((prev) => prev.filter((c) => String(c.id) !== String(selected.id)));
+        setSelectedId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete campaign:", err);
+      alert("Failed to delete campaign. Please try again.");
     }
   }
 
@@ -415,11 +447,21 @@ export default function CampaignPage() {
             </Card>
           ) : (
             <>
-              <Tabs
-                tabs={tabs}
-                activeId={activeTab}
-                onChange={setActiveTab}
-              />
+              <div className="flex items-center justify-between">
+                <Tabs
+                  tabs={tabs}
+                  activeId={activeTab}
+                  onChange={setActiveTab}
+                />
+                <Button
+                  variant="danger"
+                  size="sm"
+                  type="button"
+                  onClick={deleteCampaign}
+                >
+                  Delete Campaign
+                </Button>
+              </div>
 
               <div className="mt-2">
                 {activeTab === "campaign" && (
@@ -699,7 +741,7 @@ export default function CampaignPage() {
                         </h3>
 
                         <div className="space-y-3">
-                          {selected.currencies.map((currency, idx) => (
+                          {(selected.currencies || []).map((currency, idx) => (
                             <div key={currency.id} className="flex gap-3 items-end">
                               <div className="flex-1">
                                 <label className="block text-sm font-medium text-zinc-300 mb-2">
@@ -723,6 +765,8 @@ export default function CampaignPage() {
                                 </label>
                                 <Input
                                   type="number"
+                                  step="0.01"
+                                  min="0"
                                   value={currency.creditValue}
                                   onChange={(e) => {
                                     const updated = [...selected.currencies];
@@ -733,7 +777,7 @@ export default function CampaignPage() {
                                     }
                                     updateCampaign({ currencies: updated });
                                   }}
-                                  placeholder="e.g., 1.0"
+                                  placeholder="e.g., 0.33"
                                 />
                               </div>
                               <Button
@@ -763,7 +807,7 @@ export default function CampaignPage() {
                                 creditValue: 1,
                               };
                               updateCampaign({
-                                currencies: [...selected.currencies, newCurrency],
+                                currencies: [...(selected.currencies || []), newCurrency],
                               });
                             }}
                           >
@@ -778,12 +822,53 @@ export default function CampaignPage() {
                           Allowed Races
                         </h3>
                         <p className="text-sm text-zinc-400 mb-4">
-                          Select which races are allowed in this campaign.
+                          Select which races are allowed in this campaign. Only free races, races you've created, or races you've purchased are available.
                         </p>
-                        <div className="p-4 rounded-xl bg-black/20 border border-white/10">
-                          <p className="text-sm text-zinc-500">
-                            Race selection interface will be implemented here.
-                          </p>
+                        <div className="p-4 rounded-xl bg-black/20 border border-white/10 max-h-[400px] overflow-y-auto">
+                          {availableRaces.length === 0 ? (
+                            <p className="text-sm text-zinc-500">
+                              No races available. Create races in the Worldbuilder to make them available here.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {availableRaces.map((race) => {
+                                const isSelected = (selected.allowedRaces || []).includes(race.id);
+                                return (
+                                  <label
+                                    key={race.id}
+                                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                      isSelected
+                                        ? "bg-violet-500/10 border-violet-500/50"
+                                        : "bg-black/20 border-white/10 hover:border-white/20"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        const currentRaces = selected.allowedRaces || [];
+                                        const newRaces = e.target.checked
+                                          ? [...currentRaces, race.id]
+                                          : currentRaces.filter((id) => id !== race.id);
+                                        updateCampaign({ allowedRaces: newRaces });
+                                      }}
+                                      className="mt-0.5 w-4 h-4 rounded border-white/20 bg-black/30 text-violet-500 focus:ring-violet-500/50"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm text-zinc-200">
+                                        {race.name}
+                                      </div>
+                                      {race.tagline && (
+                                        <div className="text-xs text-zinc-400 mt-0.5 line-clamp-2">
+                                          {race.tagline}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -793,9 +878,14 @@ export default function CampaignPage() {
                           variant="primary"
                           size="md"
                           type="button"
-                          onClick={() => {
-                            // Save functionality will be implemented later
-                            console.log("Save campaign:", selected);
+                          onClick={async () => {
+                            if (!selected) return;
+                            try {
+                              await updateCampaign({});
+                              alert("Campaign saved successfully!");
+                            } catch (err) {
+                              alert("Failed to save campaign. Please try again.");
+                            }
                           }}
                         >
                           Save Campaign
@@ -823,7 +913,7 @@ export default function CampaignPage() {
                             {activeUsers
                               .filter(
                                 (user) =>
-                                  !selected.players.some((p) => p.userId === user.id)
+                                  !(selected.players || []).some((p) => p.userId === user.id)
                               )
                               .map((user) => (
                                 <button
@@ -836,7 +926,7 @@ export default function CampaignPage() {
                                 </button>
                               ))}
                             {activeUsers.filter(
-                              (user) => !selected.players.some((p) => p.userId === user.id)
+                              (user) => !(selected.players || []).some((p) => p.userId === user.id)
                             ).length === 0 && (
                               <div className="px-4 py-3 text-sm text-zinc-500 text-center">
                                 All active users already added
@@ -848,12 +938,12 @@ export default function CampaignPage() {
                     </div>
 
                     <div className="space-y-4">
-                      {selected.players.length === 0 ? (
+                      {(selected.players || []).length === 0 ? (
                         <div className="p-8 text-center text-zinc-500 border border-dashed border-white/10 rounded-xl">
                           No players added yet. Click "+ Add Player" to add players to this campaign.
                         </div>
                       ) : (
-                        selected.players.map((player) => (
+                        (selected.players || []).map((player) => (
                           <div
                             key={player.id}
                             className="p-4 rounded-xl bg-black/20 border border-white/10"
@@ -1089,13 +1179,13 @@ export default function CampaignPage() {
                         <h3 className="text-lg font-semibold text-zinc-200 mb-3">
                           Players & Characters
                         </h3>
-                        {selected.players.length === 0 ? (
+                        {(selected.players || []).length === 0 ? (
                           <div className="p-4 rounded-xl bg-black/20 border border-white/10">
                             <p className="text-zinc-500 text-sm">No players added yet</p>
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            {selected.players.map((player) => (
+                            {(selected.players || []).map((player) => (
                               <div
                                 key={player.id}
                                 className="p-4 rounded-xl bg-black/20 border border-white/10"
@@ -1126,6 +1216,34 @@ export default function CampaignPage() {
                         )}
                       </div>
 
+                      {/* Allowed Races */}
+                      <div className="pt-4 border-t border-white/10">
+                        <h3 className="text-lg font-semibold text-zinc-200 mb-3">
+                          Allowed Races
+                        </h3>
+                        {(selected.allowedRaces || []).length === 0 ? (
+                          <div className="p-4 rounded-xl bg-black/20 border border-white/10">
+                            <p className="text-zinc-500 text-sm">No races selected (all available races allowed)</p>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-black/20 border border-white/10">
+                            <div className="flex flex-wrap gap-2">
+                              {(selected.allowedRaces || []).map((raceId) => {
+                                const race = availableRaces.find((r) => r.id === raceId);
+                                return race ? (
+                                  <span
+                                    key={raceId}
+                                    className="px-3 py-1 rounded-full bg-green-400/10 text-green-200 text-sm border border-green-400/20"
+                                  >
+                                    {race.name}
+                                  </span>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Summary Stats */}
                       <div className="pt-4 border-t border-white/10">
                         <h3 className="text-lg font-semibold text-zinc-200 mb-3">
@@ -1135,13 +1253,13 @@ export default function CampaignPage() {
                           <div className="p-4 rounded-xl bg-gradient-to-br from-amber-400/10 to-amber-600/10 border border-amber-400/20">
                             <p className="text-xs text-amber-200 mb-1">Total Players</p>
                             <p className="text-2xl font-bold text-amber-100">
-                              {selected.players.length}
+                              {(selected.players || []).length}
                             </p>
                           </div>
                           <div className="p-4 rounded-xl bg-gradient-to-br from-blue-400/10 to-blue-600/10 border border-blue-400/20">
                             <p className="text-xs text-blue-200 mb-1">Total Characters</p>
                             <p className="text-2xl font-bold text-blue-100">
-                              {selected.players.reduce(
+                              {(selected.players || []).reduce(
                                 (sum, p) => sum + p.characters.length,
                                 0
                               )}
@@ -1164,9 +1282,9 @@ export default function CampaignPage() {
                             </p>
                           </div>
                           <div className="p-4 rounded-xl bg-gradient-to-br from-green-400/10 to-green-600/10 border border-green-400/20">
-                            <p className="text-xs text-green-200 mb-1">Currencies</p>
+                            <p className="text-xs text-green-200 mb-1">Allowed Races</p>
                             <p className="text-2xl font-bold text-green-100">
-                              {selected.currencies.length}
+                              {(selected.allowedRaces || []).length || "All"}
                             </p>
                           </div>
                         </div>
