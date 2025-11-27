@@ -449,6 +449,67 @@ CREATE TABLE IF NOT EXISTS "calendar_festivals" (
 CREATE INDEX IF NOT EXISTS "idx_calendar_festivals_calendar_id" ON "calendar_festivals"("calendar_id");
 
 -- ============================================
+-- CAMPAIGN MANAGEMENT
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS "campaigns" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "genre" varchar(100),
+  "attribute_points" integer DEFAULT 150 NOT NULL,
+  "skill_points" integer DEFAULT 50 NOT NULL,
+  "max_points_in_skill" integer,
+  "points_needed_for_next_tier" integer,
+  "max_allowed_in_tier" integer,
+  "tier1_enabled" boolean DEFAULT false NOT NULL,
+  "tier2_enabled" boolean DEFAULT false NOT NULL,
+  "tier3_enabled" boolean DEFAULT false NOT NULL,
+  "spellcraft_enabled" boolean DEFAULT false NOT NULL,
+  "talismanism_enabled" boolean DEFAULT false NOT NULL,
+  "faith_enabled" boolean DEFAULT false NOT NULL,
+  "psyonics_enabled" boolean DEFAULT false NOT NULL,
+  "bardic_resonances_enabled" boolean DEFAULT false NOT NULL,
+  "special_abilities_enabled" boolean DEFAULT false NOT NULL,
+  "allowed_races" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaigns_created_by" ON "campaigns"("created_by");
+
+CREATE TABLE IF NOT EXISTS "campaign_currencies" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "campaign_id" varchar(36) NOT NULL REFERENCES "campaigns"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "credit_value" integer DEFAULT 1 NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaign_currencies_campaign_id" ON "campaign_currencies"("campaign_id");
+
+CREATE TABLE IF NOT EXISTS "campaign_players" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "campaign_id" varchar(36) NOT NULL REFERENCES "campaigns"("id") ON DELETE CASCADE,
+  "user_id" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "added_at" timestamp with time zone DEFAULT now() NOT NULL,
+  UNIQUE("campaign_id", "user_id")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaign_players_campaign_id" ON "campaign_players"("campaign_id");
+CREATE INDEX IF NOT EXISTS "idx_campaign_players_user_id" ON "campaign_players"("user_id");
+
+CREATE TABLE IF NOT EXISTS "campaign_characters" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "campaign_player_id" varchar(36) NOT NULL REFERENCES "campaign_players"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaign_characters_player_id" ON "campaign_characters"("campaign_player_id");
+
+-- ============================================
 -- SEED DEFAULT ROLES
 -- ============================================
 

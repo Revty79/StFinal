@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { GradientText } from "@/components/GradientText";
 import { Card } from "@/components/Card";
@@ -90,14 +90,55 @@ export default function CampaignPage() {
   const [activeTab, setActiveTab] = useState("campaign");
   const [qtext, setQtext] = useState("");
   const [showAddPlayerDropdown, setShowAddPlayerDropdown] = useState(false);
-  
-  // Mock active users - in production, fetch from DB
-  const [activeUsers] = useState([
-    { id: "user1", name: "Alice Johnson" },
-    { id: "user2", name: "Bob Smith" },
-    { id: "user3", name: "Charlie Brown" },
-    { id: "user4", name: "Diana Prince" },
-  ]);
+  const [activeUsers, setActiveUsers] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch campaigns on mount
+  useEffect(() => {
+    fetchCampaigns();
+    fetchActiveUsers();
+  }, []);
+
+  async function fetchCampaigns() {
+    try {
+      const res = await fetch("/api/campaigns");
+      const data = await res.json();
+      if (data.ok) {
+        setCampaigns(data.campaigns || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch campaigns:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchActiveUsers() {
+    try {
+      const res = await fetch("/api/users/active");
+      const data = await res.json();
+      if (data.ok) {
+        setActiveUsers(data.users.map((u: any) => ({ id: u.id, name: u.username })));
+      }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    }
+  }
+
+  async function fetchCampaignDetails(id: string) {
+    try {
+      const res = await fetch(`/api/campaigns/${id}`);
+      const data = await res.json();
+      if (data.ok && data.campaign) {
+        // Update the campaign in the list with full details
+        setCampaigns((prev) =>
+          prev.map((c) => (String(c.id) === String(id) ? data.campaign : c))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch campaign details:", err);
+    }
+  }
 
   const tabs = [
     { id: "campaign", label: "Campaign" },
@@ -112,6 +153,13 @@ export default function CampaignPage() {
     [campaigns, selectedId]
   );
 
+  // Fetch full campaign details when selection changes
+  useEffect(() => {
+    if (selectedId && selected && !selected.players) {
+      fetchCampaignDetails(selectedId);
+    }
+  }, [selectedId]);
+
   const filteredList = useMemo(() => {
     const q = qtext.trim().toLowerCase();
     if (!q) return campaigns;
@@ -120,89 +168,130 @@ export default function CampaignPage() {
     );
   }, [campaigns, qtext]);
 
-  function createCampaign() {
-    const id = Math.random().toString(36).slice(2, 10);
-    const row: Campaign = {
-      id,
-      name: "New Campaign",
-      genre: null,
-      attributePoints: 150,
-      skillPoints: 50,
-      maxPointsInSkill: null,
-      pointsNeededForNextTier: null,
-      maxAllowedInTier: null,
-      tier1Enabled: false,
-      tier2Enabled: false,
-      tier3Enabled: false,
-      spellcraftEnabled: false,
-      talismanismEnabled: false,
-      faithEnabled: false,
-      psyonicsEnabled: false,
-      bardicResonancesEnabled: false,
-      specialAbilitiesEnabled: false,
-      currencies: [],
-      allowedRaces: [],
-      players: [],
-    };
-    setCampaigns((prev) => [row, ...prev]);
-    setSelectedId(id);
+  async function createCampaign() {
+    try {
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "New Campaign",
+          attributePoints: 150,
+          skillPoints: 50,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.campaign) {
+        setCampaigns((prev) => [data.campaign, ...prev]);
+        setSelectedId(data.campaign.id);
+      }
+    } catch (err) {
+      console.error("Failed to create campaign:", err);
+    }
   }
 
-  function updateCampaign(updates: Partial<Campaign>) {
-    if (!selectedId) return;
+  async function updateCampaign(updates: Partial<Campaign>) {
+    if (!selectedId || !selected) return;
+    
+    // Optimistically update UI
     setCampaigns((prev) =>
       prev.map((c) =>
         String(c.id) === String(selectedId) ? { ...c, ...updates } : c
       )
     );
+
+    // Save to API
+    try {
+      await fetch(`/api/campaigns/${selectedId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+    } catch (err) {
+      console.error("Failed to update campaign:", err);
+      // Revert on error
+      fetchCampaignDetails(selectedId);
+    }
   }
 
-  function addPlayerToCampaign(userId: string, userName: string) {
+  async function addPlayerToCampaign(userId: string, userName: string) {
     if (!selected) return;
-    const newPlayer: CampaignPlayer = {
-      id: Math.random().toString(36).slice(2, 10),
-      userId,
-      userName,
-      characters: [],
-    };
-    updateCampaign({ players: [...selected.players, newPlayer] });
-    setShowAddPlayerDropdown(false);
+    
+    try {
+      const res = await fetch(`/api/campaigns/${selected.id}/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (data.ok && data.player) {
+        updateCampaign({ players: [...(selected.players || []), data.player] });
+        setShowAddPlayerDropdown(false);
+      }
+    } catch (err) {
+      console.error("Failed to add player:", err);
+    }
   }
 
-  function addCharacterToPlayer(playerId: string) {
+  async function addCharacterToPlayer(playerId: string) {
     if (!selected) return;
-    const newCharacter: CampaignCharacter = {
-      id: Math.random().toString(36).slice(2, 10),
-      name: "New Character",
-      playerId,
-    };
-    const updatedPlayers = selected.players.map((p) =>
-      p.id === playerId
-        ? { ...p, characters: [...p.characters, newCharacter] }
-        : p
-    );
-    updateCampaign({ players: updatedPlayers });
+    
+    try {
+      const res = await fetch(`/api/campaigns/${selected.id}/characters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId, name: "New Character" }),
+      });
+      const data = await res.json();
+      if (data.ok && data.character) {
+        const updatedPlayers = (selected.players || []).map((p) =>
+          p.id === playerId
+            ? { ...p, characters: [...p.characters, data.character] }
+            : p
+        );
+        updateCampaign({ players: updatedPlayers });
+      }
+    } catch (err) {
+      console.error("Failed to add character:", err);
+    }
   }
 
-  function removePlayerFromCampaign(playerId: string) {
+  async function removePlayerFromCampaign(playerId: string) {
     if (!selected) return;
-    const updatedPlayers = selected.players.filter((p) => p.id !== playerId);
-    updateCampaign({ players: updatedPlayers });
+    
+    try {
+      await fetch(`/api/campaigns/${selected.id}/players?playerId=${playerId}`, {
+        method: "DELETE",
+      });
+      const updatedPlayers = (selected.players || []).filter((p) => p.id !== playerId);
+      updateCampaign({ players: updatedPlayers });
+    } catch (err) {
+      console.error("Failed to remove player:", err);
+    }
   }
 
-  function removeCharacterFromPlayer(playerId: string, characterId: string) {
+  async function removeCharacterFromPlayer(playerId: string, characterId: string) {
     if (!selected) return;
-    const updatedPlayers = selected.players.map((p) =>
-      p.id === playerId
-        ? { ...p, characters: p.characters.filter((c) => c.id !== characterId) }
-        : p
-    );
-    updateCampaign({ players: updatedPlayers });
+    
+    try {
+      await fetch(`/api/campaigns/${selected.id}/characters?characterId=${characterId}`, {
+        method: "DELETE",
+      });
+      const updatedPlayers = (selected.players || []).map((p) =>
+        p.id === playerId
+          ? { ...p, characters: p.characters.filter((c) => c.id !== characterId) }
+          : p
+      );
+      updateCampaign({ players: updatedPlayers });
+    } catch (err) {
+      console.error("Failed to remove character:", err);
+    }
   }
 
-  function updateCharacterName(playerId: string, characterId: string, newName: string) {
+  async function updateCharacterName(playerId: string, characterId: string, newName: string) {
     if (!selected) return;
-    const updatedPlayers = selected.players.map((p) =>
+    
+    // Optimistically update UI
+    const updatedPlayers = (selected.players || []).map((p) =>
       p.id === playerId
         ? {
             ...p,
@@ -213,6 +302,17 @@ export default function CampaignPage() {
         : p
     );
     updateCampaign({ players: updatedPlayers });
+
+    // Save to API
+    try {
+      await fetch(`/api/campaigns/${selected.id}/characters`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId, name: newName }),
+      });
+    } catch (err) {
+      console.error("Failed to update character:", err);
+    }
   }
 
   return (
