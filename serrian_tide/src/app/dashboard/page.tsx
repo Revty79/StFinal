@@ -132,9 +132,9 @@ export default async function Dashboard() {
               Join a table, track characters, sync sessions.
             </p>
             <div className="mt-4">
-              <Link href="#">
+              <Link href="/players-realm">
                 <Button variant="primary" size="sm">
-                  Join Campaign
+                  Enter Realm
                 </Button>
               </Link>
             </div>
