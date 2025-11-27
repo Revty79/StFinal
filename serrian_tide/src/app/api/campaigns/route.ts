@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       bardicResonancesEnabled: body.bardicResonancesEnabled ?? false,
       specialAbilitiesEnabled: body.specialAbilitiesEnabled ?? false,
       allowedRaces: body.allowedRaces || [],
+      startingCredits: body.startingCredits ?? 0,
     };
 
     await db.insert(schema.campaigns).values(newCampaign);

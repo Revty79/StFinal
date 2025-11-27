@@ -472,6 +472,7 @@ CREATE TABLE IF NOT EXISTS "campaigns" (
   "bardic_resonances_enabled" boolean DEFAULT false NOT NULL,
   "special_abilities_enabled" boolean DEFAULT false NOT NULL,
   "allowed_races" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "starting_credits" integer DEFAULT 0 NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -503,6 +504,7 @@ CREATE TABLE IF NOT EXISTS "campaign_characters" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
   "campaign_player_id" varchar(36) NOT NULL REFERENCES "campaign_players"("id") ON DELETE CASCADE,
   "name" varchar(255) NOT NULL,
+  "is_setup_complete" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

@@ -571,6 +571,9 @@ export const campaigns = pgTable('campaigns', {
   // Allowed Races (array of race IDs)
   allowedRaces: jsonb('allowed_races').$type<string[]>().notNull().default([]),
   
+  // Starting Resources
+  startingCredits: integer('starting_credits').notNull().default(0),
+  
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -610,6 +613,7 @@ export const campaignCharacters = pgTable('campaign_characters', {
     .notNull()
     .references(() => campaignPlayers.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
+  isSetupComplete: boolean('is_setup_complete').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

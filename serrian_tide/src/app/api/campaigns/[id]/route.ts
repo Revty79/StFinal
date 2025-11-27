@@ -137,6 +137,7 @@ export async function PUT(
     if (body.bardicResonancesEnabled !== undefined) updates.bardicResonancesEnabled = body.bardicResonancesEnabled;
     if (body.specialAbilitiesEnabled !== undefined) updates.specialAbilitiesEnabled = body.specialAbilitiesEnabled;
     if (body.allowedRaces !== undefined) updates.allowedRaces = body.allowedRaces;
+    if (body.startingCredits !== undefined) updates.startingCredits = body.startingCredits;
 
     await db
       .update(schema.campaigns)
