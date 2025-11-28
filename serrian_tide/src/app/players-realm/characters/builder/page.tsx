@@ -1865,7 +1865,8 @@ function CharacterBuilderContent() {
                               const uniqueSkills = Array.from(new Map(filteredSkills.map(s => [s.id, s])).values());
                               
                               // Only show tier 1 skills at top level - tier 2/3 will be nested under parents
-                              const skillsToDisplay = uniqueSkills.filter(s => s.tier === 1);
+                              // Special abilities (tier null) show when on special tab
+                              const skillsToDisplay = uniqueSkills.filter(s => s.tier === 1 || (s.tier === null && skillSubTab === "special"));
                               
                               return skillsToDisplay.map((skill) => {
                                 const allocated = selected.skill_allocations?.[skill.id] ?? 0;
