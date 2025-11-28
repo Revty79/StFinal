@@ -28,9 +28,23 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check ownership
-    if (campaign.createdBy !== user.id) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+    // Check if user has access (either as GM or as a player)
+    const isGM = campaign.createdBy === user.id;
+    
+    if (!isGM) {
+      // Check if user is a player in this campaign
+      const [playerRecord] = await db
+        .select()
+        .from(schema.campaignPlayers)
+        .where(and(
+          eq(schema.campaignPlayers.campaignId, id),
+          eq(schema.campaignPlayers.userId, user.id)
+        ))
+        .limit(1);
+      
+      if (!playerRecord) {
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      }
     }
 
     // Get currencies

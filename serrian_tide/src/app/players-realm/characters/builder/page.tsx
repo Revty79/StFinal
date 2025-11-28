@@ -535,10 +535,14 @@ function CharacterBuilderContent() {
           if (skill.tier === 2) {
             // Check if parent is "magic access" type - if so, only need 1 point
             if (parentSkill.type === "magic access") {
-              if (parentPoints >= 1) return true;
+              if (parentPoints >= 1) {
+                return true;
+              }
             } else {
               // Standard skills: need pointsNeededForNextTier
-              if (parentPoints >= pointsNeeded) return true;
+              if (parentPoints >= pointsNeeded) {
+                return true;
+              }
             }
           }
           
@@ -551,38 +555,24 @@ function CharacterBuilderContent() {
             if (magicTier2Types.includes(parentType)) {
               // Magic tier 3: need 1+ point in tier 2 parent
               // AND 1+ point in at least one tier 1 grandparent
-              console.log(`[T3 Magic] "${skill.name}" checking parent "${parentSkill.name}" (${parentType}), has ${parentPoints} points`);
-              
               if (parentPoints >= 1) {
                 // Check tier 1 grandparents
                 const grandparentIds = [parentSkill.parentId, parentSkill.parent2Id, parentSkill.parent3Id].filter(Boolean);
-                console.log(`  Grandparent IDs:`, grandparentIds);
                 
                 for (const grandparentId of grandparentIds) {
                   if (grandparentId) {
                     const grandparentPoints = allocations[grandparentId] ?? 0;
-                    const grandparent = allSkills.find(s => s.id === grandparentId);
-                    console.log(`    Checking grandparent "${grandparent?.name}": ${grandparentPoints} points`);
                     
                     if (grandparentPoints >= 1) {
-                      console.log(`    ✓ UNLOCKED! Has 1+ in tier 1 AND tier 2`);
                       return true; // Found valid grandparent with 1+ points
                     }
                   }
                 }
-                console.log(`  ✗ Has tier 2 points but no tier 1 grandparent with 1+ points`);
-              } else {
-                console.log(`  ✗ Parent only has ${parentPoints} points, needs 1+`);
               }
             } else {
               // Standard tier 3: need pointsNeededForNextTier in tier 2 parent
-              console.log(`[T3 Standard] "${skill.name}" checking parent "${parentSkill.name}", has ${parentPoints} points (needs ${pointsNeeded})`);
-              
               if (parentPoints >= pointsNeeded) {
-                console.log(`  ✓ UNLOCKED!`);
                 return true;
-              } else {
-                console.log(`  ✗ Not enough points`);
               }
             }
           }
@@ -1842,14 +1832,10 @@ function CharacterBuilderContent() {
                                 return primary === attrMatch || secondary === attrMatch;
                               });
                               
-                              console.log(`[${skillSubTab}] Step 1: ${step1Filtered.length} skills match attribute (T1:${step1Filtered.filter(s => s.tier === 1).length}, T2:${step1Filtered.filter(s => s.tier === 2).length}, T3:${step1Filtered.filter(s => s.tier === 3).length})`);
-                              
                               // Filter by unlock status using campaign rules
                               const filteredSkills = step1Filtered.filter((skill) => {
                                 return isSkillUnlocked(skill);
                               });
-                              
-                              console.log(`[${skillSubTab}] Step 2: ${filteredSkills.length} unlocked (T1:${filteredSkills.filter(s => s.tier === 1).length}, T2:${filteredSkills.filter(s => s.tier === 2).length}, T3:${filteredSkills.filter(s => s.tier === 3).length})`);
 
                               if (filteredSkills.length === 0) {
                                 return (
