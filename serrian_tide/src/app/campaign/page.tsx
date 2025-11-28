@@ -36,6 +36,7 @@ type Campaign = {
   maxPointsInSkill?: number | null;
   pointsNeededForNextTier?: number | null;
   maxAllowedInTier?: number | null;
+  startingCredits?: number | null;
   tier1Enabled: boolean;
   tier2Enabled: boolean;
   tier3Enabled: boolean;
@@ -603,6 +604,25 @@ export default function CampaignPage() {
                                 })
                               }
                               placeholder="e.g., 3"
+                            />
+                          </div>
+
+                          {/* Starting Credits */}
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-300 mb-2">
+                              Starting Credits
+                            </label>
+                            <Input
+                              type="number"
+                              value={selected.startingCredits ?? ""}
+                              onChange={(e) =>
+                                updateCampaign({
+                                  startingCredits: e.target.value
+                                    ? parseInt(e.target.value, 10)
+                                    : null,
+                                })
+                              }
+                              placeholder="e.g., 1000"
                             />
                           </div>
                         </div>
