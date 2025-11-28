@@ -1876,9 +1876,26 @@ function CharacterBuilderContent() {
                                   nextUpgradeCost = 1;
                                 }
                                 
-                                const childSkills = uniqueSkills.filter(s => 
-                                  s.tier === 2 && (s.parentId === skill.id || s.parent2Id === skill.id || s.parent3Id === skill.id)
-                                );
+                                const childSkills = uniqueSkills.filter(s => {
+                                  if (s.tier !== 2) return false;
+                                  
+                                  // Check if this tier 1 skill is one of the child's parents
+                                  const isParent = s.parentId === skill.id || s.parent2Id === skill.id || s.parent3Id === skill.id;
+                                  if (!isParent) return false;
+                                  
+                                  // Only show child if THIS SPECIFIC parent has enough points
+                                  // This ensures Spellcraft, Talismanism, and Faith have separate skill trees
+                                  const thisParentPoints = selected.skill_allocations?.[skill.id] ?? 0;
+                                  
+                                  // For magic access parents (Spellcraft, Talismanism, Faith, Psionic Focus, Bardic Resonance)
+                                  if (skill.type === "magic access") {
+                                    return thisParentPoints >= 1;
+                                  }
+                                  
+                                  // For standard parents, use campaign threshold
+                                  const pointsNeeded = campaign?.pointsNeededForNextTier ?? 25;
+                                  return thisParentPoints >= pointsNeeded;
+                                });
                                 
                                 return (
                                   <div key={skill.id} className="space-y-2">
@@ -1942,9 +1959,30 @@ function CharacterBuilderContent() {
                                         childNextUpgradeCost = 1;
                                       }
                                       
-                                      const tier3Children = uniqueSkills.filter(s => 
-                                        s.tier === 3 && (s.parentId === childSkill.id || s.parent2Id === childSkill.id || s.parent3Id === childSkill.id)
-                                      );
+                                      const tier3Children = uniqueSkills.filter(s => {
+                                        if (s.tier !== 3) return false;
+                                        
+                                        // Check if this tier 2 skill is one of the tier 3's parents
+                                        const isParent = s.parentId === childSkill.id || s.parent2Id === childSkill.id || s.parent3Id === childSkill.id;
+                                        if (!isParent) return false;
+                                        
+                                        // Only show tier 3 if THIS SPECIFIC tier 2 parent has enough points
+                                        // AND the tier 1 grandparent has points
+                                        const childKey = getAllocationKey(childSkill.id, skill.id);
+                                        const thisTier2Points = selected.skill_allocations?.[childKey] ?? 0;
+                                        const thisTier1Points = selected.skill_allocations?.[skill.id] ?? 0;
+                                        
+                                        // For sphere/discipline/resonance (magic tier 2 skills)
+                                        const magicTier2Types = ['sphere', 'discipline', 'resonance'];
+                                        if (magicTier2Types.includes(childSkill.type?.toLowerCase() || '')) {
+                                          // Magic tier 3: need 1+ in THIS tier 2 instance AND 1+ in tier 1
+                                          return thisTier2Points >= 1 && thisTier1Points >= 1;
+                                        }
+                                        
+                                        // For standard tier 2 parents
+                                        const pointsNeeded = campaign?.pointsNeededForNextTier ?? 25;
+                                        return thisTier2Points >= pointsNeeded;
+                                      });
                                       
                                       return (
                                         <div key={childSkill.id} className="space-y-2">
