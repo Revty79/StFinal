@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
+import { generateCharacterPDF } from "@/lib/generateCharacterPDF";
 
 /* ---------- types & helpers ---------- */
 
@@ -534,10 +535,14 @@ function CharacterBuilderContent() {
           if (skill.tier === 2) {
             // Check if parent is "magic access" type - if so, only need 1 point
             if (parentSkill.type === "magic access") {
-              if (parentPoints >= 1) return true;
+              if (parentPoints >= 1) {
+                return true;
+              }
             } else {
               // Standard skills: need pointsNeededForNextTier
-              if (parentPoints >= pointsNeeded) return true;
+              if (parentPoints >= pointsNeeded) {
+                return true;
+              }
             }
           }
           
@@ -550,38 +555,24 @@ function CharacterBuilderContent() {
             if (magicTier2Types.includes(parentType)) {
               // Magic tier 3: need 1+ point in tier 2 parent
               // AND 1+ point in at least one tier 1 grandparent
-              console.log(`[T3 Magic] "${skill.name}" checking parent "${parentSkill.name}" (${parentType}), has ${parentPoints} points`);
-              
               if (parentPoints >= 1) {
                 // Check tier 1 grandparents
                 const grandparentIds = [parentSkill.parentId, parentSkill.parent2Id, parentSkill.parent3Id].filter(Boolean);
-                console.log(`  Grandparent IDs:`, grandparentIds);
                 
                 for (const grandparentId of grandparentIds) {
                   if (grandparentId) {
                     const grandparentPoints = allocations[grandparentId] ?? 0;
-                    const grandparent = allSkills.find(s => s.id === grandparentId);
-                    console.log(`    Checking grandparent "${grandparent?.name}": ${grandparentPoints} points`);
                     
                     if (grandparentPoints >= 1) {
-                      console.log(`    ✓ UNLOCKED! Has 1+ in tier 1 AND tier 2`);
                       return true; // Found valid grandparent with 1+ points
                     }
                   }
                 }
-                console.log(`  ✗ Has tier 2 points but no tier 1 grandparent with 1+ points`);
-              } else {
-                console.log(`  ✗ Parent only has ${parentPoints} points, needs 1+`);
               }
             } else {
               // Standard tier 3: need pointsNeededForNextTier in tier 2 parent
-              console.log(`[T3 Standard] "${skill.name}" checking parent "${parentSkill.name}", has ${parentPoints} points (needs ${pointsNeeded})`);
-              
               if (parentPoints >= pointsNeeded) {
-                console.log(`  ✓ UNLOCKED!`);
                 return true;
-              } else {
-                console.log(`  ✗ Not enough points`);
               }
             }
           }
@@ -1851,14 +1842,10 @@ function CharacterBuilderContent() {
                                 return primary === attrMatch || secondary === attrMatch;
                               });
                               
-                              console.log(`[${skillSubTab}] Step 1: ${step1Filtered.length} skills match attribute (T1:${step1Filtered.filter(s => s.tier === 1).length}, T2:${step1Filtered.filter(s => s.tier === 2).length}, T3:${step1Filtered.filter(s => s.tier === 3).length})`);
-                              
                               // Filter by unlock status using campaign rules
                               const filteredSkills = step1Filtered.filter((skill) => {
                                 return isSkillUnlocked(skill);
                               });
-                              
-                              console.log(`[${skillSubTab}] Step 2: ${filteredSkills.length} unlocked (T1:${filteredSkills.filter(s => s.tier === 1).length}, T2:${filteredSkills.filter(s => s.tier === 2).length}, T3:${filteredSkills.filter(s => s.tier === 3).length})`);
 
                               if (filteredSkills.length === 0) {
                                 return (
@@ -1899,9 +1886,26 @@ function CharacterBuilderContent() {
                                   nextUpgradeCost = 1;
                                 }
                                 
-                                const childSkills = uniqueSkills.filter(s => 
-                                  s.tier === 2 && (s.parentId === skill.id || s.parent2Id === skill.id || s.parent3Id === skill.id)
-                                );
+                                const childSkills = uniqueSkills.filter(s => {
+                                  if (s.tier !== 2) return false;
+                                  
+                                  // Check if this tier 1 skill is one of the child's parents
+                                  const isParent = s.parentId === skill.id || s.parent2Id === skill.id || s.parent3Id === skill.id;
+                                  if (!isParent) return false;
+                                  
+                                  // Only show child if THIS SPECIFIC parent has enough points
+                                  // This ensures Spellcraft, Talismanism, and Faith have separate skill trees
+                                  const thisParentPoints = selected.skill_allocations?.[skill.id] ?? 0;
+                                  
+                                  // For magic access parents (Spellcraft, Talismanism, Faith, Psionic Focus, Bardic Resonance)
+                                  if (skill.type === "magic access") {
+                                    return thisParentPoints >= 1;
+                                  }
+                                  
+                                  // For standard parents, use campaign threshold
+                                  const pointsNeeded = campaign?.pointsNeededForNextTier ?? 25;
+                                  return thisParentPoints >= pointsNeeded;
+                                });
                                 
                                 return (
                                   <div key={skill.id} className="space-y-2">
@@ -1965,9 +1969,30 @@ function CharacterBuilderContent() {
                                         childNextUpgradeCost = 1;
                                       }
                                       
-                                      const tier3Children = uniqueSkills.filter(s => 
-                                        s.tier === 3 && (s.parentId === childSkill.id || s.parent2Id === childSkill.id || s.parent3Id === childSkill.id)
-                                      );
+                                      const tier3Children = uniqueSkills.filter(s => {
+                                        if (s.tier !== 3) return false;
+                                        
+                                        // Check if this tier 2 skill is one of the tier 3's parents
+                                        const isParent = s.parentId === childSkill.id || s.parent2Id === childSkill.id || s.parent3Id === childSkill.id;
+                                        if (!isParent) return false;
+                                        
+                                        // Only show tier 3 if THIS SPECIFIC tier 2 parent has enough points
+                                        // AND the tier 1 grandparent has points
+                                        const childKey = getAllocationKey(childSkill.id, skill.id);
+                                        const thisTier2Points = selected.skill_allocations?.[childKey] ?? 0;
+                                        const thisTier1Points = selected.skill_allocations?.[skill.id] ?? 0;
+                                        
+                                        // For sphere/discipline/resonance (magic tier 2 skills)
+                                        const magicTier2Types = ['sphere', 'discipline', 'resonance'];
+                                        if (magicTier2Types.includes(childSkill.type?.toLowerCase() || '')) {
+                                          // Magic tier 3: need 1+ in THIS tier 2 instance AND 1+ in tier 1
+                                          return thisTier2Points >= 1 && thisTier1Points >= 1;
+                                        }
+                                        
+                                        // For standard tier 2 parents
+                                        const pointsNeeded = campaign?.pointsNeededForNextTier ?? 25;
+                                        return thisTier2Points >= pointsNeeded;
+                                      });
                                       
                                       return (
                                         <div key={childSkill.id} className="space-y-2">
@@ -2260,13 +2285,82 @@ function CharacterBuilderContent() {
                   </div>
                 )}
 
-                {/* OTHER TABS - Placeholder */}
-                {activeTab !== "identity" && activeTab !== "attributes" && activeTab !== "skills" && activeTab !== "story" && activeTab !== "equipment" && (
-                  <Card className="rounded-2xl border border-blue-300/30 bg-blue-300/5 p-4">
-                    <p className="text-sm text-zinc-300">
-                      <span className="font-semibold text-blue-200">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Tab:</span> Coming soon. We&apos;ll build this next.
-                    </p>
-                  </Card>
+                {/* PREVIEW TAB */}
+                {activeTab === "preview" && (
+                  <div className="space-y-6">
+                    <Card className="rounded-2xl border border-emerald-300/30 bg-emerald-300/5 p-6">
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h2 className="text-2xl font-bold text-emerald-200 mb-2">
+                            {selected?.characterName || "Unnamed Character"}
+                          </h2>
+                          <p className="text-sm text-zinc-400">
+                            Review your character and download as PDF
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/10">
+                          <div>
+                            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Identity</p>
+                            <p className="text-sm text-zinc-300">Player: {selected?.playerName || "—"}</p>
+                            <p className="text-sm text-zinc-300">Race: {selected?.race || "—"}</p>
+                            <p className="text-sm text-zinc-300">Campaign: {selected?.campaignName || "—"}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Attributes</p>
+                            <div className="grid grid-cols-3 gap-2 text-sm text-zinc-300">
+                              <span>STR: {selected?.strength || 25}</span>
+                              <span>DEX: {selected?.dexterity || 25}</span>
+                              <span>CON: {selected?.constitution || 25}</span>
+                              <span>INT: {selected?.intelligence || 25}</span>
+                              <span>WIS: {selected?.wisdom || 25}</span>
+                              <span>CHA: {selected?.charisma || 25}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-white/10">
+                          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Allocated Skills</p>
+                          <p className="text-sm text-zinc-300">
+                            {Object.keys(selected?.skill_allocations || {}).length} skills with points allocated
+                          </p>
+                        </div>
+
+                        <div className="flex justify-center pt-6">
+                          <Button
+                            onClick={() => {
+                              if (!selected) return;
+                              generateCharacterPDF(selected, allSkills);
+                            }}
+                            className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-emerald-500/50 transition-all"
+                          >
+                            <svg
+                              className="w-5 h-5 inline-block mr-2"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                            Download Character Sheet PDF
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border border-white/10 bg-black/20 p-6">
+                      <h3 className="text-lg font-semibold text-zinc-200 mb-3">Preview Text</h3>
+                      <pre className="text-xs text-zinc-400 whitespace-pre-wrap font-mono bg-black/40 p-4 rounded-lg max-h-96 overflow-y-auto">
+                        {previewText}
+                      </pre>
+                    </Card>
+                  </div>
                 )}
               </div>
             </>

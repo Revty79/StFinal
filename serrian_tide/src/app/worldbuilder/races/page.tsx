@@ -744,10 +744,12 @@ export default function RacesPage() {
             specialRows: row.specialRows,
           };
         } else if (data.race) {
-          // Add new race using the preview data plus server ID
+          // Add new race using the preview data plus server ID and canEdit flag
           updatedRaces.unshift({
             ...row,
             id: data.race.id,
+            createdBy: data.race.createdBy,
+            canEdit: true, // Admin uploaded, so editable
           });
         }
       }
