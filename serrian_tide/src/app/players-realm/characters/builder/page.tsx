@@ -606,8 +606,8 @@ function CharacterBuilderContent() {
 
   // Calculate skill rank (points + attribute mod)
   // For tier 1: rank = points + attribute mod
-  // For tier 2: rank = parent rank + points in tier 2 skill
-  // For tier 3: rank = tier 2 parent rank + points in tier 3 skill
+  // For tier 2: rank = parent tier 1 rank + points in tier 2 skill
+  // For tier 3: rank = parent tier 2 rank + points in tier 3 skill
   const calculateSkillRank = (skillPoints: number, attributeName: string, skillId?: string, tier?: number | null, contextParentId?: string): number => {
     if (!selected) return skillPoints;
     
@@ -617,42 +617,51 @@ function CharacterBuilderContent() {
       return skillPoints; // Special abilities: rank = points only
     }
     
-    // For tier 2 and tier 3 skills, we need to add parent skill rank
+    // For tier 2 and tier 3 skills, we need to add parent skill rank (not recalculate attribute)
     if (tier && tier > 1 && skillId) {
       const skill = allSkills.find(s => s.id === skillId);
       if (skill) {
-        // Use contextParentId if provided (when viewing under a specific parent tree),
-        // otherwise fall back to first available parent
-        const parentId = contextParentId || skill.parentId || skill.parent2Id || skill.parent3Id;
+        // contextParentId can be:
+        // - For tier 2: just the tier 1 parent ID (e.g., "parentId")
+        // - For tier 3: the full tier 2 context (e.g., "tier1Id:tier2Id")
+        let parentId: string | undefined;
+        let grandparentContext: string | undefined;
+        
+        if (contextParentId && contextParentId.includes(':')) {
+          // Tier 3 skill: contextParentId is "tier1Id:tier2Id"
+          const parts = contextParentId.split(':');
+          parentId = parts[parts.length - 1]; // Last part is the tier 2 parent ID
+          grandparentContext = parts.slice(0, -1).join(':'); // Everything before is grandparent context (tier 1)
+        } else {
+          // Tier 2 skill or tier 3 without full context: use provided context or fall back
+          parentId = contextParentId || skill.parentId || skill.parent2Id || skill.parent3Id;
+        }
         
         if (parentId) {
           const parentSkill = allSkills.find(s => s.id === parentId);
           if (parentSkill) {
             // Determine the correct allocation key for the parent
             let parentAllocationKey: string;
-            let grandparentId: string | undefined;
             
             if (parentSkill.tier === 1) {
               // Parent is tier 1, use simple key
               parentAllocationKey = parentId;
             } else if (parentSkill.tier === 2) {
-              // Parent is tier 2, need to find its tier 1 grandparent context
-              // Look through allocations to find the contexted key
-              const allocations = selected.skill_allocations || {};
-              const contextedKey = Object.keys(allocations).find(key => {
-                if (key.includes(':')) {
-                  const [prefix, skillIdPart] = key.split(':');
-                  return skillIdPart === parentId;
-                }
-                return false;
-              });
-              
-              if (contextedKey) {
-                parentAllocationKey = contextedKey;
-                grandparentId = contextedKey.split(':')[0]; // Extract tier 1 grandparent for recursive call
+              // Parent is tier 2, we should have grandparent context from tier 3
+              if (grandparentContext) {
+                // We have the tier 1 context, construct the tier 2 key
+                parentAllocationKey = `${grandparentContext}:${parentId}`;
               } else {
-                // Fallback to simple key if no context found
-                parentAllocationKey = parentId;
+                // Fallback: look through allocations to find the contexted key
+                const allocations = selected.skill_allocations || {};
+                const contextedKey = Object.keys(allocations).find(key => {
+                  if (key.includes(':')) {
+                    const parts = key.split(':');
+                    return parts[parts.length - 1] === parentId;
+                  }
+                  return false;
+                });
+                parentAllocationKey = contextedKey || parentId;
               }
             } else {
               // Shouldn't happen, but fallback to simple key
@@ -660,9 +669,10 @@ function CharacterBuilderContent() {
             }
             
             const parentPoints = selected.skill_allocations?.[parentAllocationKey] ?? 0;
-            // Recursively calculate parent rank, passing grandparent context if available
-            const parentRank = calculateSkillRank(parentPoints, parentSkill.primaryAttribute || "", parentId, parentSkill.tier, grandparentId);
-            // Tier 2/3 rank = parent rank + points spent in this skill
+            // Recursively calculate parent rank
+            // For tier 2 parent, pass grandparent context so it can find its tier 1 parent
+            const parentRank = calculateSkillRank(parentPoints, parentSkill.primaryAttribute || "", parentId, parentSkill.tier, grandparentContext);
+            // Tier 2/3 rank = parent rank + points spent in this skill (no additional attribute mod)
             return parentRank + skillPoints;
           }
         }
@@ -2006,12 +2016,15 @@ function CharacterBuilderContent() {
                                           </div>
                                           
                                           {tier3Children.map((tier3Skill) => {
-                                            const t3AllocationKey = getAllocationKey(tier3Skill.id, skill.id);
+                                            // Tier 3 key format: tier1Id:tier2Id:tier3Id
+                                            const t3AllocationKey = `${skill.id}:${childSkill.id}:${tier3Skill.id}`;
                                             const t3Allocated = selected.skill_allocations?.[t3AllocationKey] ?? 0;
                                             const t3CheckpointValue = (selected.skill_checkpoint || {})[t3AllocationKey] ?? 0;
                                             const t3CanDecrease = selected.is_initial_setup_locked ? t3Allocated > t3CheckpointValue : t3Allocated > 0;
-                                            const t3Rank = calculateSkillRank(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, skill.id);
-                                            const t3Percent = calculateSkillPercent(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, skill.id);
+                                            // Pass tier 2 parent with tier 1 context (tier1Id:tier2Id) so it calculates from tier 2 rank properly
+                                            const t3ParentContext = `${skill.id}:${childSkill.id}`;
+                                            const t3Rank = calculateSkillRank(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, t3ParentContext);
+                                            const t3Percent = calculateSkillPercent(t3Allocated, tier3Skill.primaryAttribute || "", tier3Skill.id, tier3Skill.tier, t3ParentContext);
                                             const t3AtMax = t3Allocated >= 10 && !selected.is_initial_setup_locked;
                                             
                                             let t3NextUpgradeCost = 0;
@@ -2045,7 +2058,7 @@ function CharacterBuilderContent() {
                                                     type="button"
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => updateSkillAllocation(tier3Skill.id, Math.max(0, t3Allocated - 1), skill.id)}
+                                                    onClick={() => updateSkillAllocation(tier3Skill.id, Math.max(0, t3Allocated - 1), `${skill.id}:${childSkill.id}`)}
                                                     disabled={!t3CanDecrease}
                                                   >
                                                     -
@@ -2055,7 +2068,7 @@ function CharacterBuilderContent() {
                                                     type="button"
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => updateSkillAllocation(tier3Skill.id, t3Allocated + 1, skill.id)}
+                                                    onClick={() => updateSkillAllocation(tier3Skill.id, t3Allocated + 1, `${skill.id}:${childSkill.id}`)}
                                                     disabled={
                                                       selected.is_initial_setup_locked
                                                         ? (t3AtMax || xpRemaining < t3NextUpgradeCost)
