@@ -80,9 +80,9 @@ export default function InventoryHubPage() {
             </p>
           </div>
           <div className="flex gap-3 justify-end">
-            <Link href="/worldbuilder">
+            <Link href="/worldbuilder/toolbox">
               <Button variant="secondary" size="sm" type="button">
-                ← Source Forge
+                ← Toolbox
               </Button>
             </Link>
           </div>

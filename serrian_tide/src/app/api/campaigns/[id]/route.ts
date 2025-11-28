@@ -125,7 +125,8 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    if (existing.createdBy !== user.id) {
+    // Allow admins to edit any campaign, others can only edit their own
+    if (user.role !== 'admin' && existing.createdBy !== user.id) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
@@ -208,7 +209,8 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    if (existing.createdBy !== user.id) {
+    // Allow admins to delete any campaign, others can only delete their own
+    if (user.role !== 'admin' && existing.createdBy !== user.id) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 

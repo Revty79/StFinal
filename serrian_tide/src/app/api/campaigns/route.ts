@@ -12,12 +12,17 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    // Get campaigns created by user
-    const campaigns = await db
-      .select()
-      .from(schema.campaigns)
-      .where(eq(schema.campaigns.createdBy, user.id))
-      .orderBy(schema.campaigns.name);
+    // Admins can see all campaigns, others see only their own
+    const campaigns = user.role === 'admin'
+      ? await db
+          .select()
+          .from(schema.campaigns)
+          .orderBy(schema.campaigns.name)
+      : await db
+          .select()
+          .from(schema.campaigns)
+          .where(eq(schema.campaigns.createdBy, user.id))
+          .orderBy(schema.campaigns.name);
 
     return NextResponse.json({ ok: true, campaigns });
   } catch (err) {

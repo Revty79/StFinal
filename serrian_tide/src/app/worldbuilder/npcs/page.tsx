@@ -1068,20 +1068,27 @@ export default function NPCsPage() {
     <main className="min-h-screen px-3 sm:px-4 py-6 sm:py-8">
       <header className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
         <WBNav current="npcs" />
-        <div className="flex flex-col gap-2">
-          <GradientText
-            as="h1"
-            variant="title"
-            glow
-            className="font-evanescent text-2xl sm:text-3xl md:text-4xl tracking-tight"
-          >
-            NPC Builder
-          </GradientText>
-          <p className="text-xs sm:text-sm text-zinc-300/90 max-w-2xl">
-            Create reusable NPCs for your worlds, eras, and campaigns.
-            This tool focuses on fast identity, clean stats, and sharp
-            story hooks, so your GM brain can stay in G.O.D mode.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <GradientText
+              as="h1"
+              variant="title"
+              glow
+              className="font-evanescent text-2xl sm:text-3xl md:text-4xl tracking-tight"
+            >
+              NPC Builder
+            </GradientText>
+            <p className="text-xs sm:text-sm text-zinc-300/90 max-w-2xl">
+              Create reusable NPCs for your worlds, eras, and campaigns.
+              This tool focuses on fast identity, clean stats, and sharp
+              story hooks, so your GM brain can stay in G.O.D mode.
+            </p>
+          </div>
+          <Link href="/worldbuilder/toolbox">
+            <Button variant="secondary" size="sm">
+              ← Toolbox
+            </Button>
+          </Link>
         </div>
       </header>
 
