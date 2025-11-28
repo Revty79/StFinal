@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
+import { generateCharacterPDF } from "@/lib/generateCharacterPDF";
 
 /* ---------- types & helpers ---------- */
 
@@ -2247,13 +2248,82 @@ function CharacterBuilderContent() {
                   </div>
                 )}
 
-                {/* OTHER TABS - Placeholder */}
-                {activeTab !== "identity" && activeTab !== "attributes" && activeTab !== "skills" && activeTab !== "story" && activeTab !== "equipment" && (
-                  <Card className="rounded-2xl border border-blue-300/30 bg-blue-300/5 p-4">
-                    <p className="text-sm text-zinc-300">
-                      <span className="font-semibold text-blue-200">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Tab:</span> Coming soon. We&apos;ll build this next.
-                    </p>
-                  </Card>
+                {/* PREVIEW TAB */}
+                {activeTab === "preview" && (
+                  <div className="space-y-6">
+                    <Card className="rounded-2xl border border-emerald-300/30 bg-emerald-300/5 p-6">
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h2 className="text-2xl font-bold text-emerald-200 mb-2">
+                            {selected?.characterName || "Unnamed Character"}
+                          </h2>
+                          <p className="text-sm text-zinc-400">
+                            Review your character and download as PDF
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-white/10">
+                          <div>
+                            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Identity</p>
+                            <p className="text-sm text-zinc-300">Player: {selected?.playerName || "—"}</p>
+                            <p className="text-sm text-zinc-300">Race: {selected?.race || "—"}</p>
+                            <p className="text-sm text-zinc-300">Campaign: {selected?.campaignName || "—"}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Attributes</p>
+                            <div className="grid grid-cols-3 gap-2 text-sm text-zinc-300">
+                              <span>STR: {selected?.strength || 25}</span>
+                              <span>DEX: {selected?.dexterity || 25}</span>
+                              <span>CON: {selected?.constitution || 25}</span>
+                              <span>INT: {selected?.intelligence || 25}</span>
+                              <span>WIS: {selected?.wisdom || 25}</span>
+                              <span>CHA: {selected?.charisma || 25}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-white/10">
+                          <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Allocated Skills</p>
+                          <p className="text-sm text-zinc-300">
+                            {Object.keys(selected?.skill_allocations || {}).length} skills with points allocated
+                          </p>
+                        </div>
+
+                        <div className="flex justify-center pt-6">
+                          <Button
+                            onClick={() => {
+                              if (!selected) return;
+                              generateCharacterPDF(selected, allSkills);
+                            }}
+                            className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-emerald-500/50 transition-all"
+                          >
+                            <svg
+                              className="w-5 h-5 inline-block mr-2"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                            Download Character Sheet PDF
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border border-white/10 bg-black/20 p-6">
+                      <h3 className="text-lg font-semibold text-zinc-200 mb-3">Preview Text</h3>
+                      <pre className="text-xs text-zinc-400 whitespace-pre-wrap font-mono bg-black/40 p-4 rounded-lg max-h-96 overflow-y-auto">
+                        {previewText}
+                      </pre>
+                    </Card>
+                  </div>
                 )}
               </div>
             </>
