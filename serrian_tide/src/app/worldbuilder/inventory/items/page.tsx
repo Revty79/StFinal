@@ -34,6 +34,13 @@ export type ItemRow = {
   mechanical_effect?: string | null;
   narrative_notes?: string | null;
 
+  // usage & structured effects (site-side only for now)
+  usage_type?: UsageType | null;
+  max_charges?: number | null;
+  recharge_window?: RechargeWindow | null;
+  recharge_notes?: string | null;
+  effect_hooks?: ItemHook[] | null;
+
   // still exist in DB but invisible here
   shop_ready?: boolean;
   shop_role?: ShopRole;
@@ -46,14 +53,20 @@ export type ItemRow = {
     | null;
 };
 
-/** Local-only system hook prototype */
+// how the item is used, from the builder's perspective
+type UsageType = "consumable" | "charges" | "at_will" | "other";
+type RechargeWindow = "none" | "scene" | "session" | "rest" | "day" | "custom";
+
 type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "other";
 type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "other";
+type ItemHookKind = "heal" | "damage" | "buff" | "debuff" | "utility" | "other";
 
 type ItemHook = {
   id: string;
   trigger: ItemHookTrigger;
   target: ItemHookTarget;
+  kind: ItemHookKind;
+  amount?: number | null;
   label: string; // plain effect text (e.g. "Restore 5 HP")
 };
 
@@ -129,9 +142,27 @@ export default function InventoryItemsPage() {
           is_free: i.isFree,
           shop_ready: i.shopReady,
           shop_role: i.shopRole ?? null,
+
+          // usage / charges (future DB fields, safe to be undefined for now)
+          usage_type: i.usageType ?? i.usage_type ?? null,
+          max_charges: i.maxCharges ?? i.max_charges ?? null,
+          recharge_window: i.rechargeWindow ?? i.recharge_window ?? null,
+          recharge_notes: i.rechargeNotes ?? i.recharge_notes ?? null,
+
+          // structured hooks (when you start persisting them)
+          effect_hooks: i.effectHooks ?? i.effect_hooks ?? null,
         }));
 
         setItems(mapped);
+
+        // seed local hooks from any effect_hooks that might exist later
+        const initialHooks: Record<string, ItemHook[]> = {};
+        for (const row of mapped) {
+          if (row.effect_hooks && row.effect_hooks.length > 0) {
+            initialHooks[String(row.id)] = row.effect_hooks;
+          }
+        }
+        setHooksByItem(initialHooks);
 
         if (mapped.length > 0 && mapped[0]) {
           setSelectedId(String(mapped[0].id));
@@ -305,6 +336,11 @@ export default function InventoryItemsPage() {
         weight: selected.weight ?? null,
         mechanicalEffect: selected.mechanical_effect ?? null,
         narrativeNotes: selected.narrative_notes ?? null,
+        usageType: selected.usage_type ?? null,
+        maxCharges: selected.max_charges ?? null,
+        rechargeWindow: selected.recharge_window ?? null,
+        rechargeNotes: selected.recharge_notes ?? null,
+        effectHooks: currentHooks.length > 0 ? currentHooks : null,
       };
 
       let res;
@@ -381,6 +417,8 @@ export default function InventoryItemsPage() {
       id: uid(),
       trigger: "on_use",
       target: "self",
+      kind: "heal",
+      amount: null,
       label: "",
     };
     setHooksByItem((prev) => ({
@@ -444,15 +482,43 @@ export default function InventoryItemsPage() {
     );
     lines.push(`Tags: ${nv(selected.genre_tags)}`);
     lines.push(`Weight: ${nv(selected.weight)}`);
+
+    // usage summary
+    if (selected.usage_type) {
+      lines.push("");
+      let usageLine = "Usage: ";
+      if (selected.usage_type === "consumable") {
+        usageLine += "Consumable (one use)";
+      } else if (selected.usage_type === "charges") {
+        usageLine += `Charges: ${nv(selected.max_charges)} (${nv(
+          selected.recharge_window
+        )})`;
+      } else if (selected.usage_type === "at_will") {
+        usageLine += "At-will";
+      } else {
+        usageLine += "Custom";
+      }
+      lines.push(usageLine);
+      if (selected.recharge_notes) {
+        lines.push(`  Recharge: ${selected.recharge_notes}`);
+      }
+    }
+
     lines.push("");
     lines.push(`Effect: ${nv(selected.mechanical_effect)}`);
 
     if (currentHooks.length > 0) {
       lines.push("");
-      lines.push("System Hooks (prototype):");
+      lines.push("System Hooks:");
       currentHooks.forEach((h, idx) => {
+        let kindPart: string = h.kind;
+        if (h.kind !== "other" && h.amount != null) {
+          kindPart = `${h.kind} ${h.amount}`;
+        }
         lines.push(
-          `  ${idx + 1}. [${h.trigger} → ${h.target}] ${h.label || "(no text)"}`
+          `  ${idx + 1}. [${h.trigger} → ${h.target} → ${kindPart}] ${
+            h.label || "(no text)"
+          }`
         );
       });
     }
@@ -719,37 +785,9 @@ export default function InventoryItemsPage() {
                     <option value="other">Other</option>
                   </select>
                 </FormField>
-
-                <FormField
-                  label="Subtype"
-                  htmlFor="item-subtype"
-                  description="Optional finer tag: lantern, rope, potion_healing, etc."
-                >
-                  <Input
-                    id="item-subtype"
-                    value={selected.subtype ?? ""}
-                    onChange={(e) =>
-                      updateSelected({
-                        subtype: e.target.value,
-                      })
-                    }
-                  />
-                </FormField>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormField label="Timeline Tag" htmlFor="item-timeline">
-                  <Input
-                    id="item-timeline"
-                    value={selected.timeline_tag ?? ""}
-                    onChange={(e) =>
-                      updateSelected({
-                        timeline_tag: e.target.value,
-                      })
-                    }
-                  />
-                </FormField>
-
                 <FormField label="Cost (Credits)" htmlFor="item-cost">
                   <Input
                     id="item-cost"
@@ -813,6 +851,86 @@ export default function InventoryItemsPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+              </FormField>
+
+              {/* Usage / charges */}
+              <FormField
+                label="Usage / Charges"
+                htmlFor="item-usage"
+                description="Is this a one-use consumable, a charged item, or something you can use freely?"
+              >
+                <div className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {/* usage type */}
+                    <select
+                      className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-zinc-100"
+                      value={selected.usage_type ?? "consumable"}
+                      onChange={(e) =>
+                        updateSelected({
+                          usage_type: e.target.value as UsageType,
+                        })
+                      }
+                    >
+                      <option value="consumable">Consumable (one use)</option>
+                      <option value="charges">Has charges</option>
+                      <option value="at_will">At-will</option>
+                      <option value="other">Other / custom</option>
+                    </select>
+
+                    {/* max charges (only for 'charges') */}
+                    {selected.usage_type === "charges" && (
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Max charges"
+                        value={selected.max_charges ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            max_charges:
+                              e.target.value === ""
+                                ? null
+                                : Number(e.target.value),
+                          })
+                        }
+                      />
+                    )}
+
+                    {/* recharge window (only for 'charges') */}
+                    {selected.usage_type === "charges" && (
+                      <select
+                        className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-zinc-100"
+                        value={selected.recharge_window ?? "none"}
+                        onChange={(e) =>
+                          updateSelected({
+                            recharge_window: e.target.value as RechargeWindow,
+                          })
+                        }
+                      >
+                        <option value="none">Does not recharge</option>
+                        <option value="scene">Per scene</option>
+                        <option value="session">Per session</option>
+                        <option value="rest">Per rest</option>
+                        <option value="day">Per day</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    )}
+                  </div>
+
+                  {/* recharge notes, if custom */}
+                  {selected.usage_type === "charges" &&
+                    selected.recharge_window === "custom" && (
+                      <textarea
+                        className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-xs text-zinc-100"
+                        placeholder='Describe how this recharges (e.g. "regains 1 charge for every 10 Mana spent").'
+                        value={selected.recharge_notes ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            recharge_notes: e.target.value,
+                          })
+                        }
+                      />
+                    )}
                 </div>
               </FormField>
 
@@ -935,24 +1053,59 @@ export default function InventoryItemsPage() {
                         <option value="other">other</option>
                       </select>
 
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        type="button"
-                        onClick={() => removeHook(hook.id)}
+                      <select
+                        className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                        value={hook.kind}
+                        onChange={(e) =>
+                          updateHook(hook.id, {
+                            kind: e.target.value as ItemHookKind,
+                          })
+                        }
                       >
-                        Remove
-                      </Button>
+                        <option value="heal">heal</option>
+                        <option value="damage">damage</option>
+                        <option value="buff">buff</option>
+                        <option value="debuff">debuff</option>
+                        <option value="utility">utility</option>
+                        <option value="other">other</option>
+                      </select>
+
+                      <Input
+                        type="number"
+                        className="w-20 text-[11px]"
+                        placeholder="amt"
+                        value={hook.amount ?? ""}
+                        onChange={(e) =>
+                          updateHook(hook.id, {
+                            amount:
+                              e.target.value === ""
+                                ? null
+                                : Number(e.target.value),
+                          })
+                        }
+                      />
                     </div>
 
-                    <textarea
-                      className="w-full rounded-lg border border-emerald-400/30 bg-black/40 px-2 py-1 text-[11px] text-emerald-50"
+                    <Input
+                      className="w-full text-[11px]"
                       placeholder='e.g. "Restore 5 HP" or "Grant +1 to next attack roll"'
                       value={hook.label}
                       onChange={(e) =>
                         updateHook(hook.id, { label: e.target.value })
                       }
                     />
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-[11px] text-emerald-200/80 hover:text-emerald-50"
+                        onClick={() => removeHook(hook.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

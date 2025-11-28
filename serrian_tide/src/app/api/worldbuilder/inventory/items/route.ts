@@ -52,6 +52,11 @@ export async function POST(req: Request) {
       mechanicalEffect: body.mechanicalEffect || null,
       weight: body.weight || null,
       narrativeNotes: body.narrativeNotes || null,
+      usageType: body.usageType || null,
+      maxCharges: body.maxCharges || null,
+      rechargeWindow: body.rechargeWindow || null,
+      rechargeNotes: body.rechargeNotes || null,
+      effectHooks: body.effectHooks || null,
       isFree: body.isFree !== undefined ? body.isFree : false,
       isPublished: body.isPublished !== undefined ? body.isPublished : false,
     };

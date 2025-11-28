@@ -13,6 +13,20 @@ import { WBNav } from "@/components/worldbuilder/WBNav";
 
 /* ---------- types & helpers ---------- */
 
+type UsageType = "consumable" | "charges" | "at_will" | "other" | null;
+type RechargeWindow = "none" | "scene" | "session" | "rest" | "day" | "custom" | null;
+type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "other";
+type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "other";
+type ItemHookKind = "heal" | "damage" | "buff" | "debuff" | "utility" | "other";
+
+interface ItemHook {
+  trigger: ItemHookTrigger;
+  target: ItemHookTarget;
+  kind: ItemHookKind;
+  amount: number | null;
+  label: string;
+}
+
 type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
 
 export type ServiceRow = {
@@ -32,6 +46,12 @@ export type ServiceRow = {
   mechanical_effect?: string | null;
   weight?: number | null; // usually null
   narrative_notes?: string | null;
+
+  usage_type?: UsageType;
+  max_charges?: number | null;
+  recharge_window?: RechargeWindow;
+  recharge_notes?: string | null;
+  effect_hooks?: ItemHook[] | null;
 
   shop_ready?: boolean;
   shop_role?: ShopRole;
@@ -73,6 +93,7 @@ export default function InventoryServicesPage() {
   const [loading, setLoading] = useState(true);
   const [qtext, setQtext] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hooksByItem, setHooksByItem] = useState<Record<string, ItemHook[]>>({});
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     role: string;
@@ -98,9 +119,24 @@ export default function InventoryServicesPage() {
           is_free: s.isFree,
           shop_ready: s.shopReady,
           shop_role: s.shopRole ?? null,
+          usage_type: s.usageType ?? null,
+          max_charges: s.maxCharges ?? null,
+          recharge_window: s.rechargeWindow ?? null,
+          recharge_notes: s.rechargeNotes ?? null,
+          effect_hooks: s.effectHooks ?? null,
         }));
 
         setServices(mapped);
+        
+        // Seed hooksByItem from effect_hooks
+        const hooksMap: Record<string, ItemHook[]> = {};
+        for (const svc of mapped) {
+          if (svc.effect_hooks && Array.isArray(svc.effect_hooks)) {
+            hooksMap[String(svc.id)] = svc.effect_hooks;
+          }
+        }
+        setHooksByItem(hooksMap);
+        
         if (mapped.length > 0 && mapped[0]) {
           setSelectedId(String(mapped[0].id));
         }
@@ -246,6 +282,8 @@ export default function InventoryServicesPage() {
     try {
       const isNew = typeof selected.id === "string" && selected.id.length < 20;
 
+      const currentHooks = hooksByItem[String(selected.id)] || [];
+      
       const payload: any = {
         name: selected.name,
         isFree: selected.is_free ?? false,
@@ -259,6 +297,11 @@ export default function InventoryServicesPage() {
         mechanicalEffect: selected.mechanical_effect ?? null,
         weight: selected.weight ?? null,
         narrativeNotes: selected.narrative_notes ?? null,
+        usageType: selected.usage_type ?? null,
+        maxCharges: selected.max_charges ?? null,
+        rechargeWindow: selected.recharge_window ?? null,
+        rechargeNotes: selected.recharge_notes ?? null,
+        effectHooks: currentHooks.length > 0 ? currentHooks : null,
       };
 
       let res;
@@ -326,6 +369,44 @@ export default function InventoryServicesPage() {
     updateSelected({ genre_tags: next });
   }
 
+  // Hook management functions
+  function addHook() {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    const newHook: ItemHook = {
+      trigger: "on_use",
+      target: "self",
+      kind: "utility",
+      amount: null,
+      label: "",
+    };
+    setHooksByItem((prev) => ({
+      ...prev,
+      [idStr]: [...(prev[idStr] || []), newHook],
+    }));
+  }
+
+  function updateHook(index: number, patch: Partial<ItemHook>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    const hooks = hooksByItem[idStr] || [];
+    const updated = hooks.map((h, i) => (i === index ? { ...h, ...patch } : h));
+    setHooksByItem((prev) => ({ ...prev, [idStr]: updated }));
+  }
+
+  function removeHook(index: number) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    const hooks = hooksByItem[idStr] || [];
+    const updated = hooks.filter((_, i) => i !== index);
+    setHooksByItem((prev) => ({ ...prev, [idStr]: updated }));
+  }
+
+  const currentHooks = useMemo(() => {
+    if (!selected) return [];
+    return hooksByItem[String(selected.id)] || [];
+  }, [selected, hooksByItem]);
+
   const previewText = useMemo(() => {
     if (!selected) return "";
     const s = selected;
@@ -341,8 +422,38 @@ export default function InventoryServicesPage() {
       )}   Weight: ${nv(s.weight)}`
     );
     lines.push(`Tags: ${nv(s.genre_tags)}`);
+    
+    // Usage summary
+    if (s.usage_type) {
+      lines.push("");
+      if (s.usage_type === "consumable") {
+        lines.push("Usage: Consumable (single use)");
+      } else if (s.usage_type === "charges" && s.max_charges) {
+        const recharge = s.recharge_window || "none";
+        lines.push(`Usage: ${s.max_charges} charges (recharge: ${recharge})`);
+        if (s.recharge_notes) {
+          lines.push(`  Recharge Notes: ${s.recharge_notes}`);
+        }
+      } else if (s.usage_type === "at_will") {
+        lines.push("Usage: At-will (unlimited)");
+      } else {
+        lines.push(`Usage: ${s.usage_type}`);
+      }
+    }
+    
     lines.push("");
     lines.push(`Effect: ${nv(s.mechanical_effect)}`);
+    
+    // Effect hooks
+    if (currentHooks.length > 0) {
+      lines.push("");
+      lines.push("System Hooks:");
+      currentHooks.forEach((hook, i) => {
+        const kindPart = hook.amount ? `${hook.kind} ${hook.amount}` : hook.kind;
+        lines.push(`  ${i + 1}. [${hook.trigger}] ${kindPart} → ${hook.target}: ${hook.label || "(no label)"}`);
+      });
+    }
+    
     if (s.narrative_notes) {
       lines.push("");
       lines.push("Notes:");
@@ -350,7 +461,7 @@ export default function InventoryServicesPage() {
     }
 
     return lines.join("\n");
-  }, [selected]);
+  }, [selected, currentHooks]);
 
   /* ---------- render ---------- */
 
@@ -732,6 +843,183 @@ export default function InventoryServicesPage() {
                     })
                   }
                 />
+              </FormField>
+
+              {/* USAGE / CHARGES */}
+              <FormField
+                label="Usage / Charges"
+                htmlFor="service-usage"
+                description="How often can this service be used or purchased?"
+              >
+                <div className="space-y-3">
+                  <select
+                    id="service-usage"
+                    className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                    value={selected.usage_type ?? ""}
+                    onChange={(e) =>
+                      updateSelected({
+                        usage_type: (e.target.value || null) as UsageType,
+                      })
+                    }
+                  >
+                    <option value="">(none)</option>
+                    <option value="consumable">Consumable (single use)</option>
+                    <option value="charges">Charges (reusable with limits)</option>
+                    <option value="at_will">At-will (unlimited)</option>
+                    <option value="other">Other</option>
+                  </select>
+
+                  {selected.usage_type === "charges" && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Max charges"
+                          value={selected.max_charges ?? ""}
+                          onChange={(e) =>
+                            updateSelected({
+                              max_charges:
+                                e.target.value === ""
+                                  ? null
+                                  : Number(e.target.value),
+                            })
+                          }
+                        />
+                        <select
+                          className="rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                          value={selected.recharge_window ?? ""}
+                          onChange={(e) =>
+                            updateSelected({
+                              recharge_window: (e.target.value ||
+                                null) as RechargeWindow,
+                            })
+                          }
+                        >
+                          <option value="">(no recharge)</option>
+                          <option value="none">None (permanent loss)</option>
+                          <option value="scene">Per scene</option>
+                          <option value="session">Per session</option>
+                          <option value="rest">After rest</option>
+                          <option value="day">Per day</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      <Input
+                        placeholder="Recharge notes (e.g., 'recharges at dawn')"
+                        value={selected.recharge_notes ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            recharge_notes: e.target.value || null,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              </FormField>
+
+              {/* SYSTEM HOOKS */}
+              <FormField
+                label="System Hooks"
+                htmlFor="service-hooks"
+                description="Structured effects for future automation (healing, damage, buffs, etc.)"
+              >
+                <div className="space-y-3">
+                  {currentHooks.map((hook, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-lg border border-white/10 bg-black/20 space-y-2"
+                    >
+                      <div className="grid grid-cols-3 gap-2">
+                        <select
+                          className="rounded-lg border border-white/10 bg-neutral-950/50 px-2 py-1 text-xs text-zinc-100"
+                          value={hook.trigger}
+                          onChange={(e) =>
+                            updateHook(idx, {
+                              trigger: e.target
+                                .value as ItemHookTrigger,
+                            })
+                          }
+                        >
+                          <option value="on_use">On Use</option>
+                          <option value="on_equip">On Equip</option>
+                          <option value="passive">Passive</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <select
+                          className="rounded-lg border border-white/10 bg-neutral-950/50 px-2 py-1 text-xs text-zinc-100"
+                          value={hook.kind}
+                          onChange={(e) =>
+                            updateHook(idx, {
+                              kind: e.target.value as ItemHookKind,
+                            })
+                          }
+                        >
+                          <option value="heal">Heal</option>
+                          <option value="damage">Damage</option>
+                          <option value="buff">Buff</option>
+                          <option value="debuff">Debuff</option>
+                          <option value="utility">Utility</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <select
+                          className="rounded-lg border border-white/10 bg-neutral-950/50 px-2 py-1 text-xs text-zinc-100"
+                          value={hook.target}
+                          onChange={(e) =>
+                            updateHook(idx, {
+                              target: e.target.value as ItemHookTarget,
+                            })
+                          }
+                        >
+                          <option value="self">Self</option>
+                          <option value="ally">Ally</option>
+                          <option value="enemy">Enemy</option>
+                          <option value="area">Area</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-[1fr,auto,auto] gap-2">
+                        <Input
+                          placeholder="Effect label (e.g., 'restore health')"
+                          value={hook.label}
+                          onChange={(e) =>
+                            updateHook(idx, { label: e.target.value })
+                          }
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Amount"
+                          className="w-20"
+                          value={hook.amount ?? ""}
+                          onChange={(e) =>
+                            updateHook(idx, {
+                              amount:
+                                e.target.value === ""
+                                  ? null
+                                  : Number(e.target.value),
+                            })
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => removeHook(idx)}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={addHook}
+                  >
+                    + Add Hook
+                  </Button>
+                </div>
               </FormField>
             </div>
           ) : (

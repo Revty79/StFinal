@@ -213,6 +213,14 @@ CREATE TABLE IF NOT EXISTS "inventory_items" (
   "mechanical_effect" text,
   "weight" integer,
   "narrative_notes" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
+  
   "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -235,8 +243,22 @@ CREATE TABLE IF NOT EXISTS "inventory_weapons" (
   "genre_tags" text,
   "weight" integer,
   "damage" integer,
+  "durability" integer,
   "effect" text,
   "narrative_notes" text,
+  
+  -- Legendary item properties
+  "rarity" varchar(50),
+  "attunement" varchar(255),
+  "curse" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
+  
   "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -258,8 +280,22 @@ CREATE TABLE IF NOT EXISTS "inventory_armor" (
   "genre_tags" text,
   "weight" integer,
   "encumbrance_penalty" integer,
+  "durability" integer,
   "effect" text,
   "narrative_notes" text,
+  
+  -- Legendary item properties
+  "rarity" varchar(50),
+  "attunement" varchar(255),
+  "curse" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
+  
   "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -267,6 +303,94 @@ CREATE TABLE IF NOT EXISTS "inventory_armor" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_inventory_armor_created_by" ON "inventory_armor"("created_by");
+
+CREATE TABLE IF NOT EXISTS "inventory_artifacts" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "timeline_tag" varchar(100),
+  "cost_credits" integer,
+  "category" varchar(100),
+  "rarity" varchar(50),
+  "attunement" varchar(255),
+  "genre_tags" text,
+  "mechanical_effect" text,
+  "curse" text,
+  "origin_lore" text,
+  "weight" integer,
+  "narrative_notes" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
+  
+  "is_free" boolean DEFAULT false NOT NULL,
+  "is_published" boolean DEFAULT false NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_inventory_artifacts_created_by" ON "inventory_artifacts"("created_by");
+
+CREATE TABLE IF NOT EXISTS "inventory_services" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "timeline_tag" varchar(100),
+  "cost_credits" integer,
+  "category" varchar(100),
+  "duration" varchar(255),
+  "genre_tags" text,
+  "mechanical_effect" text,
+  "weight" integer,
+  "narrative_notes" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
+  
+  "is_free" boolean DEFAULT false NOT NULL,
+  "is_published" boolean DEFAULT false NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_inventory_services_created_by" ON "inventory_services"("created_by");
+
+CREATE TABLE IF NOT EXISTS "inventory_companions" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "companion_type" varchar(50),
+  "creature_id" varchar(36) REFERENCES "creatures"("id") ON DELETE SET NULL,
+  "creature_name" varchar(255),
+  "timeline_tag" varchar(100),
+  "cost_credits" integer,
+  "genre_tags" text,
+  
+  -- Companion-specific attributes
+  "loyalty" integer,
+  "training" text,
+  "personality_traits" text,
+  "bond" text,
+  
+  "mechanical_effect" text,
+  "narrative_notes" text,
+  
+  "is_free" boolean DEFAULT false NOT NULL,
+  "is_published" boolean DEFAULT false NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_inventory_companions_created_by" ON "inventory_companions"("created_by");
+CREATE INDEX IF NOT EXISTS "idx_inventory_companions_creature_id" ON "inventory_companions"("creature_id");
 
 -- ============================================
 -- WORLDBUILDER: NPCs (Complete Character System)

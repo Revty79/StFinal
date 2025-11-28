@@ -292,6 +292,13 @@ export const inventoryItems = pgTable('inventory_items', {
   weight: integer('weight'),
   narrativeNotes: text('narrative_notes'),
   
+  // Usage & Charges
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
   isFree: boolean('is_free').notNull().default(true),
   isPublished: boolean('is_published').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -320,6 +327,18 @@ export const inventoryWeapons = pgTable('inventory_weapons', {
   effect: text('effect'),
   narrativeNotes: text('narrative_notes'),
   
+  // Legendary item properties
+  rarity: varchar('rarity', { length: 50 }), // common, uncommon, rare, epic, legendary, mythic
+  attunement: varchar('attunement', { length: 255 }), // requirements to attune/use
+  curse: text('curse'), // drawbacks, corruption, oaths
+  
+  // Usage & Charges
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
   isFree: boolean('is_free').notNull().default(true),
   isPublished: boolean('is_published').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -347,12 +366,129 @@ export const inventoryArmor = pgTable('inventory_armor', {
   effect: text('effect'),
   narrativeNotes: text('narrative_notes'),
   
+  // Legendary item properties
+  rarity: varchar('rarity', { length: 50 }), // common, uncommon, rare, epic, legendary, mythic
+  attunement: varchar('attunement', { length: 255 }), // requirements to attune/use
+  curse: text('curse'), // drawbacks, corruption, oaths
+  
+  // Usage & Charges
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
   isFree: boolean('is_free').notNull().default(true),
   isPublished: boolean('is_published').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byCreator: index('idx_inventory_armor_created_by').on(t.createdBy),
+}));
+
+// Inventory Artifacts table (wondrous items only: rings, amulets, cloaks, wands, staves, orbs, tomes, relics)
+// For legendary weapons/armor, use the weapons/armor tables with rarity field
+export const inventoryArtifacts = pgTable('inventory_artifacts', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  timelineTag: varchar('timeline_tag', { length: 100 }),
+  costCredits: integer('cost_credits'),
+  category: varchar('category', { length: 100 }), // wondrous, consumable, relic, tome, focus, other
+  rarity: varchar('rarity', { length: 50 }), // common, uncommon, rare, epic, legendary, mythic
+  attunement: varchar('attunement', { length: 255 }), // requirements to use
+  genreTags: text('genre_tags'),
+  mechanicalEffect: text('mechanical_effect'),
+  curse: text('curse'), // drawbacks, corruption, madness, oaths
+  originLore: text('origin_lore'), // who forged it, where it came from
+  weight: integer('weight'),
+  narrativeNotes: text('narrative_notes'),
+  
+  // Usage & Charges
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_inventory_artifacts_created_by').on(t.createdBy),
+}));
+
+// Inventory Services table
+export const inventoryServices = pgTable('inventory_services', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  timelineTag: varchar('timeline_tag', { length: 100 }),
+  costCredits: integer('cost_credits'),
+  category: varchar('category', { length: 100 }), // travel, lodging, healing, information, etc
+  duration: varchar('duration', { length: 255 }), // instant, 1 hour, 1 day, etc
+  genreTags: text('genre_tags'),
+  mechanicalEffect: text('mechanical_effect'),
+  weight: integer('weight'), // usually null for services
+  narrativeNotes: text('narrative_notes'),
+  
+  // Usage & Charges
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_inventory_services_created_by').on(t.createdBy),
+}));
+
+// Inventory Companions table (pets, mounts, etc - references creatures table)
+export const inventoryCompanions = pgTable('inventory_companions', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  companionType: varchar('companion_type', { length: 50 }), // pet, mount, companion, familiar, summon
+  creatureId: varchar('creature_id', { length: 36 }).references(() => creatures.id, { onDelete: 'set null' }),
+  creatureName: varchar('creature_name', { length: 255 }), // denormalized for display
+  timelineTag: varchar('timeline_tag', { length: 100 }),
+  costCredits: integer('cost_credits'),
+  genreTags: text('genre_tags'),
+  
+  // Companion-specific attributes
+  loyalty: integer('loyalty'), // 0-100 loyalty score
+  training: text('training'), // trained commands, skills
+  personalityTraits: text('personality_traits'),
+  bond: text('bond'), // relationship with owner
+  
+  mechanicalEffect: text('mechanical_effect'),
+  narrativeNotes: text('narrative_notes'),
+  
+  // Usage & Charges (for special abilities)
+  usageType: varchar('usage_type', { length: 50 }), // consumable, charges, at_will, other
+  maxCharges: integer('max_charges'),
+  rechargeWindow: varchar('recharge_window', { length: 50 }), // none, scene, session, rest, day, custom
+  rechargeNotes: text('recharge_notes'),
+  effectHooks: jsonb('effect_hooks').$type<any[]>(), // structured hooks for automation
+  
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_inventory_companions_created_by').on(t.createdBy),
+  byCreature: index('idx_inventory_companions_creature_id').on(t.creatureId),
 }));
 
 // NPCs table

@@ -1,12 +1,65 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { db } from "@/db/client";
+import { inventoryCompanions } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getSessionUser } from "@/server/session";
 
 export async function GET() {
-  return NextResponse.json({ ok: true, companions: [] });
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const companions = await db.select().from(inventoryCompanions).where(eq(inventoryCompanions.createdBy, user.id));
+    
+    return NextResponse.json({ ok: true, companions });
+  } catch (error) {
+    console.error("GET /api/worldbuilder/inventory/companions error:", error);
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  const data = await request.json();
-  const companion = { ...data, id: randomUUID() };
-  return NextResponse.json({ ok: true, companion });
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const data = await request.json();
+    
+    const newCompanion = {
+      id: randomUUID(),
+      createdBy: user.id,
+      name: data.name,
+      isFree: data.isFree ?? true,
+      isPublished: data.isPublished ?? false,
+      companionType: data.companionType ?? null,
+      creatureId: data.creatureId ?? null,
+      creatureName: data.creatureName ?? null,
+      timelineTag: data.timelineTag ?? null,
+      costCredits: data.costCredits ?? null,
+      genreTags: data.genreTags ?? null,
+      loyalty: data.loyalty ?? null,
+      training: data.training ?? null,
+      personalityTraits: data.personalityTraits ?? null,
+      bond: data.bond ?? null,
+      mechanicalEffect: data.mechanicalEffect ?? null,
+      narrativeNotes: data.narrativeNotes ?? null,
+      usageType: data.usageType ?? null,
+      maxCharges: data.maxCharges ?? null,
+      rechargeWindow: data.rechargeWindow ?? null,
+      rechargeNotes: data.rechargeNotes ?? null,
+      effectHooks: data.effectHooks ?? null,
+    };
+
+    const [companion] = await db.insert(inventoryCompanions).values(newCompanion).returning();
+    
+    return NextResponse.json({ ok: true, companion });
+  } catch (error) {
+    console.error("POST /api/worldbuilder/inventory/companions error:", error);
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
+  }
 }

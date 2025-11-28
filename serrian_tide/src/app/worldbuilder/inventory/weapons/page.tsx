@@ -15,6 +15,23 @@ import { WBNav } from "@/components/worldbuilder/WBNav";
 
 type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
 
+// how the item is used, from the builder's perspective
+type UsageType = "consumable" | "charges" | "at_will" | "other";
+type RechargeWindow = "none" | "scene" | "session" | "rest" | "day" | "custom";
+
+type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "other";
+type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "other";
+type ItemHookKind = "heal" | "damage" | "buff" | "debuff" | "utility" | "other";
+
+type ItemHook = {
+  id: string;
+  trigger: ItemHookTrigger;
+  target: ItemHookTarget;
+  kind: ItemHookKind;
+  amount?: number | null;
+  label: string; // plain effect text (e.g. "Restore 5 HP")
+};
+
 export type WeaponRow = {
   id: string | number;
   name: string;
@@ -24,6 +41,7 @@ export type WeaponRow = {
 
   timeline_tag?: string | null;
   cost_credits?: number | null;
+  durability?: number | null;
 
   category?: string | null;
   handedness?: string | null;
@@ -37,6 +55,18 @@ export type WeaponRow = {
   damage?: number | null;
   effect?: string | null;
   narrative_notes?: string | null;
+
+  // legendary item properties
+  rarity?: string | null;
+  attunement?: string | null;
+  curse?: string | null;
+
+  // usage & structured effects (site-side only for now)
+  usage_type?: UsageType | null;
+  max_charges?: number | null;
+  recharge_window?: RechargeWindow | null;
+  recharge_notes?: string | null;
+  effect_hooks?: ItemHook[] | null;
 
   // in DB but no explicit UI for these
   shop_ready?: boolean;
@@ -84,6 +114,9 @@ export default function InventoryWeaponsPage() {
     id: string;
     role: string;
   } | null>(null);
+  const [hooksByItem, setHooksByItem] = useState<Record<string, ItemHook[]>>(
+    {}
+  );
 
   // load user + weapons
   useEffect(() => {
@@ -106,9 +139,28 @@ export default function InventoryWeaponsPage() {
           is_free: w.isFree,
           shop_ready: w.shopReady,
           shop_role: w.shopRole ?? null,
+
+          // usage / charges (future DB fields, safe to be undefined for now)
+          usage_type: w.usageType ?? w.usage_type ?? null,
+          max_charges: w.maxCharges ?? w.max_charges ?? null,
+          recharge_window: w.rechargeWindow ?? w.recharge_window ?? null,
+          recharge_notes: w.rechargeNotes ?? w.recharge_notes ?? null,
+
+          // structured hooks (when you start persisting them)
+          effect_hooks: w.effectHooks ?? w.effect_hooks ?? null,
         }));
 
         setWeapons(mapped);
+
+        // seed local hooks from any effect_hooks that might exist later
+        const initialHooks: Record<string, ItemHook[]> = {};
+        for (const row of mapped) {
+          if (row.effect_hooks && row.effect_hooks.length > 0) {
+            initialHooks[String(row.id)] = row.effect_hooks;
+          }
+        }
+        setHooksByItem(initialHooks);
+
         if (mapped.length > 0 && mapped[0]) {
           setSelectedId(String(mapped[0].id));
         }
@@ -182,6 +234,9 @@ export default function InventoryWeaponsPage() {
       damage: null,
       effect: "",
       narrative_notes: "",
+      rarity: null,
+      attunement: null,
+      curse: null,
     };
     setWeapons((prev) => [weapon, ...prev]);
     setSelectedId(id);
@@ -275,6 +330,14 @@ export default function InventoryWeaponsPage() {
         damage: selected.damage ?? null,
         effect: selected.effect ?? null,
         narrativeNotes: selected.narrative_notes ?? null,
+        rarity: selected.rarity ?? null,
+        attunement: selected.attunement ?? null,
+        curse: selected.curse ?? null,
+        usageType: selected.usage_type ?? null,
+        maxCharges: selected.max_charges ?? null,
+        rechargeWindow: selected.recharge_window ?? null,
+        rechargeNotes: selected.recharge_notes ?? null,
+        effectHooks: currentHooks.length > 0 ? currentHooks : null,
       };
 
       let res;
@@ -342,6 +405,48 @@ export default function InventoryWeaponsPage() {
     updateSelected({ genre_tags: next });
   }
 
+  function addHook() {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    const newHook: ItemHook = {
+      id: uid(),
+      trigger: "on_equip",
+      target: "enemy",
+      kind: "damage",
+      amount: null,
+      label: "",
+    };
+    setHooksByItem((prev) => ({
+      ...prev,
+      [idStr]: [...(prev[idStr] ?? []), newHook],
+    }));
+  }
+
+  function updateHook(hookId: string, patch: Partial<ItemHook>) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setHooksByItem((prev) => ({
+      ...prev,
+      [idStr]: (prev[idStr] ?? []).map((h) =>
+        h.id === hookId ? { ...h, ...patch } : h
+      ),
+    }));
+  }
+
+  function removeHook(hookId: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setHooksByItem((prev) => ({
+      ...prev,
+      [idStr]: (prev[idStr] ?? []).filter((h) => h.id !== hookId),
+    }));
+  }
+
+  const currentHooks = useMemo(() => {
+    if (!selected) return [];
+    return hooksByItem[String(selected.id)] ?? [];
+  }, [selected, hooksByItem]);
+
   const previewText = useMemo(() => {
     if (!selected) return "";
     const w = selected;
@@ -360,8 +465,46 @@ export default function InventoryWeaponsPage() {
       )} (${nv(w.range_text)})`
     );
     lines.push(`Tags: ${nv(w.genre_tags)}   Weight: ${nv(w.weight)}`);
+
+    // usage summary
+    if (w.usage_type) {
+      lines.push("");
+      let usageLine = "Usage: ";
+      if (w.usage_type === "consumable") {
+        usageLine += "Consumable (one use)";
+      } else if (w.usage_type === "charges") {
+        usageLine += `Charges: ${nv(w.max_charges)} (${nv(
+          w.recharge_window
+        )})`;
+      } else if (w.usage_type === "at_will") {
+        usageLine += "At-will";
+      } else {
+        usageLine += "Custom";
+      }
+      lines.push(usageLine);
+      if (w.recharge_notes) {
+        lines.push(`  Recharge: ${w.recharge_notes}`);
+      }
+    }
+
     lines.push("");
     lines.push(`Effect: ${nv(w.effect)}`);
+
+    if (currentHooks.length > 0) {
+      lines.push("");
+      lines.push("System Hooks:");
+      currentHooks.forEach((h, idx) => {
+        let kindPart: string = h.kind;
+        if (h.kind !== "other" && h.amount != null) {
+          kindPart = `${h.kind} ${h.amount}`;
+        }
+        lines.push(
+          `  ${idx + 1}. [${h.trigger} → ${h.target} → ${kindPart}] ${
+            h.label || "(no text)"
+          }`
+        );
+      });
+    }
 
     if (w.narrative_notes) {
       lines.push("");
@@ -370,7 +513,7 @@ export default function InventoryWeaponsPage() {
     }
 
     return lines.join("\n");
-  }, [selected]);
+  }, [selected, currentHooks]);
 
   /* ---------- render ---------- */
 
@@ -638,13 +781,17 @@ export default function InventoryWeaponsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormField label="Timeline Tag" htmlFor="weapon-timeline">
+                <FormField label="Durability" htmlFor="weapon-durability" description="Weapon condition/health points">
                   <Input
-                    id="weapon-timeline"
-                    value={selected.timeline_tag ?? ""}
+                    id="weapon-durability"
+                    type="number"
+                    value={selected.durability ?? ""}
                     onChange={(e) =>
                       updateSelected({
-                        timeline_tag: e.target.value,
+                        durability:
+                          e.target.value === ""
+                            ? null
+                            : Number(e.target.value),
                       })
                     }
                   />
@@ -804,6 +951,86 @@ export default function InventoryWeaponsPage() {
                 </FormField>
               </div>
 
+              {/* Usage / charges */}
+              <FormField
+                label="Usage / Charges"
+                htmlFor="weapon-usage"
+                description="For thrown weapons, magical weapons with charges, or one-use explosives."
+              >
+                <div className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {/* usage type */}
+                    <select
+                      className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-zinc-100"
+                      value={selected.usage_type ?? "at_will"}
+                      onChange={(e) =>
+                        updateSelected({
+                          usage_type: e.target.value as UsageType,
+                        })
+                      }
+                    >
+                      <option value="at_will">At-will (default)</option>
+                      <option value="consumable">Consumable (one use)</option>
+                      <option value="charges">Has charges</option>
+                      <option value="other">Other / custom</option>
+                    </select>
+
+                    {/* max charges (only for 'charges') */}
+                    {selected.usage_type === "charges" && (
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Max charges"
+                        value={selected.max_charges ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            max_charges:
+                              e.target.value === ""
+                                ? null
+                                : Number(e.target.value),
+                          })
+                        }
+                      />
+                    )}
+
+                    {/* recharge window (only for 'charges') */}
+                    {selected.usage_type === "charges" && (
+                      <select
+                        className="rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-zinc-100"
+                        value={selected.recharge_window ?? "none"}
+                        onChange={(e) =>
+                          updateSelected({
+                            recharge_window: e.target.value as RechargeWindow,
+                          })
+                        }
+                      >
+                        <option value="none">Does not recharge</option>
+                        <option value="scene">Per scene</option>
+                        <option value="session">Per session</option>
+                        <option value="rest">Per rest</option>
+                        <option value="day">Per day</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    )}
+                  </div>
+
+                  {/* recharge notes, if custom */}
+                  {selected.usage_type === "charges" &&
+                    selected.recharge_window === "custom" && (
+                      <textarea
+                        className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-xs text-zinc-100"
+                        placeholder='Describe how this recharges (e.g. "regains 1 charge for every 10 Mana spent").'
+                        value={selected.recharge_notes ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            recharge_notes: e.target.value,
+                          })
+                        }
+                      />
+                    )}
+                </div>
+              </FormField>
+
               <FormField
                 label="Mechanical Effect"
                 htmlFor="weapon-effect"
@@ -836,6 +1063,182 @@ export default function InventoryWeaponsPage() {
                     })
                   }
                 />
+              </FormField>
+
+              {/* Legendary Properties */}
+              <FormField
+                label="Rarity"
+                htmlFor="weapon-rarity"
+                description="Item rarity tier (common to mythic)."
+              >
+                <select
+                  id="weapon-rarity"
+                  className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.rarity ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      rarity: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">None</option>
+                  <option value="common">Common</option>
+                  <option value="uncommon">Uncommon</option>
+                  <option value="rare">Rare</option>
+                  <option value="epic">Epic</option>
+                  <option value="legendary">Legendary</option>
+                  <option value="mythic">Mythic</option>
+                </select>
+              </FormField>
+
+              <FormField
+                label="Attunement"
+                htmlFor="weapon-attunement"
+                description="Requirements to attune or use this item."
+              >
+                <Input
+                  id="weapon-attunement"
+                  type="text"
+                  value={selected.attunement ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      attunement: e.target.value || null,
+                    })
+                  }
+                />
+              </FormField>
+
+              <FormField
+                label="Curse"
+                htmlFor="weapon-curse"
+                description="Drawbacks, corruption, oaths, or other negative effects."
+              >
+                <textarea
+                  id="weapon-curse"
+                  className="w-full min-h-[80px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                  value={selected.curse ?? ""}
+                  onChange={(e) =>
+                    updateSelected({
+                      curse: e.target.value || null,
+                    })
+                  }
+                />
+              </FormField>
+
+              {/* system hooks */}
+              <FormField
+                label="System Hooks"
+                htmlFor="weapon-hooks"
+                description="Structured effects for future automation: on_equip damage bonuses, passive effects, etc."
+              >
+                <div className="space-y-2">
+                  {currentHooks.map((hook) => (
+                    <div
+                      key={hook.id}
+                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/5 px-3 py-2 flex flex-col gap-2"
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        {/* trigger */}
+                        <select
+                          className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                          value={hook.trigger}
+                          onChange={(e) =>
+                            updateHook(hook.id, {
+                              trigger: e.target.value as ItemHookTrigger,
+                            })
+                          }
+                        >
+                          <option value="on_use">on_use</option>
+                          <option value="on_equip">on_equip</option>
+                          <option value="passive">passive</option>
+                          <option value="other">other</option>
+                        </select>
+
+                        {/* target */}
+                        <select
+                          className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                          value={hook.target}
+                          onChange={(e) =>
+                            updateHook(hook.id, {
+                              target: e.target.value as ItemHookTarget,
+                            })
+                          }
+                        >
+                          <option value="self">self</option>
+                          <option value="ally">ally</option>
+                          <option value="enemy">enemy</option>
+                          <option value="area">area</option>
+                          <option value="other">other</option>
+                        </select>
+
+                        {/* kind */}
+                        <select
+                          className="rounded-lg border border-emerald-400/40 bg-black/30 px-2 py-1 text-[11px] text-emerald-50"
+                          value={hook.kind}
+                          onChange={(e) =>
+                            updateHook(hook.id, {
+                              kind: e.target.value as ItemHookKind,
+                            })
+                          }
+                        >
+                          <option value="heal">heal</option>
+                          <option value="damage">damage</option>
+                          <option value="buff">buff</option>
+                          <option value="debuff">debuff</option>
+                          <option value="utility">utility</option>
+                          <option value="other">other</option>
+                        </select>
+
+                        {/* amount (optional) */}
+                        <Input
+                          type="number"
+                          className="w-20 text-[11px]"
+                          placeholder="amt"
+                          value={hook.amount ?? ""}
+                          onChange={(e) =>
+                            updateHook(hook.id, {
+                              amount:
+                                e.target.value === ""
+                                  ? null
+                                  : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+
+                      {/* label / description */}
+                      <Input
+                        className="w-full text-[11px]"
+                        placeholder='e.g. "+2 damage on fire attacks" or "Applies burning condition on crit"'
+                        value={hook.label}
+                        onChange={(e) =>
+                          updateHook(hook.id, { label: e.target.value })
+                        }
+                      />
+
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-[11px] text-emerald-200/80 hover:text-emerald-50"
+                          onClick={() => removeHook(hook.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={addHook}
+                  >
+                    + Add Hook
+                  </Button>
+                </div>
               </FormField>
             </div>
           ) : (

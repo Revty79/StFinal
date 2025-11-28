@@ -71,6 +71,7 @@ export default function InventoryCompanionsPage() {
   }, [router]);
 
   const [companions, setCompanions] = useState<CompanionRow[]>([]);
+  const [creatures, setCreatures] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [qtext, setQtext] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -86,6 +87,16 @@ export default function InventoryCompanionsPage() {
         const userData = await userRes.json();
         if (userData.ok && userData.user) {
           setCurrentUser({ id: userData.user.id, role: userData.user.role });
+        }
+
+        // Load creatures for dropdown
+        const creaturesRes = await fetch("/api/worldbuilder/creatures");
+        const creaturesData = await creaturesRes.json();
+        if (creaturesData.ok && creaturesData.creatures) {
+          const creatureOptions = creaturesData.creatures
+            .filter((c: any) => c.canBeMount || c.canBePet || c.canBeCompanion)
+            .map((c: any) => ({ id: c.id, name: c.name }));
+          setCreatures(creatureOptions);
         }
 
         const res = await fetch("/api/worldbuilder/inventory/companions");
@@ -602,19 +613,27 @@ export default function InventoryCompanionsPage() {
                 </FormField>
 
                 <FormField
-                  label="Linked Creature ID"
+                  label="Creature"
                   htmlFor="companion-creature"
-                  description="Later this will be a picker from Creatures; for now, use the id/key."
+                  description="Select a creature from your library (must have mount/pet/companion flag enabled)."
                 >
-                  <Input
+                  <select
                     id="companion-creature"
+                    className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
                     value={selected.linked_creature_id ?? ""}
                     onChange={(e) =>
                       updateSelected({
-                        linked_creature_id: e.target.value,
+                        linked_creature_id: e.target.value || null,
                       })
                     }
-                  />
+                  >
+                    <option value="">-- None --</option>
+                    {creatures.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </FormField>
               </div>
 
