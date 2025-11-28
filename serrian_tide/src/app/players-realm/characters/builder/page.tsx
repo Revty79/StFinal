@@ -625,7 +625,7 @@ function CharacterBuilderContent() {
           grandparentContext = parts.slice(0, -1).join(':'); // Everything before is grandparent context (tier 1)
         } else {
           // Tier 2 skill or tier 3 without full context: use provided context or fall back
-          parentId = contextParentId || skill.parentId || skill.parent2Id || skill.parent3Id;
+          parentId = contextParentId || skill.parentId || skill.parent2Id || skill.parent3Id || undefined;
         }
         
         if (parentId) {
