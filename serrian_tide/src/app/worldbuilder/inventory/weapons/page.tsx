@@ -10,6 +10,7 @@ import { Button } from "@/components/Button";
 import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { WBNav } from "@/components/worldbuilder/WBNav";
+import { InventoryNav } from "@/components/worldbuilder/InventoryNav";
 
 /* ---------- types & helpers ---------- */
 
@@ -546,8 +547,9 @@ export default function InventoryWeaponsPage() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <WBNav current="inventory" />
+          <InventoryNav />
         </div>
       </header>
 
