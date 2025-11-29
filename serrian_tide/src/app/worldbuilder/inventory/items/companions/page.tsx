@@ -397,7 +397,7 @@ export default function InventoryCompanionsPage() {
 
     lines.push(`Companion: ${c.name}`);
     lines.push(
-      `Role: ${nv(c.role)}   Linked Creature: ${nv(c.linked_creature_id)}`
+      `Type: ${nv(c.companion_type)}   Linked Creature: ${nv(c.creature_id)}`
     );
     lines.push(
       `Timeline: ${nv(c.timeline_tag)}   Cost: ${nv(c.cost_credits)}`
@@ -405,9 +405,9 @@ export default function InventoryCompanionsPage() {
     lines.push(`Tags: ${nv(c.genre_tags)}`);
     lines.push("");
     lines.push(`Effect: ${nv(c.mechanical_effect)}`);
-    if (c.care_difficulty) {
+    if (c.training) {
       lines.push("");
-      lines.push(`Care / Logistics: ${c.care_difficulty}`);
+      lines.push(`Training: ${c.training}`);
     }
     if (c.narrative_notes) {
       lines.push("");
