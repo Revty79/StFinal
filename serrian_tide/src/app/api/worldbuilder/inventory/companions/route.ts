@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/db/client";
 import { inventoryCompanions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
+import { getRoleCapabilities } from "@/lib/authorization";
 
 export async function GET() {
   try {
@@ -12,7 +13,20 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const companions = await db.select().from(inventoryCompanions).where(eq(inventoryCompanions.createdBy, user.id));
+    const { isAdmin } = getRoleCapabilities(user.role);
+
+    // Admin sees all, others see their own + free content
+    const companions = isAdmin
+      ? await db.select().from(inventoryCompanions)
+      : await db
+          .select()
+          .from(inventoryCompanions)
+          .where(
+            or(
+              eq(inventoryCompanions.createdBy, user.id),
+              eq(inventoryCompanions.isFree, true)
+            )
+          );
     
     return NextResponse.json({ ok: true, companions });
   } catch (error) {

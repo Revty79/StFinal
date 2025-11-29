@@ -250,18 +250,10 @@ export default function CharactersPage() {
               padded={false}
               className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-5 shadow-2xl"
             >
-              <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="mb-3">
                 <h2 className="text-sm font-semibold text-zinc-200">
                   Characters
                 </h2>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  type="button"
-                  onClick={createCharacter}
-                >
-                  + New
-                </Button>
               </div>
 
               <div className="space-y-2 mb-3">

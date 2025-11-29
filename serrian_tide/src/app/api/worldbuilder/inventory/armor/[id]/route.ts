@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
+import { getRoleCapabilities } from "@/lib/authorization";
 
 // GET /api/worldbuilder/inventory/armor/[id]
 export async function GET(
@@ -15,14 +16,23 @@ export async function GET(
     }
 
     const { id } = await params;
+    const { isAdmin } = getRoleCapabilities(user.role);
+
+    // Admin can view anything, others only their own or free content
+    const whereClause = isAdmin
+      ? eq(schema.inventoryArmor.id, id)
+      : and(
+          eq(schema.inventoryArmor.id, id),
+          or(
+            eq(schema.inventoryArmor.createdBy, user.id),
+            eq(schema.inventoryArmor.isFree, true)
+          )
+        );
 
     const armor = await db
       .select()
       .from(schema.inventoryArmor)
-      .where(and(
-        eq(schema.inventoryArmor.id, id),
-        eq(schema.inventoryArmor.createdBy, user.id)
-      ))
+      .where(whereClause)
       .limit(1);
 
     if (armor.length === 0) {
@@ -30,7 +40,7 @@ export async function GET(
     }
 
     const armorData = armor[0]!;
-    const canEdit = armorData.createdBy === user.id;
+    const canEdit = isAdmin || armorData.createdBy === user.id;
 
     return NextResponse.json({ ok: true, armor: armorData, canEdit });
   } catch (err) {
@@ -56,6 +66,16 @@ export async function PUT(
     if (!body) {
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
+
+    const { isAdmin } = getRoleCapabilities(user.role);
+
+    // Admin can edit anything, others only their own
+    const whereClause = isAdmin
+      ? eq(schema.inventoryArmor.id, id)
+      : and(
+          eq(schema.inventoryArmor.id, id),
+          eq(schema.inventoryArmor.createdBy, user.id)
+        );
 
     await db
       .update(schema.inventoryArmor)
@@ -84,10 +104,7 @@ export async function PUT(
         isPublished: body.isPublished,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(schema.inventoryArmor.id, id),
-        eq(schema.inventoryArmor.createdBy, user.id)
-      ));
+      .where(whereClause);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -109,12 +126,19 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const { isAdmin } = getRoleCapabilities(user.role);
+
+    // Admin can delete anything, others only their own
+    const whereClause = isAdmin
+      ? eq(schema.inventoryArmor.id, id)
+      : and(
+          eq(schema.inventoryArmor.id, id),
+          eq(schema.inventoryArmor.createdBy, user.id)
+        );
+
     await db
       .delete(schema.inventoryArmor)
-      .where(and(
-        eq(schema.inventoryArmor.id, id),
-        eq(schema.inventoryArmor.createdBy, user.id)
-      ));
+      .where(whereClause);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

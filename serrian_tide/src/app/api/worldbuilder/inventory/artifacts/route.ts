@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
+import { getRoleCapabilities } from "@/lib/authorization";
 import crypto from "crypto";
 
 // GET /api/worldbuilder/inventory/artifacts
@@ -12,11 +13,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const artifacts = await db
-      .select()
-      .from(schema.inventoryArtifacts)
-      .where(eq(schema.inventoryArtifacts.createdBy, user.id))
-      .orderBy(schema.inventoryArtifacts.name);
+    const { isAdmin } = getRoleCapabilities(user.role);
+
+    // Admin sees all, others see their own + free content
+    const artifacts = isAdmin
+      ? await db.select().from(schema.inventoryArtifacts).orderBy(schema.inventoryArtifacts.name)
+      : await db
+          .select()
+          .from(schema.inventoryArtifacts)
+          .where(
+            or(
+              eq(schema.inventoryArtifacts.createdBy, user.id),
+              eq(schema.inventoryArtifacts.isFree, true)
+            )
+          )
+          .orderBy(schema.inventoryArtifacts.name);
 
     return NextResponse.json({ ok: true, artifacts });
   } catch (err) {
