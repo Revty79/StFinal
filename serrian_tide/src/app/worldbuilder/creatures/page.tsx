@@ -39,9 +39,7 @@ export type Creature = {
   initiative?: number | null;
   hp_by_location?: string | null;
   armor_soak?: string | null;
-  attack_modes?: string | null;
-  damage?: string | null;
-  range_text?: string | null;
+  attacks?: Array<{ description: string; damage: number; range: string }> | null;
   special_abilities?: string | null;
   magic_resonance_interaction?: string | null;
   behavior_tactics?: string | null;
@@ -197,9 +195,7 @@ export default function CreaturesPage() {
       initiative: null,
       hp_by_location: null,
       armor_soak: null,
-      attack_modes: null,
-      damage: null,
-      range_text: null,
+      attacks: null,
       special_abilities: null,
       magic_resonance_interaction: null,
       behavior_tactics: null,
@@ -308,9 +304,7 @@ export default function CreaturesPage() {
         initiative: selected.initiative,
         hpByLocation: selected.hp_by_location,
         armorSoak: selected.armor_soak,
-        attackModes: selected.attack_modes,
-        damage: selected.damage,
-        rangeText: selected.range_text,
+        attacks: selected.attacks,
         specialAbilities: selected.special_abilities,
         magicResonanceInteraction: selected.magic_resonance_interaction,
         behaviorTactics: selected.behavior_tactics,
@@ -410,9 +404,11 @@ export default function CreaturesPage() {
       `Armor/Soak: ${nvLocal(c.armor_soak)}`,
       "",
       "— Combat —",
-      `Attack Modes: ${nvLocal(c.attack_modes)}`,
-      `Damage: ${nvLocal(c.damage)}`,
-      `Range: ${nvLocal(c.range_text)}`,
+      ...(c.attacks && c.attacks.length > 0
+        ? c.attacks.map(
+            (atk) => `${atk.description || "Unnamed Attack"} [${atk.range || "—"}]: ${atk.damage} damage`
+          )
+        : ["Attacks: —"]),
       `Special Abilities: ${nvLocal(c.special_abilities)}`,
       `Magic/Resonance Interaction: ${nvLocal(
         c.magic_resonance_interaction
@@ -701,15 +697,21 @@ export default function CreaturesPage() {
                         htmlFor="cre-cr"
                         description="Difficulty band / threat tier for quick reference."
                       >
-                        <Input
+                        <select
                           id="cre-cr"
+                          className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
                           value={selected.challenge_rating ?? ""}
                           onChange={(e) =>
                             updateSelected({
                               challenge_rating: e.target.value,
                             })
                           }
-                        />
+                        >
+                          <option value="">—</option>
+                          {Array.from({ length: 50 }, (_, i) => i + 1).map(cr => (
+                            <option key={cr} value={cr}>{cr}</option>
+                          ))}
+                        </select>
                       </FormField>
                       <FormField
                         label="Encounter Scale"
@@ -759,13 +761,26 @@ export default function CreaturesPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <FormField label="Size" htmlFor="cre-size">
-                        <Input
+                        <select
                           id="cre-size"
+                          className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
                           value={selected.size ?? ""}
                           onChange={(e) =>
                             updateSelected({ size: e.target.value })
                           }
-                        />
+                        >
+                          <option value="">—</option>
+                          <option value="Tiny">Tiny</option>
+                          <option value="Small">Small</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Large">Large</option>
+                          <option value="Huge">Huge</option>
+                          <option value="Gargantuan">Gargantuan</option>
+                          <option value="Colossal">Colossal</option>
+                          <option value="Mythic">Mythic</option>
+                          <option value="Titanic">Titanic</option>
+                          <option value="Cosmic">Cosmic</option>
+                        </select>
                       </FormField>
                       <FormField
                         label="Genre Tags"
@@ -973,53 +988,78 @@ export default function CreaturesPage() {
                 {activeTab === "combat" && (
                   <div className="space-y-4">
                     <FormField
-                      label="Attack Modes"
+                      label="Attacks"
                       htmlFor="cre-attacks"
-                      description="Claws, bite, weapons, spells, breath weapons, etc."
+                      description="Add individual attacks with descriptions and damage values."
                     >
-                      <textarea
-                        id="cre-attacks"
-                        className="w-full min-h-[120px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                        value={selected.attack_modes ?? ""}
-                        onChange={(e) =>
-                          updateSelected({
-                            attack_modes: e.target.value,
-                          })
-                        }
-                      />
-                    </FormField>
-
-                    <FormField
-                      label="Damage"
-                      htmlFor="cre-damage"
-                      description="Dice expressions or narrative harm values."
-                    >
-                      <textarea
-                        id="cre-damage"
-                        className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                        value={selected.damage ?? ""}
-                        onChange={(e) =>
-                          updateSelected({
-                            damage: e.target.value,
-                          })
-                        }
-                      />
-                    </FormField>
-
-                    <FormField
-                      label="Range"
-                      htmlFor="cre-range"
-                      description="Threat ranges, reach, projectile distances, zones, etc."
-                    >
-                      <Input
-                        id="cre-range"
-                        value={selected.range_text ?? ""}
-                        onChange={(e) =>
-                          updateSelected({
-                            range_text: e.target.value,
-                          })
-                        }
-                      />
+                      <div className="space-y-2">
+                        {(selected.attacks || []).map((attack, idx) => (
+                          <div
+                            key={idx}
+                            className="flex gap-2 items-start p-3 rounded-lg bg-neutral-900/50 border border-white/5"
+                          >
+                            <div className="flex-1 space-y-2">
+                              <Input
+                                placeholder="Attack description (e.g., Claw - melee attack)"
+                                value={attack.description}
+                                onChange={(e) => {
+                                  const newAttacks = [...(selected.attacks || [])];
+                                  newAttacks[idx] = { ...attack, description: e.target.value };
+                                  updateSelected({ attacks: newAttacks });
+                                }}
+                              />
+                              <div className="flex gap-2 items-center">
+                                <label className="text-xs text-zinc-400 w-16">Damage:</label>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={attack.damage || ""}
+                                  onChange={(e) => {
+                                    const newAttacks = [...(selected.attacks || [])];
+                                    newAttacks[idx] = { ...attack, damage: parseInt(e.target.value) || 0 };
+                                    updateSelected({ attacks: newAttacks });
+                                  }}
+                                  className="max-w-[120px]"
+                                />
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <label className="text-xs text-zinc-400 w-16">Range:</label>
+                                <Input
+                                  placeholder="e.g., Melee, 30ft, Close"
+                                  value={attack.range || ""}
+                                  onChange={(e) => {
+                                    const newAttacks = [...(selected.attacks || [])];
+                                    newAttacks[idx] = { ...attack, range: e.target.value };
+                                    updateSelected({ attacks: newAttacks });
+                                  }}
+                                  className="flex-1"
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-red-300/80 hover:text-red-200"
+                              onClick={() => {
+                                const newAttacks = (selected.attacks || []).filter((_, i) => i !== idx);
+                                updateSelected({ attacks: newAttacks.length > 0 ? newAttacks : null });
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          onClick={() => {
+                            const newAttacks = [...(selected.attacks || []), { description: "", damage: 0, range: "" }];
+                            updateSelected({ attacks: newAttacks });
+                          }}
+                          className="w-full py-2 bg-violet-950/30 hover:bg-violet-900/40 text-violet-300"
+                        >
+                          + Add Attack
+                        </Button>
+                      </div>
                     </FormField>
 
                     <FormField

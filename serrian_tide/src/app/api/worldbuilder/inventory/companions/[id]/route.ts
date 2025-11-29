@@ -71,8 +71,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .update(inventoryCompanions)
       .set({
         name: data.name,
-        companionType: data.companionType ?? null,
-        creatureId: data.creatureId ?? null,
+        isFree: data.isFree,
+        companionType: data.companionType ?? data.role ?? null,
+        creatureId: data.creatureId ?? data.linkedCreatureId ?? null,
         creatureName: data.creatureName ?? null,
         timelineTag: data.timelineTag ?? null,
         costCredits: data.costCredits ?? null,

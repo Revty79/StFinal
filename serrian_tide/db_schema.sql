@@ -171,9 +171,7 @@ CREATE TABLE IF NOT EXISTS "creatures" (
   "initiative" integer,
   "hp_by_location" text,
   "armor_soak" text,
-  "attack_modes" text,
-  "damage" text,
-  "range_text" text,
+  "attacks" jsonb,
   "special_abilities" text,
   "magic_resonance_interaction" text,
   "behavior_tactics" text,
@@ -382,6 +380,13 @@ CREATE TABLE IF NOT EXISTS "inventory_companions" (
   
   "mechanical_effect" text,
   "narrative_notes" text,
+  
+  -- Usage & Charges
+  "usage_type" varchar(50),
+  "max_charges" integer,
+  "recharge_window" varchar(50),
+  "recharge_notes" text,
+  "effect_hooks" jsonb,
   
   "is_free" boolean DEFAULT false NOT NULL,
   "is_published" boolean DEFAULT false NOT NULL,

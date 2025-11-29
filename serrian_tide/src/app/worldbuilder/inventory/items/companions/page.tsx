@@ -26,16 +26,24 @@ export type CompanionRow = {
   timeline_tag?: string | null;
   cost_credits?: number | null;
 
-  role?: "pet" | "mount" | "companion" | string | null;
-  linked_creature_id?: string | null;
+  companion_type?: string | null;
+  creature_id?: string | null;
+  creature_name?: string | null;
   genre_tags?: string | null;
 
+  loyalty?: number | null;
+  training?: string | null;
+  personality_traits?: string | null;
+  bond?: string | null;
+
   mechanical_effect?: string | null;
-  care_difficulty?: string | null;
   narrative_notes?: string | null;
 
-  shop_ready?: boolean;
-  shop_role?: ShopRole;
+  usage_type?: string | null;
+  max_charges?: number | null;
+  recharge_window?: string | null;
+  recharge_notes?: string | null;
+  effect_hooks?: any[] | null;
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -110,8 +118,20 @@ export default function InventoryCompanionsPage() {
           (c: any) => ({
             ...c,
             is_free: c.isFree,
-            shop_ready: c.shopReady,
-            shop_role: c.shopRole ?? null,
+            companion_type: c.companionType,
+            creature_id: c.creatureId,
+            creature_name: c.creatureName,
+            timeline_tag: c.timelineTag,
+            cost_credits: c.costCredits,
+            genre_tags: c.genreTags,
+            personality_traits: c.personalityTraits,
+            mechanical_effect: c.mechanicalEffect,
+            narrative_notes: c.narrativeNotes,
+            usage_type: c.usageType,
+            max_charges: c.maxCharges,
+            recharge_window: c.rechargeWindow,
+            recharge_notes: c.rechargeNotes,
+            effect_hooks: c.effectHooks,
           })
         );
 
@@ -140,9 +160,9 @@ export default function InventoryCompanionsPage() {
     return companions.filter((r) => {
       const base = [
         r.name,
-        r.role ?? "",
+        r.companion_type ?? "",
         r.genre_tags ?? "",
-        r.linked_creature_id ?? "",
+        r.creature_name ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -176,16 +196,23 @@ export default function InventoryCompanionsPage() {
       id,
       name: "New Companion",
       is_free: false,
-      shop_ready: true,
-      shop_role: "shop_stock",
+      companion_type: "companion",
+      creature_id: null,
+      creature_name: null,
       timeline_tag: null,
       cost_credits: null,
-      role: "companion",
-      linked_creature_id: "",
-      genre_tags: "",
-      mechanical_effect: "",
-      care_difficulty: "",
-      narrative_notes: "",
+      genre_tags: null,
+      loyalty: null,
+      training: null,
+      personality_traits: null,
+      bond: null,
+      mechanical_effect: null,
+      narrative_notes: null,
+      usage_type: null,
+      max_charges: null,
+      recharge_window: null,
+      recharge_notes: null,
+      effect_hooks: null,
     };
     setCompanions((prev) => [row, ...prev]);
     setSelectedId(id);
@@ -267,16 +294,23 @@ export default function InventoryCompanionsPage() {
       const payload: any = {
         name: selected.name,
         isFree: selected.is_free ?? false,
-        shopReady: selected.shop_ready ?? true,
-        shopRole: selected.shop_role ?? "shop_stock",
+        companionType: selected.companion_type ?? null,
+        creatureId: selected.creature_id ?? null,
+        creatureName: selected.creature_name ?? null,
         timelineTag: selected.timeline_tag ?? null,
         costCredits: selected.cost_credits ?? null,
-        role: selected.role ?? null,
-        linkedCreatureId: selected.linked_creature_id ?? null,
         genreTags: selected.genre_tags ?? null,
+        loyalty: selected.loyalty ?? null,
+        training: selected.training ?? null,
+        personalityTraits: selected.personality_traits ?? null,
+        bond: selected.bond ?? null,
         mechanicalEffect: selected.mechanical_effect ?? null,
-        careDifficulty: selected.care_difficulty ?? null,
         narrativeNotes: selected.narrative_notes ?? null,
+        usageType: selected.usage_type ?? null,
+        maxCharges: selected.max_charges ?? null,
+        rechargeWindow: selected.recharge_window ?? null,
+        rechargeNotes: selected.recharge_notes ?? null,
+        effectHooks: selected.effect_hooks ?? null,
       };
 
       let res;
@@ -309,8 +343,20 @@ export default function InventoryCompanionsPage() {
           const transformed: CompanionRow = {
             ...saved,
             is_free: saved.isFree,
-            shop_ready: saved.shopReady,
-            shop_role: saved.shopRole ?? null,
+            companion_type: saved.companionType,
+            creature_id: saved.creatureId,
+            creature_name: saved.creatureName,
+            timeline_tag: saved.timelineTag,
+            cost_credits: saved.costCredits,
+            genre_tags: saved.genreTags,
+            personality_traits: saved.personalityTraits,
+            mechanical_effect: saved.mechanicalEffect,
+            narrative_notes: saved.narrativeNotes,
+            usage_type: saved.usageType,
+            max_charges: saved.maxCharges,
+            recharge_window: saved.rechargeWindow,
+            recharge_notes: saved.rechargeNotes,
+            effect_hooks: saved.effectHooks,
           };
           setCompanions((prev) =>
             prev.map((r) =>

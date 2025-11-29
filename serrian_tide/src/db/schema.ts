@@ -248,9 +248,7 @@ export const creatures = pgTable('creatures', {
   armorSoak: text('armor_soak'),
   
   // Combat
-  attackModes: text('attack_modes'),
-  damage: text('damage'),
-  rangeText: text('range_text'),
+  attacks: jsonb('attacks').$type<Array<{ description: string; damage: number; range: string }>>(),
   specialAbilities: text('special_abilities'),
   magicResonanceInteraction: text('magic_resonance_interaction'),
   
