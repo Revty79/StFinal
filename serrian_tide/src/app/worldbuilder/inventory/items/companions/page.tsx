@@ -546,7 +546,7 @@ export default function InventoryCompanionsPage() {
                           <td className="px-3 py-1.5">
                             {r.name || "(unnamed)"}
                           </td>
-                          <td className="px-3 py-1.5">{nv(r.role ?? "")}</td>
+                          <td className="px-3 py-1.5">{nv(r.companion_type ?? "")}</td>
                           <td className="px-3 py-1.5">
                             {nv(r.cost_credits ?? "")}
                           </td>
@@ -639,17 +639,17 @@ export default function InventoryCompanionsPage() {
               {/* role + creature link */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormField
-                  label="Role"
-                  htmlFor="companion-role"
+                  label="Type"
+                  htmlFor="companion-type"
                   description="Pet, mount, or full companion."
                 >
                   <select
-                    id="companion-role"
+                    id="companion-type"
                     className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                    value={selected.role ?? ""}
+                    value={selected.companion_type ?? ""}
                     onChange={(e) =>
                       updateSelected({
-                        role: e.target.value || null,
+                        companion_type: e.target.value || null,
                       })
                     }
                   >
