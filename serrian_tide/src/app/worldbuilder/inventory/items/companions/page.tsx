@@ -668,10 +668,10 @@ export default function InventoryCompanionsPage() {
                   <select
                     id="companion-creature"
                     className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                    value={selected.linked_creature_id ?? ""}
+                    value={selected.creature_id ?? ""}
                     onChange={(e) =>
                       updateSelected({
-                        linked_creature_id: e.target.value || null,
+                        creature_id: e.target.value || null,
                       })
                     }
                   >
@@ -772,10 +772,10 @@ export default function InventoryCompanionsPage() {
                 <textarea
                   id="companion-care"
                   className="w-full min-h-[100px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                  value={selected.care_difficulty ?? ""}
+                  value={selected.training ?? ""}
                   onChange={(e) =>
                     updateSelected({
-                      care_difficulty: e.target.value,
+                      training: e.target.value,
                     })
                   }
                 />
