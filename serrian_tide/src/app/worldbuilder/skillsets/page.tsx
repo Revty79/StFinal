@@ -484,9 +484,35 @@ function MagicBuilder({
       saved_at: new Date().toISOString(),
     };
 
-    // UI only: let Copilot wire this to /api/magic-builds later
-    console.log("Magic build payload (UI only):", rec);
-    alert("Magic build captured in UI (no API wired yet).");
+    // Save to API
+    try {
+      const response = await fetch(`/api/worldbuilder/skills/magic-details/${seedSkill.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillName: rec.skill_name,
+          tradition: rec.tradition,
+          tier2Path: rec.tier2_path,
+          containersJson: rec.containers_json,
+          modifiersJson: rec.modifiers_json,
+          manaCost: rec.mana_cost,
+          castingTime: rec.casting_time,
+          masteryLevel: rec.mana_cost, // Send mana cost as mastery level (integer)
+          notes: rec.notes,
+          flavorLine: rec.flavor_line,
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save magic details");
+      }
+
+      alert("Magic build saved successfully.");
+    } catch (err) {
+      console.error("Save magic details error:", err);
+      alert(`Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   };
 
   const NodeCard = ({ node, pathIdx }: { node: MBNode; pathIdx: number[] }) => {
@@ -902,9 +928,49 @@ function SpecialAbilityDetails({
       saved_at: new Date().toISOString(),
     };
 
-    // UI only; Copilot can wire this to /api/special-abilities later
-    console.log("Special ability payload (UI only):", rec);
-    alert("Special Ability details captured in UI (no API wired yet).");
+    // Save to API
+    try {
+      const response = await fetch(`/api/worldbuilder/skills/special-ability-details/${seedSkill.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          abilityType: rec.ability_type,
+          scalingMethod: rec.scaling_method,
+          prerequisites: rec.prerequisites,
+          scalingDetails: rec.scaling_details,
+          stage1Tag: rec.stage1_tag,
+          stage1Desc: rec.stage1_desc,
+          stage1Points: rec.stage1_points,
+          stage2Tag: rec.stage2_tag,
+          stage2Desc: rec.stage2_desc,
+          stage2Points: rec.stage2_points,
+          stage3Tag: rec.stage3_tag,
+          stage3Desc: rec.stage3_desc,
+          stage4Tag: rec.stage4_tag,
+          stage4Desc: rec.stage4_desc,
+          finalTag: rec.final_tag,
+          finalDesc: rec.final_desc,
+          add1Tag: rec.add1_tag,
+          add1Desc: rec.add1_desc,
+          add2Tag: rec.add2_tag,
+          add2Desc: rec.add2_desc,
+          add3Tag: rec.add3_tag,
+          add3Desc: rec.add3_desc,
+          add4Tag: rec.add4_tag,
+          add4Desc: rec.add4_desc,
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to save special ability details");
+      }
+
+      alert("Special ability details saved successfully.");
+    } catch (err) {
+      console.error("Save special ability details error:", err);
+      alert(`Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   };
 
   return (
