@@ -30,11 +30,33 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "CANNOT_DEMOTE_SELF" }, { status: 400 });
     }
 
-    // Update user role
-    await pool.query(
-      `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`,
-      [body.role, id]
-    );
+    // Remove all existing roles and add the new one
+    await pool.query('BEGIN');
+    
+    try {
+      // Delete existing roles
+      await pool.query(
+        `DELETE FROM user_roles WHERE user_id = $1`,
+        [id]
+      );
+
+      // Add new role
+      await pool.query(
+        `INSERT INTO user_roles (user_id, role_code) VALUES ($1, $2)`,
+        [id, body.role]
+      );
+
+      // Update user's updated_at timestamp
+      await pool.query(
+        `UPDATE users SET updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+
+      await pool.query('COMMIT');
+    } catch (err) {
+      await pool.query('ROLLBACK');
+      throw err;
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

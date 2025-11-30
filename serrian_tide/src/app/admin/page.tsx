@@ -67,21 +67,28 @@ export default function AdminDashboard() {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    checkAccess();
-    loadStats();
-    loadUsers();
+    async function init() {
+      const hasAccess = await checkAccess();
+      if (hasAccess) {
+        await Promise.all([loadStats(), loadUsers()]);
+      }
+    }
+    init();
   }, []);
 
-  async function checkAccess() {
+  async function checkAccess(): Promise<boolean> {
     try {
       const res = await fetch("/api/profile/me");
       const data = await res.json();
       if (!data.ok || data.user?.role !== "admin") {
         router.push("/dashboard");
-        return;
+        return false;
       }
+      return true;
     } catch (err) {
+      console.error("Access check error:", err);
       router.push("/dashboard");
+      return false;
     }
   }
 
@@ -91,6 +98,8 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.ok) {
         setStats(data.stats);
+      } else {
+        console.error("Failed to load stats:", data.error);
       }
     } catch (err) {
       console.error("Failed to load stats:", err);
@@ -105,6 +114,9 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.ok) {
         setUsers(data.users);
+        console.log("Loaded users:", data.users.length);
+      } else {
+        console.error("Failed to load users:", data.error);
       }
     } catch (err) {
       console.error("Failed to load users:", err);

@@ -12,14 +12,14 @@ export async function GET(req: Request) {
 
     // Get users by role
     const rolesResult = await pool.query(`
-      SELECT role, COUNT(*) as count
-      FROM users
-      GROUP BY role
+      SELECT role_code, COUNT(DISTINCT user_id) as count
+      FROM user_roles
+      GROUP BY role_code
     `);
 
     const usersByRole: Record<string, number> = {};
     rolesResult.rows.forEach((row) => {
-      usersByRole[row.role] = parseInt(row.count);
+      usersByRole[row.role_code] = parseInt(row.count);
     });
 
     // Get content counts
