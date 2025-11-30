@@ -224,7 +224,7 @@ export default async function Dashboard() {
               Manage users, roles, and world packs.
             </p>
             <div className="mt-4">
-              <Link href="#">
+              <Link href="/admin">
                 <Button variant="primary" size="sm">
                   Open Console
                 </Button>
