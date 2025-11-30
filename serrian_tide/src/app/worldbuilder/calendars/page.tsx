@@ -207,18 +207,23 @@ export default function CalendarBuilderPage() {
       const res = await fetch('/api/worldbuilder/calendars', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cal),
+        body: JSON.stringify({
+          ...cal,
+          isFree: false,
+          isPublished: false,
+        }),
       });
       const data = await res.json();
       if (data.ok) {
         setCalendars((prev) => [{ ...cal, id: data.id }, ...prev]);
         setSelectedId(data.id);
       } else {
-        alert('Failed to create calendar');
+        console.error('API error:', data);
+        alert(`Failed to create calendar: ${data.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Create error:', err);
-      alert('Failed to create calendar');
+      alert(`Failed to create calendar: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
