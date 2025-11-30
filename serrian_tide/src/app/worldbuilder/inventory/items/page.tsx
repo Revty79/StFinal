@@ -14,8 +14,6 @@ import { InventoryNav } from "@/components/worldbuilder/InventoryNav";
 
 /* ---------- types & helpers ---------- */
 
-type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
-
 export type ItemRow = {
   id: string | number;
   name: string;
@@ -41,17 +39,6 @@ export type ItemRow = {
   recharge_window?: RechargeWindow | null;
   recharge_notes?: string | null;
   effect_hooks?: ItemHook[] | null;
-
-  // still exist in DB but invisible here
-  shop_ready?: boolean;
-  shop_role?: ShopRole;
-  item_role?:
-    | "mundane"
-    | "magic"
-    | "artifact"
-    | "service"
-    | "pet_mount_companion"
-    | null;
 };
 
 // how the item is used, from the builder's perspective
@@ -87,6 +74,75 @@ const GENRE_PRESETS = [
   "modern",
 ] as const;
 
+/* ---------- Batch TSV parsing ---------- */
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/[()]/g, "");
+}
+
+function parseTSVToItemRecords(raw: string): ItemRow[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error("Need a header row plus at least one data row.");
+  }
+
+  const headerCells = (lines[0] ?? "").split("\t").map((h) => h.trim());
+  const headersNorm = headerCells.map(normalizeHeader);
+
+  const findIndex = (...candidates: string[]) => {
+    for (const c of candidates) {
+      const norm = c.toLowerCase().replace(/[()]/g, "");
+      const i = headersNorm.findIndex((h) => h === norm);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const records: ItemRow[] = [];
+
+  for (let li = 1; li < lines.length; li++) {
+    const cols = (lines[li] ?? "").split("\t");
+
+    const get = (...names: string[]): string => {
+      const idx = findIndex(...names);
+      if (idx === -1) return "";
+      return (cols[idx] ?? "").trim();
+    };
+
+    const name = get("Item Name", "Name");
+    if (!name) continue; // skip blank row
+
+    const timelineTag = get("Timeline Tag");
+    const costCredits = get("Cost Credits", "Cost");
+    const category = get("Category");
+    const subtype = get("Subtype");
+    const genreTags = get("Genre Tags");
+    const mechanicalEffect = get("Mechanical Effect");
+    const weight = get("Weight");
+    const narrativeNotes = get("Narrative/Variant Notes", "Narrative Notes");
+
+    const rec: ItemRow = {
+      id: uid(),
+      name,
+      is_free: false,
+      timeline_tag: timelineTag || null,
+      cost_credits: costCredits ? parseFloat(costCredits) : null,
+      category: category || null,
+      subtype: subtype || null,
+      genre_tags: genreTags || null,
+      mechanical_effect: mechanicalEffect || null,
+      weight: weight ? parseFloat(weight) : null,
+      narrative_notes: narrativeNotes || null,
+    };
+
+    records.push(rec);
+  }
+
+  return records;
+}
+
 /* ---------- main page ---------- */
 
 export default function InventoryItemsPage() {
@@ -120,6 +176,14 @@ export default function InventoryItemsPage() {
   const [hooksByItem, setHooksByItem] = useState<Record<string, ItemHook[]>>(
     {}
   );
+
+  // Batch uploader state
+  const [batchText, setBatchText] = useState("");
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchPreview, setBatchPreview] = useState<ItemRow[]>([]);
+  const [batchUploading, setBatchUploading] = useState(false);
+
+  const isAdmin = currentUser?.role?.toLowerCase() === "admin";
 
   // Load user + items
   useEffect(() => {
@@ -230,9 +294,6 @@ export default function InventoryItemsPage() {
       id,
       name: "New Item",
       is_free: false,
-      shop_ready: true,
-      shop_role: "shop_stock",
-      item_role: "mundane",
       timeline_tag: null,
       cost_credits: null,
       category: "gear",
@@ -326,9 +387,6 @@ export default function InventoryItemsPage() {
       const payload: any = {
         name: selected.name,
         isFree: selected.is_free ?? false,
-        shopReady: true,
-        shopRole: "shop_stock",
-        itemRole: selected.item_role ?? null,
         timelineTag: selected.timeline_tag ?? null,
         costCredits: selected.cost_credits ?? null,
         category: selected.category ?? null,
@@ -406,6 +464,132 @@ export default function InventoryItemsPage() {
           err instanceof Error ? err.message : "Unknown error"
         }`
       );
+    }
+  }
+
+  /* ---------- batch uploader actions ---------- */
+
+  function handleParseBatch() {
+    try {
+      if (!batchText.trim()) {
+        setBatchError("Paste tab-separated rows from your sheet first.");
+        setBatchPreview([]);
+        return;
+      }
+      const parsed = parseTSVToItemRecords(batchText);
+      if (!parsed.length) {
+        setBatchError("No valid item rows found.");
+        setBatchPreview([]);
+        return;
+      }
+      setBatchPreview(parsed);
+      setBatchError(null);
+    } catch (err) {
+      console.error("Batch parse error:", err);
+      setBatchPreview([]);
+      setBatchError(
+        err instanceof Error ? err.message : "Failed to parse batch data."
+      );
+    }
+  }
+
+  async function handleCommitBatch() {
+    if (!isAdmin) return;
+    if (!batchPreview.length) {
+      alert("Parse some data first.");
+      return;
+    }
+    if (
+      !confirm(
+        `Import/update ${batchPreview.length} items? Matches are based on item name (case-insensitive).`
+      )
+    ) {
+      return;
+    }
+
+    setBatchUploading(true);
+    try {
+      const updatedItems = [...items];
+
+      for (const row of batchPreview) {
+        const name = row.name.trim();
+        if (!name) continue;
+
+        const existingIdx = updatedItems.findIndex(
+          (i) => i.name.trim().toLowerCase() === name.toLowerCase()
+        );
+
+        const payload = {
+          name: row.name,
+          isFree: row.is_free ?? false,
+          timelineTag: row.timeline_tag,
+          costCredits: row.cost_credits,
+          category: row.category,
+          subtype: row.subtype,
+          genreTags: row.genre_tags,
+          mechanicalEffect: row.mechanical_effect,
+          weight: row.weight,
+          narrativeNotes: row.narrative_notes,
+        };
+
+        let response;
+        if (existingIdx >= 0) {
+          // Update existing item by name
+          const existing = updatedItems[existingIdx];
+          if (!existing) continue;
+          response = await fetch(`/api/worldbuilder/inventory/items/${existing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // Create new item
+          response = await fetch("/api/worldbuilder/inventory/items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        const data = await response.json();
+        if (!data.ok) {
+          throw new Error(
+            data.error || `Failed to save item "${row.name}"`
+          );
+        }
+
+        if (existingIdx >= 0) {
+          // Update existing item in state
+          const existing = updatedItems[existingIdx];
+          if (!existing) continue;
+          updatedItems[existingIdx] = {
+            ...existing,
+            ...row,
+          };
+        } else if (data.item) {
+          // Add new item using the preview data plus server ID
+          updatedItems.unshift({
+            ...row,
+            id: data.item.id,
+            createdBy: currentUser?.id,
+          });
+        }
+      }
+
+      setItems(updatedItems);
+      setBatchText("");
+      setBatchPreview([]);
+      setBatchError(null);
+      alert("Batch upload complete.");
+    } catch (err) {
+      console.error("Batch upload error:", err);
+      alert(
+        `Batch upload failed: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setBatchUploading(false);
     }
   }
 
@@ -708,6 +892,67 @@ export default function InventoryItemsPage() {
               </Button>
             </div>
           </div>
+
+          {/* Admin-only batch uploader */}
+          {isAdmin && (
+            <div className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-300/5 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-amber-100">
+                  Admin · Batch Upload
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={handleParseBatch}
+                  >
+                    Parse preview
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    onClick={handleCommitBatch}
+                    disabled={!batchPreview.length || batchUploading}
+                  >
+                    {batchUploading ? "Uploading…" : "Commit to DB"}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-100/80">
+                Paste tab-separated rows from your sheet. First row must be
+                headers (Item Name, Timeline Tag, Cost (Credits), Category, Subtype, 
+                Genre Tags, Mechanical Effect, Weight, Narrative/Variant Notes).
+                Existing items are matched by name (case-insensitive).
+              </p>
+              <textarea
+                className="w-full h-32 rounded-lg border border-white/15 bg-black/60 p-2 text-xs text-zinc-100 font-mono"
+                value={batchText}
+                onChange={(e) => setBatchText(e.target.value)}
+                placeholder="Item Name	Timeline Tag	Cost (Credits)	Category	Subtype	Genre Tags	Mechanical Effect	Weight	Narrative/Variant Notes"
+              />
+              {batchError && (
+                <p className="text-[11px] text-rose-300">
+                  {batchError}
+                </p>
+              )}
+              {batchPreview.length > 0 && !batchError && (
+                <div className="text-[11px] text-amber-100/90">
+                  Parsed{" "}
+                  <span className="font-semibold">
+                    {batchPreview.length}
+                  </span>{" "}
+                  items:&nbsp;
+                  {batchPreview
+                    .map((i) => i.name)
+                    .slice(0, 5)
+                    .join(", ")}
+                  {batchPreview.length > 5 ? "…" : ""}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* MIDDLE: item editor */}

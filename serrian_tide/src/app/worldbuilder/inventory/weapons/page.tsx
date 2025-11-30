@@ -14,8 +14,6 @@ import { InventoryNav } from "@/components/worldbuilder/InventoryNav";
 
 /* ---------- types & helpers ---------- */
 
-type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
-
 // how the item is used, from the builder's perspective
 type UsageType = "consumable" | "charges" | "at_will" | "other";
 type RechargeWindow = "none" | "scene" | "session" | "rest" | "day" | "custom";
@@ -68,10 +66,6 @@ export type WeaponRow = {
   recharge_window?: RechargeWindow | null;
   recharge_notes?: string | null;
   effect_hooks?: ItemHook[] | null;
-
-  // in DB but no explicit UI for these
-  shop_ready?: boolean;
-  shop_role?: ShopRole;
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -87,6 +81,83 @@ const GENRE_PRESETS = [
   "steampunk",
   "modern",
 ] as const;
+
+/* ---------- TSV batch parsing ---------- */
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/[()]/g, "");
+}
+
+function parseTSVToWeaponRecords(raw: string): WeaponRow[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) {
+    throw new Error("Need a header row plus at least one data row.");
+  }
+
+  const headerCells = (lines[0] ?? "").split("\t").map((h) => h.trim());
+  const headersNorm = headerCells.map(normalizeHeader);
+
+  const findIndex = (...candidates: string[]) => {
+    for (const c of candidates) {
+      const norm = c.toLowerCase().replace(/[()]/g, "");
+      const i = headersNorm.findIndex((h) => h === norm);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const records: WeaponRow[] = [];
+
+  for (let li = 1; li < lines.length; li++) {
+    const cols = (lines[li] ?? "").split("\t");
+
+    const get = (...names: string[]): string => {
+      const idx = findIndex(...names);
+      if (idx === -1) return "";
+      return (cols[idx] ?? "").trim();
+    };
+
+    const name = get("Weapon Name", "Name");
+    if (!name) continue;
+
+    const timelineTag = get("Timeline Tag");
+    const costCredits = get("Cost Credits", "Cost");
+    const category = get("Category");
+    const handedness = get("Handedness");
+    const dtype = get("Type");
+    const rangeType = get("Range Type");
+    const rangeText = get("Range");
+    const genreTags = get("Genre Tags");
+    const weight = get("Weight");
+    const damage = get("Damage");
+    const effect = get("Effect");
+    const narrativeNotes = get("Narrative/Variant Notes", "Narrative Notes");
+
+    const rec: WeaponRow = {
+      id: uid(),
+      name,
+      is_free: false,
+      timeline_tag: timelineTag || null,
+      cost_credits: costCredits ? parseFloat(costCredits) : null,
+      category: category || null,
+      handedness: handedness || null,
+      dtype: dtype || null,
+      range_type: rangeType || null,
+      range_text: rangeText || null,
+      genre_tags: genreTags || null,
+      weight: weight ? parseFloat(weight) : null,
+      damage: damage ? parseFloat(damage) : null,
+      effect: effect || null,
+      narrative_notes: narrativeNotes || null,
+    };
+
+    records.push(rec);
+  }
+
+  return records;
+}
 
 /* ---------- main page ---------- */
 
@@ -119,6 +190,12 @@ export default function InventoryWeaponsPage() {
     {}
   );
 
+  const [batchText, setBatchText] = useState("");
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchPreview, setBatchPreview] = useState<WeaponRow[]>([]);
+  const [batchUploading, setBatchUploading] = useState(false);
+  const isAdmin = currentUser?.role?.toLowerCase() === "admin";
+
   // load user + weapons
   useEffect(() => {
     async function loadWeapons() {
@@ -138,8 +215,6 @@ export default function InventoryWeaponsPage() {
         const mapped: WeaponRow[] = (data.weapons || []).map((w: any) => ({
           ...w,
           is_free: w.isFree,
-          shop_ready: w.shopReady,
-          shop_role: w.shopRole ?? null,
 
           // usage / charges (future DB fields, safe to be undefined for now)
           usage_type: w.usageType ?? w.usage_type ?? null,
@@ -221,8 +296,6 @@ export default function InventoryWeaponsPage() {
       id,
       name: "New Weapon",
       is_free: false,
-      shop_ready: true,
-      shop_role: "shop_stock",
       timeline_tag: null,
       cost_credits: null,
       category: "melee",
@@ -317,8 +390,6 @@ export default function InventoryWeaponsPage() {
       const payload: any = {
         name: selected.name,
         isFree: selected.is_free ?? false,
-        shopReady: true,
-        shopRole: "shop_stock",
         timelineTag: selected.timeline_tag ?? null,
         costCredits: selected.cost_credits ?? null,
         category: selected.category ?? null,
@@ -371,8 +442,6 @@ export default function InventoryWeaponsPage() {
           const transformed: WeaponRow = {
             ...saved,
             is_free: saved.isFree,
-            shop_ready: saved.shopReady,
-            shop_role: saved.shopRole ?? null,
           };
           setWeapons((prev) =>
             prev.map((r) =>
@@ -404,6 +473,123 @@ export default function InventoryWeaponsPage() {
     if (bits.includes(tag)) return;
     const next = [...bits, tag].join(", ");
     updateSelected({ genre_tags: next });
+  }
+
+  /* ---------- batch upload ---------- */
+
+  function handleParseBatch() {
+    try {
+      if (!batchText.trim()) {
+        setBatchError("No TSV data provided");
+        setBatchPreview([]);
+        return;
+      }
+      const parsed = parseTSVToWeaponRecords(batchText);
+      setBatchPreview(parsed);
+      setBatchError(null);
+    } catch (err) {
+      setBatchError(err instanceof Error ? err.message : "Parse error");
+      setBatchPreview([]);
+    }
+  }
+
+  async function handleCommitBatch() {
+    if (!isAdmin) {
+      alert("Admin only");
+      return;
+    }
+    if (batchPreview.length === 0) {
+      alert("No items in preview");
+      return;
+    }
+    if (!confirm(`Upload ${batchPreview.length} weapon(s)?`)) {
+      return;
+    }
+
+    setBatchUploading(true);
+    try {
+      const updatedWeapons = [...weapons];
+
+      for (const row of batchPreview) {
+        const name = row.name.trim();
+        if (!name) continue;
+
+        const existingIdx = updatedWeapons.findIndex(
+          (i) => i.name.trim().toLowerCase() === name.toLowerCase()
+        );
+
+        const payload = {
+          name: row.name,
+          isFree: row.is_free ?? false,
+          timelineTag: row.timeline_tag,
+          costCredits: row.cost_credits,
+          category: row.category,
+          handedness: row.handedness,
+          dtype: row.dtype,
+          rangeType: row.range_type,
+          rangeText: row.range_text,
+          genreTags: row.genre_tags,
+          weight: row.weight,
+          damage: row.damage,
+          effect: row.effect,
+          narrativeNotes: row.narrative_notes,
+        };
+
+        let response;
+        if (existingIdx >= 0) {
+          const existing = updatedWeapons[existingIdx];
+          if (!existing) continue;
+          response = await fetch(`/api/worldbuilder/inventory/weapons/${existing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          response = await fetch("/api/worldbuilder/inventory/weapons", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        const data = await response.json();
+        if (!data.ok) {
+          throw new Error(
+            data.error || `Failed to save weapon "${row.name}"`
+          );
+        }
+
+        if (existingIdx >= 0) {
+          const existing = updatedWeapons[existingIdx];
+          if (!existing) continue;
+          updatedWeapons[existingIdx] = {
+            ...existing,
+            ...row,
+          };
+        } else if (data.weapon) {
+          updatedWeapons.unshift({
+            ...row,
+            id: data.weapon.id,
+            createdBy: currentUser?.id,
+          });
+        }
+      }
+
+      setWeapons(updatedWeapons);
+      setBatchText("");
+      setBatchPreview([]);
+      setBatchError(null);
+      alert("Batch upload complete.");
+    } catch (err) {
+      console.error("Batch upload error:", err);
+      alert(
+        `Batch upload failed: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setBatchUploading(false);
+    }
   }
 
   function addHook() {
@@ -681,6 +867,57 @@ export default function InventoryWeaponsPage() {
             </div>
           </div>
         </Card>
+
+        {/* Admin: Batch Upload */}
+        {isAdmin && (
+          <Card
+            padded={false}
+            className="rounded-3xl border border-amber-300/40 bg-amber-300/5 backdrop-blur p-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-semibold text-amber-100">
+                Admin · Batch Upload
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  type="button"
+                  onClick={handleParseBatch}
+                  disabled={!batchText.trim()}
+                >
+                  Parse preview
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="button"
+                  onClick={handleCommitBatch}
+                  disabled={batchPreview.length === 0 || batchUploading}
+                >
+                  {batchUploading ? "Uploading..." : "Commit to DB"}
+                </Button>
+              </div>
+            </div>
+
+            <textarea
+              className="w-full h-32 rounded-lg border border-amber-300/30 bg-black/40 px-3 py-2 text-xs text-zinc-100 font-mono resize-y"
+              placeholder="Weapon Name	Timeline Tag	Cost (Credits)	Category	Handedness	Type	Range Type	Range	Genre Tags	Weight	Damage	Effect	Narrative/Variant Notes"
+              value={batchText}
+              onChange={(e) => setBatchText(e.target.value)}
+            />
+
+            {batchError && (
+              <p className="mt-2 text-xs text-rose-300">{batchError}</p>
+            )}
+            {batchPreview.length > 0 && (
+              <div className="mt-2 text-xs text-amber-200">
+                Parsed {batchPreview.length} weapon(s). Click "Commit to DB" to
+                upload.
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* MIDDLE: editor */}
         <Card
