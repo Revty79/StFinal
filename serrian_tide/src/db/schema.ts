@@ -661,6 +661,21 @@ export const calendarSeasons = pgTable('calendar_seasons', {
   byCalendar: index('idx_calendar_seasons_calendar_id').on(t.calendarId),
 }));
 
+export const calendarAstronomicalEvents = pgTable('calendar_astronomical_events', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 })
+    .notNull()
+    .references(() => calendars.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  dayOfYear: integer('day_of_year').notNull(),
+  eventType: varchar('event_type', { length: 100 }).notNull(),
+  celestialBody: varchar('celestial_body', { length: 255 }),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCalendar: index('idx_calendar_astronomical_events_calendar_id').on(t.calendarId),
+}));
+
 export const calendarFestivals = pgTable('calendar_festivals', {
   id: varchar('id', { length: 36 }).primaryKey(),
   calendarId: varchar('calendar_id', { length: 36 })

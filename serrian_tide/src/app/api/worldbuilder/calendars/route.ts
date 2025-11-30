@@ -75,6 +75,20 @@ export async function GET(req: Request) {
         (
           SELECT json_agg(
             json_build_object(
+              'id', cae.id,
+              'name', cae.name,
+              'dayOfYear', cae.day_of_year,
+              'eventType', cae.event_type,
+              'celestialBody', cae.celestial_body,
+              'description', cae.description
+            )
+          )
+          FROM calendar_astronomical_events cae
+          WHERE cae.calendar_id = c.id
+        ) as astronomical_events,
+        (
+          SELECT json_agg(
+            json_build_object(
               'id', cf.id,
               'name', cf.name,
               'dayRule', cf.day_rule,
@@ -108,6 +122,7 @@ export async function GET(req: Request) {
       weekdays: row.weekdays || [],
       months: row.months || [],
       seasons: row.seasons || [],
+      astronomicalEvents: row.astronomical_events || [],
       festivals: row.festivals || [],
     }));
 
@@ -213,6 +228,24 @@ export async function POST(req: Request) {
             season.daylightHours || null,
             season.dawnDuskHours || null,
             season.nightHours || null,
+          ]
+        );
+      }
+    }
+
+    // Insert astronomical events
+    if (body.astronomicalEvents && Array.isArray(body.astronomicalEvents)) {
+      for (const event of body.astronomicalEvents) {
+        await client.query(
+          `INSERT INTO calendar_astronomical_events (id, calendar_id, name, day_of_year, event_type, celestial_body, description) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            crypto.randomUUID(),
+            calendarId,
+            event.name,
+            event.dayOfYear,
+            event.eventType,
+            event.celestialBody || null,
+            event.description || null,
           ]
         );
       }

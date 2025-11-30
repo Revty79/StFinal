@@ -13,7 +13,7 @@ import { WBNav } from "@/components/worldbuilder/WBNav";
 
 /* ---------- types & helpers ---------- */
 
-type CalendarTabKey = "time" | "structure" | "seasons" | "festivals" | "preview";
+type CalendarTabKey = "time" | "structure" | "seasons" | "astronomical" | "festivals" | "preview";
 
 // Week structure within a month
 type WeekStructure = {
@@ -55,6 +55,15 @@ type FestivalDef = {
   description?: string | null;
 };
 
+type AstronomicalEventDef = {
+  id: string;
+  name: string;
+  dayOfYear: number;
+  eventType: string; // e.g., 'solstice', 'equinox', 'eclipse', 'alignment'
+  celestialBody?: string | null; // e.g., 'First Sun', 'Blue Moon', 'Red Moon'
+  description?: string | null;
+};
+
 type CalendarRow = {
   id: string;
   name: string;
@@ -85,6 +94,9 @@ type CalendarRow = {
   // Seasons
   seasons: SeasonDef[];
   
+  // Astronomical Events
+  astronomicalEvents: AstronomicalEventDef[];
+  
   // Festivals
   festivals: FestivalDef[];
 };
@@ -93,6 +105,7 @@ const CAL_TABS: { id: CalendarTabKey; label: string }[] = [
   { id: "time", label: "Time & Day/Night" },
   { id: "structure", label: "Month Structure" },
   { id: "seasons", label: "Seasons" },
+  { id: "astronomical", label: "Astronomical Events" },
   { id: "festivals", label: "Festivals" },
   { id: "preview", label: "Preview" },
 ];
@@ -185,6 +198,7 @@ export default function CalendarBuilderPage() {
       ],
       months: [],
       seasons: [],
+      astronomicalEvents: [],
       festivals: [],
     };
 
@@ -280,6 +294,11 @@ export default function CalendarBuilderPage() {
   function patchSeasons(mod: (list: SeasonDef[]) => SeasonDef[]) {
     if (!selected) return;
     patchSelected({ seasons: mod(selected.seasons) });
+  }
+
+  function patchAstronomicalEvents(mod: (list: AstronomicalEventDef[]) => AstronomicalEventDef[]) {
+    if (!selected) return;
+    patchSelected({ astronomicalEvents: mod(selected.astronomicalEvents) });
   }
 
   function patchFestivals(mod: (list: FestivalDef[]) => FestivalDef[]) {
@@ -961,7 +980,7 @@ export default function CalendarBuilderPage() {
                       <div>
                         <h3 className="text-sm font-semibold text-zinc-200">Seasons</h3>
                         <p className="text-xs text-zinc-400 mt-0.5">
-                          Optionally define how daylight hours change with seasons
+                          Define when seasons begin and optionally adjust daylight hours per season
                         </p>
                       </div>
                       <Button
@@ -986,114 +1005,165 @@ export default function CalendarBuilderPage() {
                         + Add Season
                       </Button>
                     </div>
+
+                    {/* Guidance Card */}
+                    <Card className="border border-violet-500/20 bg-violet-950/10 p-3">
+                      <h4 className="text-xs font-semibold text-violet-300 mb-2">💡 Building Your Calendar Seasons</h4>
+                      <ul className="text-xs text-zinc-300 space-y-1.5 list-disc list-inside">
+                        <li><strong>Season Name & Start Day:</strong> Name your season and set which day of the year it begins (e.g., Spring starts on day 1, Summer on day 91)</li>
+                        <li><strong>Day/Night Cycles:</strong> View each season's daylight hours. Click "Customize" to override and create longer summer days or shorter winter days</li>
+                        <li><strong>Astronomical Events:</strong> Use the Astronomical Events tab to create solstices, equinoxes, eclipses, and other celestial events for your world's moons and suns</li>
+                        <li><strong>Validation:</strong> Watch for warnings about overlapping seasons or incorrect hour totals to ensure your calendar is consistent</li>
+                        <li><strong>Example:</strong> Create 4 seasons - Spring (day 1, 12h), Summer (day 91, 16h), Autumn (day 182, 12h), Winter (day 274, 8h)</li>
+                      </ul>
+                    </Card>
+
                     {selected.seasons.length === 0 ? (
                       <p className="text-xs text-zinc-500 py-4 text-center">No seasons defined</p>
                     ) : (
                       <div className="space-y-3">
-                        {selected.seasons.map((s) => (
-                          <Card
-                            key={s.id}
-                            padded={false}
-                            className="border border-white/10 bg-black/20 p-3 space-y-3"
-                          >
-                            <div className="grid grid-cols-[2fr,1fr,auto] gap-2">
-                              <Input
-                                value={s.name}
-                                onChange={(e) =>
-                                  patchSeasons((list) =>
-                                    list.map((ss) =>
-                                      ss.id === s.id ? { ...ss, name: e.target.value } : ss
-                                    )
-                                  )
-                                }
-                                placeholder="Season name"
-                              />
-                              <Input
-                                type="number"
-                                value={s.startDayOfYear}
-                                onChange={(e) =>
-                                  patchSeasons((list) =>
-                                    list.map((ss) =>
-                                      ss.id === s.id
-                                        ? { ...ss, startDayOfYear: Number(e.target.value) || 1 }
-                                        : ss
-                                    )
-                                  )
-                                }
-                                placeholder="Start day"
-                              />
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                type="button"
-                                onClick={() =>
-                                  patchSeasons((list) => list.filter((ss) => ss.id !== s.id))
-                                }
-                              >
-                                Remove
-                              </Button>
-                            </div>
-                            
-                            <Input
-                              value={s.description ?? ""}
-                              onChange={(e) =>
-                                patchSeasons((list) =>
-                                  list.map((ss) =>
-                                    ss.id === s.id
-                                      ? { ...ss, description: e.target.value || null }
-                                      : ss
-                                  )
-                                )
-                              }
-                              placeholder="Description (optional)"
-                            />
-
-                            <div className="border-t border-white/10 pt-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-xs font-semibold text-zinc-300">
-                                  Seasonal Day/Night Cycle
-                                </h4>
-                                <button
+                        {selected.seasons.map((s, idx) => {
+                          // Check for overlapping seasons
+                          const nextSeason = selected.seasons[idx + 1];
+                          const hasOverlap = nextSeason && s.startDayOfYear >= nextSeason.startDayOfYear;
+                          
+                          return (
+                            <Card
+                              key={s.id}
+                              padded={false}
+                              className="border border-white/10 bg-black/20 p-4 space-y-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 space-y-3">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <FormField label="Season Name" htmlFor={`s-name-${s.id}`}>
+                                      <Input
+                                        id={`s-name-${s.id}`}
+                                        value={s.name}
+                                        onChange={(e) =>
+                                          patchSeasons((list) =>
+                                            list.map((ss) =>
+                                              ss.id === s.id ? { ...ss, name: e.target.value } : ss
+                                            )
+                                          )
+                                        }
+                                        placeholder="e.g., Spring, Summer, Autumn, Winter"
+                                      />
+                                    </FormField>
+                                    <FormField label="Start Day of Year" htmlFor={`s-start-${s.id}`}>
+                                      <Input
+                                        id={`s-start-${s.id}`}
+                                        type="number"
+                                        min="1"
+                                        max={selected.daysPerYear}
+                                        value={s.startDayOfYear}
+                                        onChange={(e) =>
+                                          patchSeasons((list) =>
+                                            list.map((ss) =>
+                                              ss.id === s.id
+                                                ? { ...ss, startDayOfYear: Number(e.target.value) || 1 }
+                                                : ss
+                                            )
+                                          )
+                                        }
+                                        placeholder="Day 1-365"
+                                      />
+                                    </FormField>
+                                  </div>
+                                  
+                                  <FormField label="Description (Optional)" htmlFor={`s-desc-${s.id}`}>
+                                    <Input
+                                      id={`s-desc-${s.id}`}
+                                      value={s.description ?? ""}
+                                      onChange={(e) =>
+                                        patchSeasons((list) =>
+                                          list.map((ss) =>
+                                            ss.id === s.id
+                                              ? { ...ss, description: e.target.value || null }
+                                              : ss
+                                          )
+                                        )
+                                      }
+                                      placeholder="Describe this season (weather, climate, etc.)"
+                                    />
+                                  </FormField>
+                                  
+                                  {hasOverlap && (
+                                    <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
+                                      ⚠️ Warning: This season overlaps with the next season. Each season should start after the previous one ends.
+                                    </div>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   type="button"
-                                  className="text-xs text-zinc-400 hover:text-zinc-200"
-                                  onClick={() => {
-                                    if (s.daylightHours != null) {
-                                      // Clear seasonal override
-                                      patchSeasons((list) =>
-                                        list.map((ss) =>
-                                          ss.id === s.id
-                                            ? { ...ss, daylightHours: null, dawnDuskHours: null, nightHours: null }
-                                            : ss
-                                        )
-                                      );
-                                    } else {
-                                      // Set to calendar defaults
-                                      patchSeasons((list) =>
-                                        list.map((ss) =>
-                                          ss.id === s.id
-                                            ? {
-                                                ...ss,
-                                                daylightHours: selected.daylightHours,
-                                                dawnDuskHours: selected.dawnDuskHours,
-                                                nightHours: selected.nightHours,
-                                              }
-                                            : ss
-                                        )
-                                      );
-                                    }
-                                  }}
+                                  onClick={() =>
+                                    patchSeasons((list) => list.filter((ss) => ss.id !== s.id))
+                                  }
+                                  className="text-red-400 hover:text-red-300 mt-6"
                                 >
-                                  {s.daylightHours != null ? "Use calendar default" : "Override for this season"}
-                                </button>
+                                  Remove
+                                </Button>
                               </div>
 
-                              {s.daylightHours != null && (
-                                <div className="grid grid-cols-3 gap-2">
-                                  <FormField label="Daylight" htmlFor={`s-day-${s.id}`}>
+                              {/* Day/Night Cycle - Always Visible */}
+                              <div className="border-t border-white/10 pt-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-zinc-300">
+                                      Day/Night Cycle
+                                    </h4>
+                                    <p className="text-xs text-zinc-500 mt-0.5">
+                                      {s.daylightHours != null 
+                                        ? `Custom cycle for this season (${s.daylightHours}h daylight)`
+                                        : `Using calendar default (${selected.daylightHours}h daylight)`
+                                      }
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="text-xs px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-zinc-100 transition-colors"
+                                    onClick={() => {
+                                      if (s.daylightHours != null) {
+                                        // Clear seasonal override
+                                        patchSeasons((list) =>
+                                          list.map((ss) =>
+                                            ss.id === s.id
+                                              ? { ...ss, daylightHours: null, dawnDuskHours: null, nightHours: null }
+                                              : ss
+                                          )
+                                        );
+                                      } else {
+                                        // Set to calendar defaults for editing
+                                        patchSeasons((list) =>
+                                          list.map((ss) =>
+                                            ss.id === s.id
+                                              ? {
+                                                  ...ss,
+                                                  daylightHours: selected.daylightHours,
+                                                  dawnDuskHours: selected.dawnDuskHours,
+                                                  nightHours: selected.nightHours,
+                                                }
+                                              : ss
+                                          )
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {s.daylightHours != null ? "↩ Use Default" : "✏️ Customize"}
+                                  </button>
+                                </div>
+
+                                {/* Always show current values */}
+                                <div className="grid grid-cols-3 gap-3">
+                                  <FormField label="Daylight Hours" htmlFor={`s-day-${s.id}`}>
                                     <Input
                                       id={`s-day-${s.id}`}
                                       type="number"
-                                      value={s.daylightHours ?? 0}
+                                      min="0"
+                                      max={selected.hoursPerDay}
+                                      value={s.daylightHours ?? selected.daylightHours}
                                       onChange={(e) =>
                                         patchSeasons((list) =>
                                           list.map((ss) =>
@@ -1103,14 +1173,18 @@ export default function CalendarBuilderPage() {
                                           )
                                         )
                                       }
+                                      disabled={s.daylightHours == null}
                                       placeholder="Hours"
+                                      className={s.daylightHours == null ? "opacity-60" : ""}
                                     />
                                   </FormField>
-                                  <FormField label="Dawn/Dusk" htmlFor={`s-dawn-${s.id}`}>
+                                  <FormField label="Dawn/Dusk Hours" htmlFor={`s-dawn-${s.id}`}>
                                     <Input
                                       id={`s-dawn-${s.id}`}
                                       type="number"
-                                      value={s.dawnDuskHours ?? 0}
+                                      min="0"
+                                      max={selected.hoursPerDay}
+                                      value={s.dawnDuskHours ?? selected.dawnDuskHours}
                                       onChange={(e) =>
                                         patchSeasons((list) =>
                                           list.map((ss) =>
@@ -1120,14 +1194,18 @@ export default function CalendarBuilderPage() {
                                           )
                                         )
                                       }
+                                      disabled={s.dawnDuskHours == null}
                                       placeholder="Hours"
+                                      className={s.dawnDuskHours == null ? "opacity-60" : ""}
                                     />
                                   </FormField>
-                                  <FormField label="Night" htmlFor={`s-night-${s.id}`}>
+                                  <FormField label="Night Hours" htmlFor={`s-night-${s.id}`}>
                                     <Input
                                       id={`s-night-${s.id}`}
                                       type="number"
-                                      value={s.nightHours ?? 0}
+                                      min="0"
+                                      max={selected.hoursPerDay}
+                                      value={s.nightHours ?? selected.nightHours}
                                       onChange={(e) =>
                                         patchSeasons((list) =>
                                           list.map((ss) =>
@@ -1137,17 +1215,188 @@ export default function CalendarBuilderPage() {
                                           )
                                         )
                                       }
+                                      disabled={s.nightHours == null}
                                       placeholder="Hours"
+                                      className={s.nightHours == null ? "opacity-60" : ""}
                                     />
                                   </FormField>
                                 </div>
-                              )}
-                              
-                              {s.daylightHours == null && (
-                                <p className="text-xs text-zinc-500 italic">
-                                  Using calendar default: {selected.daylightHours}h day, {selected.dawnDuskHours}h dawn/dusk, {selected.nightHours}h night
-                                </p>
-                              )}
+                                
+                                {/* Total hours validation */}
+                                <div className="text-xs text-zinc-400">
+                                  Total: {(s.daylightHours ?? selected.daylightHours) + (s.dawnDuskHours ?? selected.dawnDuskHours) + (s.nightHours ?? selected.nightHours)}h / {selected.hoursPerDay}h per day
+                                  {(s.daylightHours ?? selected.daylightHours) + (s.dawnDuskHours ?? selected.dawnDuskHours) + (s.nightHours ?? selected.nightHours) !== selected.hoursPerDay && (
+                                    <span className="text-yellow-400 ml-2">⚠️ Should equal {selected.hoursPerDay}h</span>
+                                  )}
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ASTRONOMICAL EVENTS TAB */}
+                {activeTab === "astronomical" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-200">Astronomical Events</h3>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Define solstices, equinoxes, eclipses, and celestial alignments for your world's moons and suns
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        type="button"
+                        onClick={() =>
+                          patchAstronomicalEvents((list) => [
+                            ...list,
+                            {
+                              id: uid(),
+                              name: `Event ${list.length + 1}`,
+                              dayOfYear: 1,
+                              eventType: "solstice",
+                              celestialBody: null,
+                              description: null,
+                            },
+                          ])
+                        }
+                      >
+                        + Add Event
+                      </Button>
+                    </div>
+
+                    {/* Guidance Card */}
+                    <Card className="border border-cyan-500/20 bg-cyan-950/10 p-3">
+                      <h4 className="text-xs font-semibold text-cyan-300 mb-2">🌙 Creating Astronomical Events</h4>
+                      <ul className="text-xs text-zinc-300 space-y-1.5 list-disc list-inside">
+                        <li><strong>Event Types:</strong> Create solstices (shortest/longest days), equinoxes (equal day/night), eclipses, planetary alignments, or custom celestial events</li>
+                        <li><strong>Multiple Celestial Bodies:</strong> If your world has multiple suns or moons, create separate events for each (e.g., "First Sun Winter Solstice", "Blue Moon Eclipse")</li>
+                        <li><strong>Day of Year:</strong> Set which day this event occurs (can match season start days or be independent)</li>
+                        <li><strong>Example:</strong> Winter Solstice (day 1, shortest daylight), Spring Equinox (day 91, equal day/night), Red Moon Eclipse (day 200)</li>
+                      </ul>
+                    </Card>
+
+                    {selected.astronomicalEvents.length === 0 ? (
+                      <p className="text-xs text-zinc-500 py-4 text-center">No astronomical events defined</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {selected.astronomicalEvents.map((event) => (
+                          <Card
+                            key={event.id}
+                            padded={false}
+                            className="border border-white/10 bg-black/20 p-4 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 space-y-3">
+                                <div className="grid grid-cols-3 gap-3">
+                                  <FormField label="Event Name" htmlFor={`ae-name-${event.id}`}>
+                                    <Input
+                                      id={`ae-name-${event.id}`}
+                                      value={event.name}
+                                      onChange={(e) =>
+                                        patchAstronomicalEvents((list) =>
+                                          list.map((ae) =>
+                                            ae.id === event.id ? { ...ae, name: e.target.value } : ae
+                                          )
+                                        )
+                                      }
+                                      placeholder="e.g., Winter Solstice, Spring Equinox"
+                                    />
+                                  </FormField>
+                                  <FormField label="Day of Year" htmlFor={`ae-day-${event.id}`}>
+                                    <Input
+                                      id={`ae-day-${event.id}`}
+                                      type="number"
+                                      min="1"
+                                      max={selected.daysPerYear}
+                                      value={event.dayOfYear}
+                                      onChange={(e) =>
+                                        patchAstronomicalEvents((list) =>
+                                          list.map((ae) =>
+                                            ae.id === event.id
+                                              ? { ...ae, dayOfYear: Number(e.target.value) || 1 }
+                                              : ae
+                                          )
+                                        )
+                                      }
+                                      placeholder="1-365"
+                                    />
+                                  </FormField>
+                                  <FormField label="Event Type" htmlFor={`ae-type-${event.id}`}>
+                                    <select
+                                      id={`ae-type-${event.id}`}
+                                      value={event.eventType}
+                                      onChange={(e) =>
+                                        patchAstronomicalEvents((list) =>
+                                          list.map((ae) =>
+                                            ae.id === event.id ? { ...ae, eventType: e.target.value } : ae
+                                          )
+                                        )
+                                      }
+                                      className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
+                                    >
+                                      <option value="solstice">Solstice</option>
+                                      <option value="equinox">Equinox</option>
+                                      <option value="eclipse">Eclipse</option>
+                                      <option value="alignment">Planetary Alignment</option>
+                                      <option value="conjunction">Conjunction</option>
+                                      <option value="opposition">Opposition</option>
+                                      <option value="transit">Transit</option>
+                                      <option value="other">Other</option>
+                                    </select>
+                                  </FormField>
+                                </div>
+                                
+                                <FormField label="Celestial Body (Optional)" htmlFor={`ae-body-${event.id}`}>
+                                  <Input
+                                    id={`ae-body-${event.id}`}
+                                    value={event.celestialBody ?? ""}
+                                    onChange={(e) =>
+                                      patchAstronomicalEvents((list) =>
+                                        list.map((ae) =>
+                                          ae.id === event.id
+                                            ? { ...ae, celestialBody: e.target.value || null }
+                                            : ae
+                                        )
+                                      )
+                                    }
+                                    placeholder="e.g., First Sun, Blue Moon, Red Giant Star"
+                                  />
+                                </FormField>
+                                
+                                <FormField label="Description (Optional)" htmlFor={`ae-desc-${event.id}`}>
+                                  <Input
+                                    id={`ae-desc-${event.id}`}
+                                    value={event.description ?? ""}
+                                    onChange={(e) =>
+                                      patchAstronomicalEvents((list) =>
+                                        list.map((ae) =>
+                                          ae.id === event.id
+                                            ? { ...ae, description: e.target.value || null }
+                                            : ae
+                                        )
+                                      )
+                                    }
+                                    placeholder="Describe this event (e.g., shortest day, equal day/night, double moons align)"
+                                  />
+                                </FormField>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                type="button"
+                                onClick={() =>
+                                  patchAstronomicalEvents((list) => list.filter((ae) => ae.id !== event.id))
+                                }
+                                className="text-red-400 hover:text-red-300"
+                              >
+                                Remove
+                              </Button>
                             </div>
                           </Card>
                         ))}
