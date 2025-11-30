@@ -45,9 +45,9 @@ export type ItemRow = {
 type UsageType = "consumable" | "charges" | "at_will" | "other";
 type RechargeWindow = "none" | "scene" | "session" | "rest" | "day" | "custom";
 
-type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "other";
-type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "other";
-type ItemHookKind = "heal" | "damage" | "buff" | "debuff" | "utility" | "other";
+type ItemHookTrigger = "on_use" | "on_equip" | "passive" | "container" | "other";
+type ItemHookTarget = "self" | "ally" | "enemy" | "area" | "contents" | "other";
+type ItemHookKind = "heal" | "damage" | "buff" | "debuff" | "utility" | "container" | "other";
 
 type ItemHook = {
   id: string;
@@ -55,7 +55,11 @@ type ItemHook = {
   target: ItemHookTarget;
   kind: ItemHookKind;
   amount?: number | null;
-  label: string; // plain effect text (e.g. "Restore 5 HP")
+  label: string; // plain effect text (e.g. "Restore 5 HP", "Holds 500 lbs")
+  
+  // Container-specific fields (when kind === "container")
+  containerCapacity?: number | null; // max weight in lbs/kg
+  weightReduction?: number | null; // percentage (0-100), e.g. 100 = bag of holding
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -205,16 +209,24 @@ export default function InventoryItemsPage() {
         const mapped: ItemRow[] = (itemsData.items || []).map((i: any) => ({
           ...i,
           is_free: i.isFree,
-          shop_ready: i.shopReady,
-          shop_role: i.shopRole ?? null,
+          
+          // map camelCase from API to snake_case for UI
+          timeline_tag: i.timelineTag ?? i.timeline_tag ?? null,
+          cost_credits: i.costCredits ?? i.cost_credits ?? null,
+          category: i.category ?? null,
+          subtype: i.subtype ?? null,
+          weight: i.weight ?? null,
+          genre_tags: i.genreTags ?? i.genre_tags ?? null,
+          mechanical_effect: i.mechanicalEffect ?? i.mechanical_effect ?? null,
+          narrative_notes: i.narrativeNotes ?? i.narrative_notes ?? null,
 
-          // usage / charges (future DB fields, safe to be undefined for now)
+          // usage / charges
           usage_type: i.usageType ?? i.usage_type ?? null,
           max_charges: i.maxCharges ?? i.max_charges ?? null,
           recharge_window: i.rechargeWindow ?? i.recharge_window ?? null,
           recharge_notes: i.rechargeNotes ?? i.recharge_notes ?? null,
 
-          // structured hooks (when you start persisting them)
+          // structured hooks
           effect_hooks: i.effectHooks ?? i.effect_hooks ?? null,
         }));
 
@@ -1281,6 +1293,7 @@ export default function InventoryItemsPage() {
                         <option value="on_use">on_use</option>
                         <option value="on_equip">on_equip</option>
                         <option value="passive">passive</option>
+                        <option value="container">container</option>
                         <option value="other">other</option>
                       </select>
 
@@ -1297,6 +1310,7 @@ export default function InventoryItemsPage() {
                         <option value="ally">ally</option>
                         <option value="enemy">enemy</option>
                         <option value="area">area</option>
+                        <option value="contents">contents</option>
                         <option value="other">other</option>
                       </select>
 
@@ -1314,6 +1328,7 @@ export default function InventoryItemsPage() {
                         <option value="buff">buff</option>
                         <option value="debuff">debuff</option>
                         <option value="utility">utility</option>
+                        <option value="container">container</option>
                         <option value="other">other</option>
                       </select>
 
@@ -1335,12 +1350,58 @@ export default function InventoryItemsPage() {
 
                     <Input
                       className="w-full text-[11px]"
-                      placeholder='e.g. "Restore 5 HP" or "Grant +1 to next attack roll"'
+                      placeholder='e.g. "Restore 5 HP" or "Holds 500 lbs, reduces weight 100%"'
                       value={hook.label}
                       onChange={(e) =>
                         updateHook(hook.id, { label: e.target.value })
                       }
                     />
+
+                    {/* Container-specific fields */}
+                    {hook.kind === "container" && (
+                      <div className="flex gap-2 pt-1">
+                        <div className="flex-1">
+                          <label className="text-[10px] text-emerald-200/60 block mb-1">
+                            Capacity (lbs/kg)
+                          </label>
+                          <Input
+                            type="number"
+                            className="w-full text-[11px]"
+                            placeholder="500"
+                            value={hook.containerCapacity ?? ""}
+                            onChange={(e) =>
+                              updateHook(hook.id, {
+                                containerCapacity:
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-emerald-200/60 block mb-1">
+                            Weight Reduction (%)
+                          </label>
+                          <Input
+                            type="number"
+                            className="w-full text-[11px]"
+                            placeholder="100"
+                            min="0"
+                            max="100"
+                            value={hook.weightReduction ?? ""}
+                            onChange={(e) =>
+                              updateHook(hook.id, {
+                                weightReduction:
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex justify-end">
                       <Button

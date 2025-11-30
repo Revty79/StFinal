@@ -210,14 +210,28 @@ export default function InventoryArmorPage() {
         const mapped: ArmorRow[] = (data.armor || []).map((a: any) => ({
           ...a,
           is_free: a.isFree,
+          
+          // map camelCase from API to snake_case for UI
+          timeline_tag: a.timelineTag ?? a.timeline_tag ?? null,
+          cost_credits: a.costCredits ?? a.cost_credits ?? null,
+          area_covered: a.areaCovered ?? a.area_covered ?? null,
+          soak: a.soak ?? null,
+          genre_tags: a.genreTags ?? a.genre_tags ?? null,
+          weight: a.weight ?? null,
+          encumbrance_penalty: a.encumbrancePenalty ?? a.encumbrance_penalty ?? null,
+          effect: a.effect ?? null,
+          narrative_notes: a.narrativeNotes ?? a.narrative_notes ?? null,
+          rarity: a.rarity ?? null,
+          attunement: a.attunement ?? null,
+          curse: a.curse ?? null,
 
-          // usage / charges (future DB fields, safe to be undefined for now)
+          // usage / charges
           usage_type: a.usageType ?? a.usage_type ?? null,
           max_charges: a.maxCharges ?? a.max_charges ?? null,
           recharge_window: a.rechargeWindow ?? a.recharge_window ?? null,
           recharge_notes: a.rechargeNotes ?? a.recharge_notes ?? null,
 
-          // structured hooks (when you start persisting them)
+          // structured hooks
           effect_hooks: a.effectHooks ?? a.effect_hooks ?? null,
         }));
 

@@ -215,14 +215,28 @@ export default function InventoryWeaponsPage() {
         const mapped: WeaponRow[] = (data.weapons || []).map((w: any) => ({
           ...w,
           is_free: w.isFree,
+          
+          // map camelCase from API to snake_case for UI
+          timeline_tag: w.timelineTag ?? w.timeline_tag ?? null,
+          cost_credits: w.costCredits ?? w.cost_credits ?? null,
+          range_type: w.rangeType ?? w.range_type ?? null,
+          range_text: w.rangeText ?? w.range_text ?? null,
+          genre_tags: w.genreTags ?? w.genre_tags ?? null,
+          weight: w.weight ?? null,
+          damage: w.damage ?? null,
+          effect: w.effect ?? null,
+          narrative_notes: w.narrativeNotes ?? w.narrative_notes ?? null,
+          rarity: w.rarity ?? null,
+          attunement: w.attunement ?? null,
+          curse: w.curse ?? null,
 
-          // usage / charges (future DB fields, safe to be undefined for now)
+          // usage / charges
           usage_type: w.usageType ?? w.usage_type ?? null,
           max_charges: w.maxCharges ?? w.max_charges ?? null,
           recharge_window: w.rechargeWindow ?? w.recharge_window ?? null,
           recharge_notes: w.rechargeNotes ?? w.recharge_notes ?? null,
 
-          // structured hooks (when you start persisting them)
+          // structured hooks
           effect_hooks: w.effectHooks ?? w.effect_hooks ?? null,
         }));
 
