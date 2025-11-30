@@ -565,6 +565,20 @@ CREATE TABLE IF NOT EXISTS "calendar_seasons" (
 
 CREATE INDEX IF NOT EXISTS "idx_calendar_seasons_calendar_id" ON "calendar_seasons"("calendar_id");
 
+-- Astronomical events (solstices, equinoxes, eclipses, alignments)
+CREATE TABLE IF NOT EXISTS "calendar_astronomical_events" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "calendar_id" varchar(36) NOT NULL REFERENCES "calendars"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "day_of_year" integer NOT NULL,
+  "event_type" varchar(100) NOT NULL,
+  "celestial_body" varchar(255),
+  "description" text,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_calendar_astronomical_events_calendar_id" ON "calendar_astronomical_events"("calendar_id");
+
 -- Festival/Observance definitions
 CREATE TABLE IF NOT EXISTS "calendar_festivals" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
