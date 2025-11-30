@@ -1129,33 +1129,34 @@ function parseBulkInput(text: string): BulkRow[] {
 
   for (const line of lines) {
     const cols = line.split("\t");
-    if (cols.length < 7) continue;
+    // Require at least name (5th column), allow missing parent and definition
+    if (cols.length < 5) continue;
 
     const [
-      primaryAttrRaw,
-      secondaryAttrRaw,
-      typeRaw,
-      tierRaw,
-      nameRaw,
-      parentRaw,
-      defRaw,
+      primaryAttrRaw = "",
+      secondaryAttrRaw = "",
+      typeRaw = "",
+      tierRaw = "",
+      nameRaw = "",
+      parentRaw = "",
+      defRaw = "",
     ] = cols;
 
-    const name = (nameRaw || "").trim();
+    const name = nameRaw.trim();
     if (!name) continue;
 
     rows.push({
-      primaryAttribute: normalizeAttr(primaryAttrRaw || ""),
-      secondaryAttribute: normalizeAttr(secondaryAttrRaw || ""),
-      type: normalizeType(typeRaw || ""),
-      tier: normalizeTier(tierRaw || ""),
+      primaryAttribute: normalizeAttr(primaryAttrRaw),
+      secondaryAttribute: normalizeAttr(secondaryAttrRaw),
+      type: normalizeType(typeRaw),
+      tier: normalizeTier(tierRaw),
       name,
       parentName:
-        (parentRaw || "").trim() &&
-        !/^(n\/a|na)$/i.test(parentRaw || "")
-          ? (parentRaw || "").trim()
+        parentRaw.trim() &&
+        !/^(n\/a|na)$/i.test(parentRaw)
+          ? parentRaw.trim()
           : null,
-      definition: (defRaw || "").trim(),
+      definition: defRaw.trim(),
     });
   }
 
@@ -1248,6 +1249,9 @@ export default function SkillsetsPage() {
   const [fPrimary, setFPrimary] = useState<"" | Attr>("");
   const [fSecondary, setFSecondary] = useState<"" | Attr>("");
   const [fTier, setFTier] = useState<"" | TierText>("");
+  const [fParent, setFParent] = useState<string>(""); // Filter by parent skill ID
+  const [fHasParent, setFHasParent] = useState<"" | "yes" | "no">(""); // Has any parent or not
+  const [fIsFree, setFIsFree] = useState<"" | "yes" | "no">(""); // Free content filter
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [pageIndex, setPageIndex] = useState<number>(0);
 
@@ -1267,6 +1271,22 @@ export default function SkillsetsPage() {
       if (fPrimary && s.primary_attribute !== fPrimary) return false;
       if (fSecondary && s.secondary_attribute !== fSecondary) return false;
       if (fTier && tierToText(s.tier) !== fTier) return false;
+      
+      // Parent filters
+      if (fParent) {
+        const hasThisParent = 
+          String(s.parent_id) === fParent || 
+          String(s.parent2_id) === fParent || 
+          String(s.parent3_id) === fParent;
+        if (!hasThisParent) return false;
+      }
+      
+      if (fHasParent === "yes" && !s.parent_id) return false;
+      if (fHasParent === "no" && s.parent_id) return false;
+      
+      // Free content filter
+      if (fIsFree === "yes" && !s.is_free) return false;
+      if (fIsFree === "no" && s.is_free) return false;
 
       if (q) {
         const hay = [
@@ -1283,7 +1303,7 @@ export default function SkillsetsPage() {
       }
       return true;
     });
-  }, [skills, qtext, fType, fPrimary, fSecondary, fTier]);
+  }, [skills, qtext, fType, fPrimary, fSecondary, fTier, fParent, fHasParent, fIsFree]);
 
   const pages = Math.max(
     1,
@@ -1682,6 +1702,7 @@ export default function SkillsetsPage() {
               placeholder="Search name/type/attr/definition…"
             />
 
+            {/* Quick Filters Row 1 */}
             <div className="grid grid-cols-2 gap-2">
               <select
                 className="rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs text-zinc-100 outline-none"
@@ -1715,6 +1736,7 @@ export default function SkillsetsPage() {
               </select>
             </div>
 
+            {/* Attributes */}
             <div className="grid grid-cols-2 gap-2">
               <select
                 className="rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs text-zinc-100 outline-none"
@@ -1747,6 +1769,101 @@ export default function SkillsetsPage() {
                 ))}
               </select>
             </div>
+
+            {/* Advanced Filters */}
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-300 py-1 list-none flex items-center gap-1">
+                <span className="group-open:rotate-90 transition-transform">▶</span>
+                Advanced Filters
+              </summary>
+              <div className="mt-2 space-y-2 pl-3 border-l-2 border-white/10">
+                {/* Parent Skill Filter */}
+                <select
+                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs text-zinc-100 outline-none"
+                  value={fParent}
+                  onChange={(e) => {
+                    setFParent(e.target.value);
+                    setPageIndex(0);
+                  }}
+                >
+                  <option value="">Filter by Parent Skill...</option>
+                  {skills
+                    .filter((s) => s.tier !== null && s.tier >= 1)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((s) => (
+                      <option key={s.id} value={String(s.id)}>
+                        {s.name} (T{s.tier})
+                      </option>
+                    ))}
+                </select>
+
+                {/* Has Parent Filter */}
+                <select
+                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs text-zinc-100 outline-none"
+                  value={fHasParent}
+                  onChange={(e) => {
+                    setFHasParent(e.target.value as "" | "yes" | "no");
+                    setPageIndex(0);
+                  }}
+                >
+                  <option value="">Has Parent? (all)</option>
+                  <option value="yes">Has Parent (child skills)</option>
+                  <option value="no">No Parent (root skills)</option>
+                </select>
+
+                {/* Free Content Filter */}
+                <select
+                  className="w-full rounded-xl border border-white/15 bg-black/50 px-3 py-2 text-xs text-zinc-100 outline-none"
+                  value={fIsFree}
+                  onChange={(e) => {
+                    setFIsFree(e.target.value as "" | "yes" | "no");
+                    setPageIndex(0);
+                  }}
+                >
+                  <option value="">Content Type (all)</option>
+                  <option value="yes">Free Content</option>
+                  <option value="no">Premium Content</option>
+                </select>
+
+                {/* Clear Advanced Filters */}
+                {(fParent || fHasParent || fIsFree) && (
+                  <button
+                    onClick={() => {
+                      setFParent("");
+                      setFHasParent("");
+                      setFIsFree("");
+                      setPageIndex(0);
+                    }}
+                    className="w-full text-xs text-amber-400 hover:text-amber-300 py-1 text-center"
+                  >
+                    Clear Advanced Filters
+                  </button>
+                )}
+              </div>
+            </details>
+
+            {/* Active Filters Summary */}
+            {(qtext || fType || fTier || fPrimary || fSecondary || fParent || fHasParent || fIsFree) && (
+              <div className="text-xs text-zinc-400 pt-1 border-t border-white/10">
+                Showing {filtered.length} of {skills.length} skills
+                <button
+                  onClick={() => {
+                    setQtext("");
+                    setFType("");
+                    setFTier("");
+                    setFPrimary("");
+                    setFSecondary("");
+                    setFParent("");
+                    setFHasParent("");
+                    setFIsFree("");
+                    setPageIndex(0);
+                  }}
+                  className="ml-2 text-red-400 hover:text-red-300"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
 
           {/* List */}
