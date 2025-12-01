@@ -50,14 +50,38 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const nv = (x: unknown) =>
   x === null || x === undefined || x === "" ? "—" : String(x);
 
+// Genre tag presets matching campaign shop genres
 const GENRE_PRESETS = [
-  "familiar",
-  "war_mount",
-  "spirit",
-  "construct",
-  "animal",
-  "celestial",
-  "fiendish",
+  "High Fantasy",
+  "Low Fantasy",
+  "Dark Fantasy",
+  "Urban Fantasy",
+  "Epic Fantasy",
+  "Sword & Sorcery",
+  "Grimdark",
+  "Post-Apocalyptic",
+  "Cyberpunk",
+  "Steampunk",
+  "Dieselpunk",
+  "Space Opera",
+  "Hard Sci-Fi",
+  "Soft Sci-Fi",
+  "Horror",
+  "Gothic Horror",
+  "Cosmic Horror",
+  "Supernatural",
+  "Historical",
+  "Alternate History",
+  "Modern Day",
+  "Western",
+  "Noir",
+  "Pulp Adventure",
+  "Superhero",
+  "Mystery",
+  "Thriller",
+  "Survival",
+  "Military",
+  "Political Intrigue",
 ] as const;
 
 /* ---------- main page ---------- */
@@ -382,7 +406,7 @@ export default function InventoryCompanionsPage() {
     if (!selected) return;
     const current = selected.genre_tags ?? "";
     const bits = current
-      .split(/[,\s]+/)
+      .split(/,/)
       .map((b) => b.trim())
       .filter(Boolean);
     if (bits.includes(tag)) return;

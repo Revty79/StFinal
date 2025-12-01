@@ -844,3 +844,29 @@ export const campaignCharacters = pgTable('campaign_characters', {
 }, (t) => ({
   byPlayer: index('idx_campaign_characters_player_id').on(t.campaignPlayerId),
 }));
+
+// Campaign Store Items - tracks which inventory items are available in each campaign's starting gear shop
+export const campaignStoreItems = pgTable('campaign_store_items', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  campaignId: varchar('campaign_id', { length: 36 })
+    .notNull()
+    .references(() => campaigns.id, { onDelete: 'cascade' }),
+  
+  // Reference to the inventory item (polymorphic reference)
+  sourceType: varchar('source_type', { length: 20 }).notNull(), // 'item', 'weapon', 'armor'
+  sourceId: varchar('source_id', { length: 36 }).notNull(),
+  
+  // Cached fields for quick display (denormalized from source)
+  name: varchar('name', { length: 255 }).notNull(),
+  itemType: varchar('item_type', { length: 20 }).notNull(), // 'Item', 'Weapon', 'Armor'
+  costCredits: integer('cost_credits').notNull().default(0),
+  
+  // Store-specific settings
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCampaign: index('idx_campaign_store_items_campaign_id').on(t.campaignId),
+  bySource: index('idx_campaign_store_items_source').on(t.sourceType, t.sourceId),
+  uniqueItem: index('idx_campaign_store_items_unique').on(t.campaignId, t.sourceType, t.sourceId),
+}));

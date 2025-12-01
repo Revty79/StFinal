@@ -711,6 +711,23 @@ CREATE TABLE IF NOT EXISTS "campaign_characters" (
 
 CREATE INDEX IF NOT EXISTS "idx_campaign_characters_player_id" ON "campaign_characters"("campaign_player_id");
 
+-- Campaign Store Items table
+CREATE TABLE IF NOT EXISTS "campaign_store_items" (
+  "id" varchar(36) PRIMARY KEY,
+  "campaign_id" varchar(36) NOT NULL REFERENCES "campaigns"("id") ON DELETE CASCADE,
+  "source_type" varchar(20) NOT NULL,
+  "source_id" varchar(36) NOT NULL,
+  "name" varchar(255) NOT NULL,
+  "item_type" varchar(20) NOT NULL,
+  "cost_credits" integer DEFAULT 0 NOT NULL,
+  "is_enabled" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_campaign_id" ON "campaign_store_items"("campaign_id");
+CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_source" ON "campaign_store_items"("source_type", "source_id");
+CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_unique" ON "campaign_store_items"("campaign_id", "source_type", "source_id");
+
 -- ============================================
 -- SEED DEFAULT ROLES
 -- ============================================

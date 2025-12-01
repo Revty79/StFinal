@@ -95,13 +95,40 @@ export default function CampaignPage() {
   const [activeUsers, setActiveUsers] = useState<{ id: string; name: string }[]>([]);
   const [availableRaces, setAvailableRaces] = useState<{ id: string; name: string; tagline: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Gear shop state
+  type ShopItem = {
+    id: string;
+    name: string;
+    type: string;
+    rarity?: string;
+    cost: number;
+    genreTags?: string;
+    storeItemId?: string; // ID in campaign_store_items table
+  };
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [availableItems, setAvailableItems] = useState<ShopItem[]>([]);
+  const [itemTypeFilter, setItemTypeFilter] = useState("all");
+  const [itemGenreFilter, setItemGenreFilter] = useState("all");
+  const [itemSearchQuery, setItemSearchQuery] = useState("");
+  const [isSavingStore, setIsSavingStore] = useState(false);
 
   // Fetch campaigns on mount
   useEffect(() => {
     fetchCampaigns();
     fetchActiveUsers();
     fetchAvailableRaces();
+    fetchAvailableInventory();
   }, []);
+
+  // Load store items when campaign is selected
+  useEffect(() => {
+    if (selectedId) {
+      fetchCampaignStoreItems(selectedId);
+    } else {
+      setShopItems([]);
+    }
+  }, [selectedId]);
 
   async function fetchCampaigns() {
     try {
@@ -141,6 +168,137 @@ export default function CampaignPage() {
     }
   }
 
+  async function fetchAvailableInventory() {
+    try {
+      const [itemsRes, weaponsRes, armorRes] = await Promise.all([
+        fetch("/api/worldbuilder/inventory/items"),
+        fetch("/api/worldbuilder/inventory/weapons"),
+        fetch("/api/worldbuilder/inventory/armor"),
+      ]);
+      
+      const [itemsData, weaponsData, armorData] = await Promise.all([
+        itemsRes.json(),
+        weaponsRes.json(),
+        armorRes.json(),
+      ]);
+      
+      const allItems: ShopItem[] = [];
+      
+      if (itemsData.ok && itemsData.items) {
+        allItems.push(...itemsData.items.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          type: "Item",
+          cost: item.costCredits || 0,
+          genreTags: item.genreTags,
+        })));
+      }
+      
+      if (weaponsData.ok && weaponsData.weapons) {
+        allItems.push(...weaponsData.weapons.map((weapon: any) => ({
+          id: weapon.id,
+          name: weapon.name,
+          type: "Weapon",
+          rarity: weapon.rarity,
+          cost: weapon.costCredits || 0,
+          genreTags: weapon.genreTags,
+        })));
+      }
+      
+      if (armorData.ok && armorData.armor) {
+        allItems.push(...armorData.armor.map((armor: any) => ({
+          id: armor.id,
+          name: armor.name,
+          type: "Armor",
+          rarity: armor.rarity,
+          cost: armor.costCredits || 0,
+          genreTags: armor.genreTags,
+        })));
+      }
+      
+      setAvailableItems(allItems);
+    } catch (err) {
+      console.error("Failed to fetch inventory:", err);
+    }
+  }
+
+  async function fetchCampaignStoreItems(campaignId: string) {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/store`);
+      const data = await res.json();
+      if (data.ok && data.items) {
+        // Convert store items to ShopItem format
+        const items: ShopItem[] = data.items.map((item: any) => ({
+          id: item.sourceId,
+          name: item.name,
+          type: item.itemType,
+          cost: item.costCredits,
+          storeItemId: item.id, // Keep track of the store item ID for deletion
+        }));
+        setShopItems(items);
+      }
+    } catch (err) {
+      console.error("Failed to fetch campaign store items:", err);
+    }
+  }
+
+  async function saveCampaignStoreItems(campaignId: string, items: ShopItem[]) {
+    try {
+      setIsSavingStore(true);
+      console.log('Saving store items:', { campaignId, itemCount: items.length });
+      
+      const payload = items.map(item => ({
+        sourceType: item.type.toLowerCase(), // 'weapon', 'armor', 'item'
+        sourceId: item.id,
+        name: item.name,
+        itemType: item.type,
+        costCredits: item.cost,
+      }));
+
+      const res = await fetch(`/api/campaigns/${campaignId}/store`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: payload }),
+      });
+
+      const data = await res.json();
+      console.log('Save store items response:', data);
+      
+      if (data.ok) {
+        // Refresh store items to get the stored IDs
+        await fetchCampaignStoreItems(campaignId);
+      } else {
+        console.error('Failed to save store items:', data.error);
+      }
+    } catch (err) {
+      console.error("Failed to save campaign store items:", err);
+    } finally {
+      setIsSavingStore(false);
+    }
+  }
+
+  async function removeCampaignStoreItem(campaignId: string, storeItemId: string) {
+    try {
+      setIsSavingStore(true);
+      console.log('Removing store item:', { campaignId, storeItemId });
+      
+      const res = await fetch(`/api/campaigns/${campaignId}/store/${storeItemId}`, {
+        method: "DELETE",
+      });
+      
+      const data = await res.json();
+      console.log('Remove store item response:', data);
+      
+      if (!data.ok) {
+        console.error('Failed to remove store item:', data.error);
+      }
+    } catch (err) {
+      console.error("Failed to remove campaign store item:", err);
+    } finally {
+      setIsSavingStore(false);
+    }
+  }
+
   async function fetchCampaignDetails(id: string) {
     try {
       const res = await fetch(`/api/campaigns/${id}`);
@@ -159,6 +317,7 @@ export default function CampaignPage() {
   const tabs = [
     { id: "campaign", label: "Campaign" },
     { id: "players", label: "Players & Characters" },
+    { id: "gear", label: "Starting Gear Shop" },
     { id: "preview", label: "Preview" },
     { id: "rewards", label: "Assign EXP & Quintessence" },
   ];
@@ -1051,6 +1210,299 @@ export default function CampaignPage() {
                           </div>
                         ))
                       )}
+                    </div>
+                  </Card>
+                )}
+
+                {activeTab === "gear" && (
+                  <Card className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                    <h2 className="text-xl font-semibold mb-4">Starting Gear Shop</h2>
+                    
+                    {/* Campaign Selection Status */}
+                    {!selectedId ? (
+                      <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <p className="text-red-400 font-medium">
+                          ⚠️ Please select a campaign from the left sidebar to manage its store items.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                        <p className="text-emerald-400 text-sm">
+                          ✓ Managing store for: <span className="font-semibold">{selected?.name || 'Campaign'}</span>
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Left Panel: Available Items Browser */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-zinc-200">
+                            Available Items
+                          </h3>
+                          <span className="text-sm text-zinc-400">
+                            {availableItems.filter(item => {
+                              const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
+                              const matchesGenre = itemGenreFilter === "all" || 
+                                (item.genreTags && item.genreTags.toLowerCase().includes(itemGenreFilter.toLowerCase()));
+                              const matchesSearch = itemSearchQuery === "" || 
+                                item.name.toLowerCase().includes(itemSearchQuery.toLowerCase());
+                              return matchesType && matchesGenre && matchesSearch;
+                            }).length} items
+                          </span>
+                        </div>
+
+                        {/* Search and Filters */}
+                        <div className="space-y-3">
+                          <Input
+                            placeholder="Search items..."
+                            className="w-full"
+                            value={itemSearchQuery}
+                            onChange={(e) => setItemSearchQuery(e.target.value)}
+                          />
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            <select 
+                              className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-zinc-300"
+                              value={itemTypeFilter}
+                              onChange={(e) => setItemTypeFilter(e.target.value)}
+                            >
+                              <option value="all">All Types</option>
+                              <option value="Weapon">Weapons</option>
+                              <option value="Armor">Armor</option>
+                              <option value="Item">Items</option>
+                            </select>
+                            
+                            <select 
+                              className="px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-zinc-300"
+                              value={itemGenreFilter}
+                              onChange={(e) => setItemGenreFilter(e.target.value)}
+                            >
+                              <option value="all">All Genres</option>
+                              <option value="High Fantasy">High Fantasy</option>
+                              <option value="Low Fantasy">Low Fantasy</option>
+                              <option value="Dark Fantasy">Dark Fantasy</option>
+                              <option value="Urban Fantasy">Urban Fantasy</option>
+                              <option value="Epic Fantasy">Epic Fantasy</option>
+                              <option value="Sword & Sorcery">Sword & Sorcery</option>
+                              <option value="Grimdark">Grimdark</option>
+                              <option value="Post-Apocalyptic">Post-Apocalyptic</option>
+                              <option value="Cyberpunk">Cyberpunk</option>
+                              <option value="Steampunk">Steampunk</option>
+                              <option value="Dieselpunk">Dieselpunk</option>
+                              <option value="Space Opera">Space Opera</option>
+                              <option value="Hard Sci-Fi">Hard Sci-Fi</option>
+                              <option value="Soft Sci-Fi">Soft Sci-Fi</option>
+                              <option value="Horror">Horror</option>
+                              <option value="Gothic Horror">Gothic Horror</option>
+                              <option value="Cosmic Horror">Cosmic Horror</option>
+                              <option value="Supernatural">Supernatural</option>
+                              <option value="Historical">Historical</option>
+                              <option value="Alternate History">Alternate History</option>
+                              <option value="Modern Day">Modern Day</option>
+                              <option value="Western">Western</option>
+                              <option value="Noir">Noir</option>
+                              <option value="Pulp Adventure">Pulp Adventure</option>
+                              <option value="Superhero">Superhero</option>
+                              <option value="Mystery">Mystery</option>
+                              <option value="Thriller">Thriller</option>
+                              <option value="Survival">Survival</option>
+                              <option value="Military">Military</option>
+                              <option value="Political Intrigue">Political Intrigue</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Items List */}
+                        <div className="border border-white/10 rounded-xl bg-black/20 max-h-[600px] overflow-y-auto">
+                          <div className="p-4 space-y-2">
+                            {(() => {
+                              const filtered = availableItems
+                                .filter(item => {
+                                  const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
+                                  const matchesGenre = itemGenreFilter === "all" || 
+                                    (item.genreTags && item.genreTags.toLowerCase().includes(itemGenreFilter.toLowerCase()));
+                                  const matchesSearch = itemSearchQuery === "" || 
+                                    item.name.toLowerCase().includes(itemSearchQuery.toLowerCase());
+                                  return matchesType && matchesGenre && matchesSearch;
+                                })
+                                .sort((a, b) => a.name.localeCompare(b.name));
+                              
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="flex items-center justify-center py-12 text-zinc-500">
+                                    No items match your filters
+                                  </div>
+                                );
+                              }
+                              
+                              return filtered.map((item) => (
+                              <div
+                                key={item.id}
+                                className="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-zinc-200">
+                                        {item.name}
+                                      </span>
+                                      {item.rarity && (
+                                        <span className={`text-xs px-2 py-0.5 rounded ${
+                                          item.rarity === "common" ? "bg-zinc-600/30 text-zinc-300" :
+                                          item.rarity === "uncommon" ? "bg-green-600/30 text-green-300" :
+                                          item.rarity === "rare" ? "bg-blue-600/30 text-blue-300" :
+                                          item.rarity === "epic" ? "bg-purple-600/30 text-purple-300" :
+                                          "bg-orange-600/30 text-orange-300"
+                                        }`}>
+                                          {item.rarity}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-col gap-1 mt-1">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-xs text-zinc-400">
+                                          {item.type}
+                                        </span>
+                                        <span className="text-xs text-emerald-400">
+                                          {item.cost} credits
+                                        </span>
+                                      </div>
+                                      {item.genreTags && (
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-xs px-2 py-0.5 rounded bg-purple-600/20 text-purple-300">
+                                            {item.genreTags.length > 30 ? item.genreTags.substring(0, 30) + '...' : item.genreTags}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="secondary"
+                                    className="text-xs px-3 py-1"
+                                    onClick={async () => {
+                                      console.log('Add button clicked:', { 
+                                        selectedId, 
+                                        itemId: item.id, 
+                                        itemName: item.name,
+                                        campaignName: selected?.name 
+                                      });
+                                      
+                                      if (!selectedId) {
+                                        console.warn('No campaign selected');
+                                        return;
+                                      }
+                                      if (!shopItems.find(si => si.id === item.id)) {
+                                        const newItems = [...shopItems, item];
+                                        setShopItems(newItems);
+                                        await saveCampaignStoreItems(selectedId, [item]);
+                                      }
+                                    }}
+                                    disabled={shopItems.some(si => si.id === item.id) || isSavingStore || !selectedId}
+                                  >
+                                    {shopItems.some(si => si.id === item.id) ? "Added" : isSavingStore ? "Saving..." : "Add"}
+                                  </Button>
+                                </div>
+                              </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Panel: Shop Items */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold text-zinc-200">
+                            Shop Items
+                          </h3>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-zinc-400">
+                              {shopItems.length} items
+                            </span>
+                            <Button
+                              variant="primary"
+                              className="text-xs px-4 py-2"
+                              onClick={async () => {
+                                if (!selectedId || shopItems.length === 0) return;
+                                await saveCampaignStoreItems(selectedId, shopItems);
+                              }}
+                              disabled={!selectedId || shopItems.length === 0 || isSavingStore}
+                            >
+                              {isSavingStore ? "Saving..." : "Save All Changes"}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="border border-white/10 rounded-xl bg-black/20 min-h-[600px] max-h-[600px] overflow-y-auto p-4">
+                          {shopItems.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-zinc-500">
+                              Add items from the left to populate your shop
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {shopItems.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="p-3 rounded-lg bg-white/5 border border-white/10"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-zinc-200">
+                                          {item.name}
+                                        </span>
+                                        {item.rarity && (
+                                          <span className={`text-xs px-2 py-0.5 rounded ${
+                                            item.rarity === "common" ? "bg-zinc-600/30 text-zinc-300" :
+                                            item.rarity === "uncommon" ? "bg-green-600/30 text-green-300" :
+                                            item.rarity === "rare" ? "bg-blue-600/30 text-blue-300" :
+                                            item.rarity === "epic" ? "bg-purple-600/30 text-purple-300" :
+                                            "bg-orange-600/30 text-orange-300"
+                                          }`}>
+                                            {item.rarity}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col gap-1 mt-1">
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-xs text-zinc-400">
+                                            {item.type}
+                                          </span>
+                                          <span className="text-xs text-emerald-400">
+                                            {item.cost} credits
+                                          </span>
+                                        </div>
+                                        {item.genreTags && (
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs px-2 py-0.5 rounded bg-purple-600/20 text-purple-300">
+                                              {item.genreTags.length > 30 ? item.genreTags.substring(0, 30) + '...' : item.genreTags}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="secondary"
+                                      className="text-xs px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300"
+                                      onClick={async () => {
+                                        if (!selectedId) return;
+                                        if (item.storeItemId) {
+                                          await removeCampaignStoreItem(selectedId, item.storeItemId);
+                                        }
+                                        setShopItems(shopItems.filter(si => si.id !== item.id));
+                                      }}
+                                      disabled={isSavingStore}
+                                    >
+                                      {isSavingStore ? "Removing..." : "Remove"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 )}
