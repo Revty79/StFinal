@@ -172,6 +172,7 @@ export async function PUT(
           id: c.id || crypto.randomUUID(),
           campaignId: id,
           name: c.name,
+          symbol: c.symbol || null,
           creditValue: c.creditValue,
         }));
         await db.insert(schema.campaignCurrencies).values(currenciesToInsert);

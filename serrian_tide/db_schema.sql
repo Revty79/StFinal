@@ -626,6 +626,7 @@ CREATE TABLE IF NOT EXISTS "campaign_currencies" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
   "campaign_id" varchar(36) NOT NULL REFERENCES "campaigns"("id") ON DELETE CASCADE,
   "name" varchar(255) NOT NULL,
+  "symbol" varchar(10),
   "credit_value" numeric(10, 4) DEFAULT 1 NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );

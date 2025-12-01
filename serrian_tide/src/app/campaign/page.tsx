@@ -11,6 +11,7 @@ import { Tabs } from "@/components/Tabs";
 type Currency = {
   id: string;
   name: string;
+  symbol: string;
   creditValue: number;
 };
 
@@ -170,7 +171,7 @@ export default function CampaignPage() {
 
   // Fetch full campaign details when selection changes
   useEffect(() => {
-    if (selectedId && selected && !selected.players) {
+    if (selectedId && selected && (!selected.players || !selected.currencies)) {
       fetchCampaignDetails(selectedId);
     }
   }, [selectedId]);
@@ -776,10 +777,27 @@ export default function CampaignPage() {
                                     }
                                     updateCampaign({ currencies: updated });
                                   }}
-                                  placeholder="e.g., Gold Coin"
+                                  placeholder="e.g., Mitheral Piece"
                                 />
                               </div>
-                              <div className="flex-1">
+                              <div className="w-24">
+                                <label className="block text-sm font-medium text-zinc-300 mb-2">
+                                  Symbol
+                                </label>
+                                <Input
+                                  value={currency.symbol || ""}
+                                  onChange={(e) => {
+                                    const updated = [...selected.currencies];
+                                    if (updated[idx]) {
+                                      updated[idx].symbol = e.target.value;
+                                    }
+                                    updateCampaign({ currencies: updated });
+                                  }}
+                                  placeholder="MP"
+                                  maxLength={10}
+                                />
+                              </div>
+                              <div className="w-32">
                                 <label className="block text-sm font-medium text-zinc-300 mb-2">
                                   Credit Value
                                 </label>
@@ -797,7 +815,7 @@ export default function CampaignPage() {
                                     }
                                     updateCampaign({ currencies: updated });
                                   }}
-                                  placeholder="e.g., 0.33"
+                                  placeholder="25"
                                 />
                               </div>
                               <Button
@@ -824,6 +842,7 @@ export default function CampaignPage() {
                               const newCurrency: Currency = {
                                 id: Math.random().toString(36).slice(2, 10),
                                 name: "",
+                                symbol: "",
                                 creditValue: 1,
                               };
                               updateCampaign({
@@ -1184,6 +1203,9 @@ export default function CampaignPage() {
                               >
                                 <span className="text-zinc-200 font-medium">
                                   {currency.name || "Unnamed Currency"}
+                                  {currency.symbol && (
+                                    <span className="ml-2 text-amber-400 font-mono text-sm">({currency.symbol})</span>
+                                  )}
                                 </span>
                                 <span className="text-zinc-400 text-sm">
                                   {currency.creditValue} credit{currency.creditValue !== 1 ? "s" : ""}

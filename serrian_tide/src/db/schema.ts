@@ -735,6 +735,7 @@ export const campaignCurrencies = pgTable('campaign_currencies', {
     .notNull()
     .references(() => campaigns.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
+  symbol: varchar('symbol', { length: 10 }),
   creditValue: numeric('credit_value', { precision: 10, scale: 4 }).notNull().default('1'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
