@@ -69,7 +69,6 @@ export type Character = {
 
   // Story / personality
   personality?: string | null; // quick read on vibe
-  ideals?: string | null; // Covers beliefs, values, bonds, and flaws
   goals?: string | null;
   secrets?: string | null;
   backstory?: string | null;
@@ -314,7 +313,6 @@ function CharacterBuilderContent() {
             charisma: apiChar.charisma,
             skill_allocations: apiChar.skillAllocations,
             personality: apiChar.personality,
-            ideals: apiChar.ideals,
             goals: apiChar.goals,
             secrets: apiChar.secrets,
             backstory: apiChar.backstory,
@@ -390,7 +388,6 @@ function CharacterBuilderContent() {
         skill_checkpoint: {},
         is_initial_setup_locked: false,
         personality: null,
-        ideals: null,
         goals: null,
         secrets: null,
         backstory: null,
@@ -407,6 +404,13 @@ function CharacterBuilderContent() {
       characters.find((c) => String(c.id) === String(selectedId ?? "")) ?? null,
     [characters, selectedId]
   );
+
+  // Check if character's initial setup is locked
+  const isInitialSetupLocked = useMemo(() => {
+    if (!selected) return false;
+    return selected.is_initial_setup_locked === true;
+  }, [selected]);
+
 
   // Ensure something is selected once we have data
   useEffect(() => {
@@ -484,7 +488,6 @@ function CharacterBuilderContent() {
       challenge_rating: 1,
       skill_allocations: {},
       personality: null,
-      ideals: null,
       goals: null,
       secrets: null,
       backstory: null,
@@ -504,35 +507,66 @@ function CharacterBuilderContent() {
 
   // Check if character setup is complete
   function checkCharacterComplete(character: Character): boolean {
-    // Required fields for completion:
-    // 1. Character has a name
-    if (!character.characterName || character.characterName === "New Character") return false;
+    // 1. Character has a proper name (not default)
+    if (!character.characterName || character.characterName === "New Character" || character.characterName.trim() === "") {
+      return false;
+    }
     
-    // 2. Character has a race selected
-    if (!character.race) return false;
+    // 2. All identity fields filled out
+    if (!character.playerName || character.playerName.trim() === "") {
+      return false;
+    }
     
-    // 3. Attributes should be allocated (at least one changed from default 25)
-    const attributesChanged = 
-      character.strength !== 25 ||
-      character.dexterity !== 25 ||
-      character.constitution !== 25 ||
-      character.intelligence !== 25 ||
-      character.wisdom !== 25 ||
-      character.charisma !== 25;
+    if (!character.race || character.race.trim() === "") {
+      return false;
+    }
     
-    if (!attributesChanged) return false;
+    if (!character.age) {
+      return false;
+    }
     
-    // 4. Skills should be allocated (at least some points assigned)
-    const skillsAllocated = 
-      character.skill_allocations && 
-      Object.keys(character.skill_allocations).length > 0;
+    if (!character.sex || character.sex.trim() === "") {
+      return false;
+    }
     
-    if (!skillsAllocated) return false;
+    if (!character.height) {
+      return false;
+    }
     
-    // 5. At least some equipment purchased (optional - can be zero if player chooses not to buy)
-    // We'll make this optional since a player might save credits
+    if (!character.weight) {
+      return false;
+    }
     
-    // Character is complete!
+    if (!character.skinColor || character.skinColor.trim() === "") {
+      return false;
+    }
+    
+    if (!character.eyeColor || character.eyeColor.trim() === "") {
+      return false;
+    }
+    
+    if (!character.hairColor || character.hairColor.trim() === "") {
+      return false;
+    }
+    
+    // 3. ALL attribute points must be spent (check against budget)
+    const totalAttributePoints = (character.strength ?? 0) + (character.dexterity ?? 0) + 
+      (character.constitution ?? 0) + (character.intelligence ?? 0) + 
+      (character.wisdom ?? 0) + (character.charisma ?? 0);
+    
+    if (totalAttributePoints !== attributePointBudget) {
+      return false;
+    }
+    
+    // 4. ALL skill points must be allocated (check against budget)
+    const totalSkillPoints = character.skill_allocations ? 
+      Object.values(character.skill_allocations).reduce((sum, points) => sum + points, 0) : 0;
+    
+    if (totalSkillPoints !== skillPointBudget) {
+      return false;
+    }
+    
+    // Character is complete and ready for play!
     return true;
   }
 
@@ -575,7 +609,6 @@ function CharacterBuilderContent() {
         charisma: character.charisma,
         skillAllocations: character.skill_allocations,
         personality: character.personality,
-        ideals: character.ideals,
         goals: character.goals,
         secrets: character.secrets,
         backstory: character.backstory,
@@ -1478,6 +1511,24 @@ function CharacterBuilderContent() {
               </p>
             ) : (
               <>
+                {/* Lock Status Banner */}
+                {isInitialSetupLocked && (
+                  <div className="mb-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-amber-400 mb-1">Initial Setup Locked</h4>
+                        <p className="text-xs text-amber-200/80">
+                          Your character&apos;s initial setup (race, attributes, skills, starting equipment) is now locked. 
+                          Future character advancement will use XP and unlock new capabilities.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mb-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   <div className="flex-1">
                     <Input
@@ -1501,8 +1552,16 @@ function CharacterBuilderContent() {
                     }
                   />
                   <div className="flex items-center gap-2">
-                    {/* Completion status indicator */}
-                    {selected && checkCharacterComplete(selected) && (
+                    {/* Completion/Lock status indicator */}
+                    {selected && isInitialSetupLocked && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30">
+                        <svg className="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span className="text-xs font-medium text-amber-400">Locked</span>
+                      </div>
+                    )}
+                    {selected && !isInitialSetupLocked && checkCharacterComplete(selected) && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30">
                         <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1515,9 +1574,26 @@ function CharacterBuilderContent() {
                       size="sm"
                       type="button"
                       onClick={deleteSelected}
+                      disabled={isInitialSetupLocked}
                     >
                       Delete
                     </Button>
+                    {!isInitialSetupLocked && selected && checkCharacterComplete(selected) && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        type="button"
+                        onClick={() => {
+                          if (confirm('Lock your character? This will finalize your initial setup (race, attributes, skills, equipment). Future advancement will require XP.')) {
+                            updateSelected({ is_initial_setup_locked: true });
+                            saveSelected();
+                          }
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700"
+                      >
+                        🔒 Lock Character
+                      </Button>
+                    )}
                     <Button
                       variant="primary"
                       size="sm"
@@ -2116,22 +2192,6 @@ function CharacterBuilderContent() {
                           ⚠️ Over budget! Reduce skill allocations to continue.
                         </p>
                       )}
-                      {!selected.is_initial_setup_locked && skillPointsRemaining === 0 && (
-                        <div className="mt-3 pt-3 border-t border-white/10">
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            onClick={lockInitialSetup}
-                            className="w-full"
-                          >
-                            Lock Initial Setup & Enable XP Spending
-                          </Button>
-                          <p className="text-xs text-zinc-400 mt-2 text-center">
-                            Once locked, you can spend XP to further improve skills.
-                          </p>
-                        </div>
-                      )}
                       {selected.is_initial_setup_locked && (
                         <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
                           <p className="text-xs text-blue-300">
@@ -2528,24 +2588,6 @@ function CharacterBuilderContent() {
                         }
                         className="w-full min-h-[100px] rounded-xl border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
                         placeholder="Describe your character's personality, mannerisms, and general demeanor..."
-                      />
-                    </FormField>
-
-                    <FormField
-                      label="Moral Code"
-                      htmlFor="char-ideals"
-                      description="Your character's beliefs, values, important bonds, and personal flaws"
-                    >
-                      <textarea
-                        id="char-ideals"
-                        value={selected.ideals ?? ""}
-                        onChange={(e) =>
-                          updateSelected({
-                            ideals: e.target.value,
-                          })
-                        }
-                        className="w-full min-h-[140px] rounded-xl border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100"
-                        placeholder="Describe your character's moral framework: What do they believe in? What principles guide their actions? Who or what matters most to them (bonds)? What weaknesses or flaws define them? How do these ideals, bonds, and flaws shape their decisions..."
                       />
                     </FormField>
 

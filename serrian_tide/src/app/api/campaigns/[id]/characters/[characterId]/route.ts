@@ -92,7 +92,6 @@ export async function GET(
       
       // Story & Personality
       personality: result.campaign_characters.personality,
-      ideals: result.campaign_characters.ideals,
       goals: result.campaign_characters.goals,
       secrets: result.campaign_characters.secrets,
       backstory: result.campaign_characters.backstory,
@@ -232,7 +231,6 @@ export async function PUT(
 
     // Story & Personality
     if (body.personality !== undefined) updateData.personality = body.personality;
-    if (body.ideals !== undefined) updateData.ideals = body.ideals;
     if (body.goals !== undefined) updateData.goals = body.goals;
     if (body.secrets !== undefined) updateData.secrets = body.secrets;
     if (body.backstory !== undefined) updateData.backstory = body.backstory;

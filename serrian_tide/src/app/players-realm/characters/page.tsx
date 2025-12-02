@@ -155,14 +155,9 @@ export default function CharactersPage() {
   function openCharacterSheet() {
     if (!selectedCharacterId || !selectedCampaignId) return;
     
-    // Check if character setup is complete
-    if (!selectedCharacter?.isSetupComplete) {
-      // Navigate to builder to complete setup
-      router.push(`/players-realm/characters/builder?campaignId=${selectedCampaignId}&characterId=${selectedCharacterId}`);
-    } else {
-      // Navigate to active character sheet
-      router.push(`/players-realm/characters/sheet?campaignId=${selectedCampaignId}&characterId=${selectedCharacterId}`);
-    }
+    // For now, always go to builder until we create the sheet page
+    // TODO: Once character sheet page is built, route completed characters there
+    router.push(`/players-realm/characters/builder?campaignId=${selectedCampaignId}&characterId=${selectedCharacterId}`);
   }
 
   if (loading) {

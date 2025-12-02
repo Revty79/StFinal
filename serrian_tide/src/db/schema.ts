@@ -801,7 +801,6 @@ export const campaignCharacters = pgTable('campaign_characters', {
   
   // Story & Personality
   personality: text('personality'),
-  ideals: text('ideals'),
   goals: text('goals'),
   secrets: text('secrets'),
   backstory: text('backstory'),

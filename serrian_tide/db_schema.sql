@@ -676,7 +676,6 @@ CREATE TABLE IF NOT EXISTS "campaign_characters" (
   "charisma" integer DEFAULT 25 NOT NULL,
   "skill_allocations" jsonb DEFAULT '{}'::jsonb NOT NULL,
   "personality" text,
-  "ideals" text,
   "goals" text,
   "secrets" text,
   "backstory" text,
