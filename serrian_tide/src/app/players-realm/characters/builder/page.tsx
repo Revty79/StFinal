@@ -801,6 +801,37 @@ function CharacterBuilderContent() {
   const skillPointsRemaining = skillPointBudget - calculateSkillPointsSpent;
   const isInitialSkillPointsSpent = calculateSkillPointsSpent >= skillPointBudget;
 
+  // Calculate mana based on highest "magic stabilization" skill * base magic from race
+  const calculateMana = useMemo(() => {
+    if (!selected?.skill_allocations || !selected.baseMagic) return 0;
+    
+    const allocations = selected.skill_allocations;
+    let highestMagicStabilizationPoints = 0;
+    
+    // Find all skills with type "magic stabilization" and get the highest point value
+    Object.entries(allocations).forEach(([skillKey, points]) => {
+      // Extract the actual skill ID (might be contexted like "parentId:skillId")
+      const skillId = skillKey.includes(':') ? skillKey.split(':').pop() : skillKey;
+      const skill = allSkills.find(s => s.id === skillId);
+      
+      if (skill && skill.type === 'magic stabilization') {
+        if (points > highestMagicStabilizationPoints) {
+          highestMagicStabilizationPoints = points;
+        }
+      }
+    });
+    
+    // Mana = highest magic stabilization skill points * base magic from race
+    return highestMagicStabilizationPoints * (selected.baseMagic || 0);
+  }, [selected?.skill_allocations, selected?.baseMagic, allSkills]);
+
+  // Auto-update mana when it changes based on skills and baseMagic
+  useEffect(() => {
+    if (selected && selected.mana !== calculateMana) {
+      updateSelected({ mana: calculateMana });
+    }
+  }, [calculateMana, selected?.mana]);
+
   // Calculate points spent in each tier for unlock logic
   const tierPointsSpent = useMemo(() => {
     if (!selected?.skill_allocations) return { tier1: 0, tier2: 0 };
