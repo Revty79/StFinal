@@ -802,13 +802,10 @@ export const campaignCharacters = pgTable('campaign_characters', {
   // Story & Personality
   personality: text('personality'),
   ideals: text('ideals'),
-  bonds: text('bonds'),
-  flaws: text('flaws'),
   goals: text('goals'),
   secrets: text('secrets'),
   backstory: text('backstory'),
   motivations: text('motivations'),
-  hooks: text('hooks'),
   
   // Connections & Power
   faction: text('faction'),

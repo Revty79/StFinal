@@ -23,7 +23,8 @@ export type Character = {
   playerName?: string | null;
   characterName: string;
   campaignName?: string | null;
-  race?: string | null;
+  raceId?: string | null; // UUID from races table
+  race?: string | null; // Race name for display
   age?: number | null;
   baseMagic?: number | null; // Populated from race
   baseMovement?: number | null; // Populated from race
@@ -53,7 +54,6 @@ export type Character = {
   mana?: number | null;
   armor_soak?: string | null;
   defense_notes?: string | null; // AC, resistances, notes
-  base_movement?: number | null; // Racial attribute for initiative calculation
 
   // Controls & Allocations
   challenge_rating?: number | null; // CR for encounter balancing
@@ -63,16 +63,17 @@ export type Character = {
   xp_spent?: number | null; // Total XP spent on skills after initial allocation
   xp_checkpoint?: number | null; // XP spent at last checkpoint
 
+  // Equipment & Economy
+  credits_remaining?: number | null; // Credits available for purchases
+  equipment?: Array<any> | null; // Purchased equipment
+
   // Story / personality
   personality?: string | null; // quick read on vibe
-  ideals?: string | null;
-  bonds?: string | null;
-  flaws?: string | null;
+  ideals?: string | null; // Covers beliefs, values, bonds, and flaws
   goals?: string | null;
   secrets?: string | null;
   backstory?: string | null;
   motivations?: string | null;
-  hooks?: string | null; // how to pull PCs into scenes
 
   // Connections & power
   faction?: string | null;
@@ -135,12 +136,21 @@ function CharacterBuilderContent() {
   const [skillSubTab, setSkillSubTab] = useState<"strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma" | "special">("strength");
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
-  const [races, setRaces] = useState<Array<{ 
+  const [characterLoaded, setCharacterLoaded] = useState(false);
+  const [races, setRaces] = useState<Array<{
     id: number; 
-    name: string; 
+    name: string;
+    baseMagic?: number;
     baseMovement?: number;
   }>>([]);
-  const [allSkills, setAllSkills] = useState<Array<{ 
+
+  // Reset character loaded flag when characterId changes
+  useEffect(() => {
+    setCharacterLoaded(false);
+    setCharacters([]);
+  }, [characterId]);
+
+  const [allSkills, setAllSkills] = useState<Array<{
     id: string; 
     name: string; 
     primaryAttribute: string;
@@ -151,6 +161,21 @@ function CharacterBuilderContent() {
     parent3Id: string | null;
     type: string;
   }>>([]);
+
+  // Equipment shop state
+  const [storeItems, setStoreItems] = useState<Array<{
+    id: string;
+    sourceType: string;
+    sourceId: string;
+    name: string;
+    itemType: string;
+    costCredits: number;
+  }>>([]);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeFilter, setStoreFilter] = useState("");
+  const [storeTypeFilter, setStoreTypeFilter] = useState<"all" | "item" | "weapon" | "armor">("all");
+  const [purchasing, setPurchasing] = useState(false);
+  const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
   // Load campaign data from API
   useEffect(() => {
@@ -191,6 +216,7 @@ function CharacterBuilderContent() {
           setRaces(data.races.map((r: any) => ({
             id: r.id,
             name: r.name,
+            baseMagic: r.baseMagic,
             baseMovement: r.baseMovement,
             maxStrength: r.maxStrength,
             maxDexterity: r.maxDexterity,
@@ -236,12 +262,102 @@ function CharacterBuilderContent() {
     loadSkills();
   }, []);
 
-  // Initialize character when campaign loads
+  // Load character from API if characterId is provided
   useEffect(() => {
-    if (campaign && !loading && characters.length === 0) {
+    async function loadCharacterFromAPI() {
+      if (!campaignId || !characterId) return;
+
+      // If we already loaded this specific character, don't reload
+      if (characterLoaded && characters.length > 0 && String(characters[0]?.id) === String(characterId)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/characters/${characterId}`);
+        if (!response.ok) {
+          console.error("Failed to load character from API:", response.status);
+          return;
+        }
+
+        const data = await response.json();
+        if (data.ok && data.character) {
+          // Map API field names to UI field names
+          const apiChar = data.character;
+          const loadedChar: Character = {
+            id: apiChar.id,
+            characterName: apiChar.name,
+            playerName: apiChar.playerName,
+            campaignName: apiChar.campaignName,
+            raceId: apiChar.raceId,
+            race: apiChar.race,
+            age: apiChar.age,
+            baseMagic: apiChar.baseMagic,
+            baseMovement: apiChar.baseMovement,
+            sex: apiChar.sex,
+            height: apiChar.height,
+            weight: apiChar.weight,
+            skinColor: apiChar.skinColor,
+            eyeColor: apiChar.eyeColor,
+            hairColor: apiChar.hairColor,
+            deity: apiChar.deity,
+            definingMarks: apiChar.definingMarks,
+            fame: apiChar.fame,
+            experience: apiChar.experience,
+            totalExperience: apiChar.totalExperience,
+            quintessence: apiChar.quintessence,
+            totalQuintessence: apiChar.totalQuintessence,
+            strength: apiChar.strength,
+            dexterity: apiChar.dexterity,
+            constitution: apiChar.constitution,
+            intelligence: apiChar.intelligence,
+            wisdom: apiChar.wisdom,
+            charisma: apiChar.charisma,
+            skill_allocations: apiChar.skillAllocations,
+            personality: apiChar.personality,
+            ideals: apiChar.ideals,
+            goals: apiChar.goals,
+            secrets: apiChar.secrets,
+            backstory: apiChar.backstory,
+            motivations: apiChar.motivations,
+            faction: apiChar.faction,
+            relationships: apiChar.relationships,
+            attitude_toward_party: apiChar.attitudeTowardParty,
+            allies: apiChar.allies,
+            enemies: apiChar.enemies,
+            affiliations: apiChar.affiliations,
+            resources: apiChar.resources,
+            credits_remaining: apiChar.creditsRemaining,
+            equipment: apiChar.equipment,
+            hp_total: apiChar.hpTotal,
+            initiative: apiChar.initiative,
+            mana: apiChar.mana,
+            armor_soak: apiChar.armorSoak,
+            defense_notes: apiChar.defenseNotes,
+            challenge_rating: apiChar.challengeRating,
+            skill_checkpoint: apiChar.skillCheckpoint,
+            is_initial_setup_locked: apiChar.isInitialSetupLocked,
+            xp_spent: apiChar.xpSpent,
+            xp_checkpoint: apiChar.xpCheckpoint,
+            notes: apiChar.notes,
+          };
+          setCharacters([loadedChar]);
+          setSelectedId(String(loadedChar.id));
+          setCharacterLoaded(true);
+        }
+      } catch (error) {
+        console.error("Error loading character from API:", error);
+      }
+    }
+
+    loadCharacterFromAPI();
+  }, [campaignId, characterId, characterLoaded, characters]);
+
+  // Initialize character when campaign loads (only if no characterId)
+  useEffect(() => {
+    if (campaign && !loading && characters.length === 0 && !characterId) {
       // Create initial character for this campaign
       const newChar: Character = {
-        id: characterId || `char-${Date.now()}`,
+        id: `char-${Date.now()}`,
         characterName: "New Character",
         playerName: null,
         campaignName: campaign.name,
@@ -273,11 +389,12 @@ function CharacterBuilderContent() {
         skill_allocations: {},
         skill_checkpoint: {},
         is_initial_setup_locked: false,
-        backstory: null,
         personality: null,
-        motivations: null,
+        ideals: null,
         goals: null,
         secrets: null,
+        backstory: null,
+        motivations: null,
         relationships: null,
       };
       setCharacters([newChar]);
@@ -298,6 +415,13 @@ function CharacterBuilderContent() {
       if (first) setSelectedId(String(first.id));
     }
   }, [characters, selected]);
+
+  // Ensure campaign name is synced when campaign loads
+  useEffect(() => {
+    if (campaign && selected && !selected.campaignName) {
+      updateSelected({ campaignName: campaign.name });
+    }
+  }, [campaign, selected]);
 
   const filteredList = useMemo(() => {
     const q = qtext.trim().toLowerCase();
@@ -357,17 +481,14 @@ function CharacterBuilderContent() {
       mana: null,
       armor_soak: null,
       defense_notes: null,
-      base_movement: 5, // Default base movement
       challenge_rating: 1,
       skill_allocations: {},
       personality: null,
       ideals: null,
-      bonds: null,
-      flaws: null,
       goals: null,
       secrets: null,
       backstory: null,
-      hooks: null,
+      motivations: null,
       faction: null,
       relationships: null,
       attitude_toward_party: null,
@@ -379,6 +500,122 @@ function CharacterBuilderContent() {
     saveToLocalStorage(newChars);
     setSelectedId(String(id));
     setActiveTab("identity");
+  }
+
+  // Check if character setup is complete
+  function checkCharacterComplete(character: Character): boolean {
+    // Required fields for completion:
+    // 1. Character has a name
+    if (!character.characterName || character.characterName === "New Character") return false;
+    
+    // 2. Character has a race selected
+    if (!character.race) return false;
+    
+    // 3. Attributes should be allocated (at least one changed from default 25)
+    const attributesChanged = 
+      character.strength !== 25 ||
+      character.dexterity !== 25 ||
+      character.constitution !== 25 ||
+      character.intelligence !== 25 ||
+      character.wisdom !== 25 ||
+      character.charisma !== 25;
+    
+    if (!attributesChanged) return false;
+    
+    // 4. Skills should be allocated (at least some points assigned)
+    const skillsAllocated = 
+      character.skill_allocations && 
+      Object.keys(character.skill_allocations).length > 0;
+    
+    if (!skillsAllocated) return false;
+    
+    // 5. At least some equipment purchased (optional - can be zero if player chooses not to buy)
+    // We'll make this optional since a player might save credits
+    
+    // Character is complete!
+    return true;
+  }
+
+  // Auto-save character to database
+  async function saveCharacterToAPI(character: Character) {
+    if (!campaignId || !characterId) return;
+    
+    // Check if character is complete
+    const isComplete = checkCharacterComplete(character);
+    
+    try {
+      // Map UI field names to API field names
+      const payload = {
+        name: character.characterName,
+        playerName: character.playerName,
+        campaignName: character.campaignName,
+        raceId: character.raceId, // UUID from races table
+        race: character.race,
+        age: character.age,
+        baseMagic: character.baseMagic,
+        baseMovement: character.baseMovement,
+        sex: character.sex,
+        height: character.height,
+        weight: character.weight,
+        skinColor: character.skinColor,
+        eyeColor: character.eyeColor,
+        hairColor: character.hairColor,
+        deity: character.deity,
+        definingMarks: character.definingMarks,
+        fame: character.fame,
+        experience: character.experience,
+        totalExperience: character.totalExperience,
+        quintessence: character.quintessence,
+        totalQuintessence: character.totalQuintessence,
+        strength: character.strength,
+        dexterity: character.dexterity,
+        constitution: character.constitution,
+        intelligence: character.intelligence,
+        wisdom: character.wisdom,
+        charisma: character.charisma,
+        skillAllocations: character.skill_allocations,
+        personality: character.personality,
+        ideals: character.ideals,
+        goals: character.goals,
+        secrets: character.secrets,
+        backstory: character.backstory,
+        motivations: character.motivations,
+        faction: character.faction,
+        relationships: character.relationships,
+        attitudeTowardParty: character.attitude_toward_party,
+        allies: character.allies,
+        enemies: character.enemies,
+        affiliations: character.affiliations,
+        resources: character.resources,
+        creditsRemaining: character.credits_remaining,
+        equipment: character.equipment,
+        hpTotal: character.hp_total,
+        initiative: character.initiative,
+        mana: character.mana,
+        armorSoak: character.armor_soak,
+        defenseNotes: character.defense_notes,
+        challengeRating: character.challenge_rating,
+        skillCheckpoint: character.skill_checkpoint,
+        isInitialSetupLocked: character.is_initial_setup_locked,
+        xpSpent: character.xp_spent,
+        xpCheckpoint: character.xp_checkpoint,
+        notes: character.notes,
+        isSetupComplete: isComplete, // Automatically set based on completion criteria
+      };
+
+      const response = await fetch(`/api/campaigns/${campaignId}/characters/${characterId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("Failed to save character:", errorData?.error || response.statusText);
+      }
+    } catch (error) {
+      console.error("Error saving character:", error);
+    }
   }
 
   function updateSelected(patch: Partial<Character>) {
@@ -394,12 +631,23 @@ function CharacterBuilderContent() {
     );
     setCharacters(updated);
     saveToLocalStorage(updated);
+    
+    // Auto-save to API if character exists in database
+    const updatedChar = updated.find((c) => String(c.id) === idStr);
+    if (updatedChar && characterId) {
+      saveCharacterToAPI(updatedChar);
+    }
   }
 
   function saveSelected() {
     if (!selected) return;
-    // Data is already saved via updateSelected
-    alert("Character saved to localStorage!");
+    // Save to API
+    if (characterId) {
+      saveCharacterToAPI(selected);
+      alert("Character saved!");
+    } else {
+      alert("Character saved to localStorage!");
+    }
   }
 
   function deleteSelected() {
@@ -414,6 +662,100 @@ function CharacterBuilderContent() {
     saveToLocalStorage(updated);
     setSelectedId(null);
   }
+
+  /* ---------- Equipment Shop Functions ---------- */
+
+  // Load store items when equipment tab is opened
+  useEffect(() => {
+    if (activeTab === "equipment" && campaignId && storeItems.length === 0) {
+      loadStoreItems();
+    }
+  }, [activeTab, campaignId]);
+
+  async function loadStoreItems() {
+    if (!campaignId) return;
+    
+    setStoreLoading(true);
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/store/public`);
+      if (!response.ok) throw new Error("Failed to load store items");
+      
+      const data = await response.json();
+      if (data.ok && Array.isArray(data.items)) {
+        setStoreItems(data.items);
+      }
+    } catch (error) {
+      console.error("Error loading store items:", error);
+      alert("Failed to load equipment store. Please try again.");
+    } finally {
+      setStoreLoading(false);
+    }
+  }
+
+  async function purchaseItem(storeItemId: string, itemName: string, cost: number, quantity: number = 1) {
+    if (!campaignId || !characterId || !selected) return;
+    
+    // Check if character has enough credits
+    const currentCredits = selected.credits_remaining ?? campaign?.startingCredits ?? 0;
+    const totalCost = cost * quantity;
+    if (currentCredits < totalCost) {
+      alert("Insufficient credits!");
+      return;
+    }
+    
+    const quantityText = quantity > 1 ? ` (x${quantity})` : '';
+    if (!confirm(`Purchase ${itemName}${quantityText} for ${totalCost} credits?`)) {
+      return;
+    }
+    
+    setPurchasing(true);
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/characters/${characterId}/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeItemId, quantity }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to purchase item");
+      }
+      
+      const data = await response.json();
+      if (data.ok) {
+        // Update local character state with new credits and equipment
+        updateSelected({
+          credits_remaining: data.creditsRemaining,
+          equipment: [...(selected.equipment || []), data.item],
+        });
+        
+        alert(`Successfully purchased ${itemName}!`);
+      }
+    } catch (error) {
+      console.error("Error purchasing item:", error);
+      alert(error instanceof Error ? error.message : "Failed to purchase item. Please try again.");
+    } finally {
+      setPurchasing(false);
+    }
+  }
+
+  // Filter store items by search and type
+  const filteredStoreItems = useMemo(() => {
+    let filtered = storeItems;
+    
+    // Filter by type
+    if (storeTypeFilter !== "all") {
+      filtered = filtered.filter(item => item.sourceType === storeTypeFilter);
+    }
+    
+    // Filter by search text
+    const q = storeFilter.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter(item => item.name.toLowerCase().includes(q));
+    }
+    
+    return filtered;
+  }, [storeItems, storeTypeFilter, storeFilter]);
 
   /* ---------- Point Allocation Systems ---------- */
 
@@ -865,8 +1207,8 @@ function CharacterBuilderContent() {
   // Function to lock initial setup and enable XP spending
   function lockInitialSetup() {
     if (!selected) return;
-    if (calculateSkillPointsSpent !== 50) {
-      alert('You must spend exactly 50 skill points before locking initial setup.');
+    if (calculateSkillPointsSpent !== skillPointBudget) {
+      alert(`You must spend exactly ${skillPointBudget} skill points before locking initial setup.`);
       return;
     }
     
@@ -982,7 +1324,7 @@ function CharacterBuilderContent() {
     if (!selected) return;
     
     const newHP = calculateHP(selected.constitution ?? null);
-    const newInitiative = calculateInitiative(selected.dexterity ?? null, selected.base_movement ?? null);
+    const newInitiative = calculateInitiative(selected.dexterity ?? null, selected.baseMovement ?? null);
     
     // Only update if values changed to avoid infinite loops
     if (selected.hp_total !== newHP || selected.initiative !== newInitiative) {
@@ -993,7 +1335,7 @@ function CharacterBuilderContent() {
     }
   }, [selected?.strength, selected?.dexterity, selected?.constitution, 
       selected?.intelligence, selected?.wisdom, selected?.charisma, 
-      selected?.base_movement]);
+      selected?.baseMovement]);
 
   const previewText = useMemo(() => {
     if (!selected) return "";
@@ -1126,7 +1468,16 @@ function CharacterBuilderContent() {
                       setActiveTab(id as CharacterTabKey)
                     }
                   />
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Completion status indicator */}
+                    {selected && checkCharacterComplete(selected) && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30">
+                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-xs font-medium text-emerald-400">Complete</span>
+                      </div>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
@@ -1171,16 +1522,14 @@ function CharacterBuilderContent() {
                       <FormField
                         label="Campaign Name"
                         htmlFor="char-campaign-name"
+                        description="Locked from campaign settings"
                       >
                         <Input
                           id="char-campaign-name"
                           value={selected.campaignName ?? ""}
-                          onChange={(e) =>
-                            updateSelected({
-                              campaignName: e.target.value,
-                            })
-                          }
+                          disabled
                           placeholder="Campaign name"
+                          className="opacity-60 cursor-not-allowed"
                         />
                       </FormField>
                     </div>
@@ -1194,13 +1543,15 @@ function CharacterBuilderContent() {
                         <select
                           id="char-race"
                           value={selected.race ?? ""}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const selectedRace = availableRaces.find(r => r.name === e.target.value);
                             updateSelected({
+                              raceId: selectedRace?.id ? String(selectedRace.id) : null,
                               race: e.target.value,
-                              baseMagic: availableRaces.find(r => r.name === e.target.value)?.baseMovement ?? null,
-                              baseMovement: availableRaces.find(r => r.name === e.target.value)?.baseMovement ?? null,
-                            })
-                          }
+                              baseMagic: selectedRace?.baseMagic ?? null,
+                              baseMovement: selectedRace?.baseMovement ?? null,
+                            });
+                          }}
                           className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                         >
                           <option value="">Select a race...</option>
@@ -1626,7 +1977,7 @@ function CharacterBuilderContent() {
                           />
                         </FormField>
                         <p className="text-[10px] text-zinc-400 mt-1">
-                          Auto: Base Init ({calculateBaseInitiative(selected.dexterity ?? null)}) × Base Movement ({selected.base_movement ?? 5})
+                          Auto: Base Init ({calculateBaseInitiative(selected.dexterity ?? null)}) × Base Movement ({selected.baseMovement ?? 5})
                         </p>
                       </Card>
 
@@ -2243,46 +2594,264 @@ function CharacterBuilderContent() {
                 {/* PURCHASE EQUIPMENT TAB */}
                 {activeTab === "equipment" && (
                   <div className="space-y-4">
+                    {/* Credits Display */}
                     <Card className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center justify-between mb-2">
                         <div>
                           <h3 className="text-lg font-semibold text-amber-200">Available Credits</h3>
-                          <p className="text-xs text-zinc-400 mt-1">Starting credits from campaign</p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            {selected?.credits_remaining !== undefined && selected?.credits_remaining !== null
+                              ? 'Remaining balance'
+                              : 'Starting credits from campaign'}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-3xl font-bold text-emerald-200">
-                            {campaign?.startingCredits ?? 0}
+                            {selected?.credits_remaining ?? campaign?.startingCredits ?? 0}
                           </p>
                           <p className="text-xs text-zinc-400">credits</p>
                         </div>
                       </div>
+
+                      {/* Show purchased equipment count */}
+                      {selected?.equipment && selected.equipment.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-amber-300/20">
+                          <p className="text-sm text-amber-100">
+                            {selected.equipment.length} item{selected.equipment.length !== 1 ? 's' : ''} purchased
+                          </p>
+                        </div>
+                      )}
                     </Card>
 
-                    <Card className="rounded-2xl border border-white/10 bg-black/20 p-6">
-                      <div className="text-center space-y-3">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-violet-500/20 mb-2">
-                          <svg
-                            className="w-8 h-8 text-violet-300"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                            />
-                          </svg>
+                    {/* Store Filters */}
+                    <Card className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1">
+                          <Input
+                            placeholder="Search equipment..."
+                            value={storeFilter}
+                            onChange={(e) => setStoreFilter(e.target.value)}
+                            className="w-full"
+                          />
                         </div>
-                        <h3 className="text-lg font-semibold text-violet-200">
-                          Equipment Shop Coming Soon
-                        </h3>
-                        <p className="text-sm text-zinc-300 max-w-md mx-auto">
-                          Browse and purchase weapons, armor, and items from your GM&apos;s approved equipment list.
-                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={storeTypeFilter === "all" ? "primary" : "secondary"}
+                            size="sm"
+                            onClick={() => setStoreTypeFilter("all")}
+                          >
+                            All
+                          </Button>
+                          <Button
+                            variant={storeTypeFilter === "item" ? "primary" : "secondary"}
+                            size="sm"
+                            onClick={() => setStoreTypeFilter("item")}
+                          >
+                            Items
+                          </Button>
+                          <Button
+                            variant={storeTypeFilter === "weapon" ? "primary" : "secondary"}
+                            size="sm"
+                            onClick={() => setStoreTypeFilter("weapon")}
+                          >
+                            Weapons
+                          </Button>
+                          <Button
+                            variant={storeTypeFilter === "armor" ? "primary" : "secondary"}
+                            size="sm"
+                            onClick={() => setStoreTypeFilter("armor")}
+                          >
+                            Armor
+                          </Button>
+                        </div>
                       </div>
                     </Card>
+
+                    {/* Store Items */}
+                    <Card className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      {storeLoading ? (
+                        <div className="text-center py-12">
+                          <p className="text-zinc-400">Loading equipment...</p>
+                        </div>
+                      ) : filteredStoreItems.length === 0 ? (
+                        <div className="text-center py-12 space-y-3">
+                          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-violet-500/20 mb-2">
+                            <svg
+                              className="w-8 h-8 text-violet-300"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                              />
+                            </svg>
+                          </div>
+                          <h3 className="text-lg font-semibold text-violet-200">
+                            {storeItems.length === 0 ? 'No Equipment Available' : 'No Results'}
+                          </h3>
+                          <p className="text-sm text-zinc-300 max-w-md mx-auto">
+                            {storeItems.length === 0
+                              ? 'Your GM hasn\'t added any equipment to the store yet.'
+                              : 'Try adjusting your search or filters.'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <h3 className="text-sm font-semibold text-zinc-300 mb-3">
+                            {filteredStoreItems.length} item{filteredStoreItems.length !== 1 ? 's' : ''} available
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-2">
+                            {filteredStoreItems.map((item) => {
+                              const currentCredits = selected?.credits_remaining ?? campaign?.startingCredits ?? 0;
+                              const quantity = itemQuantities[item.id] || 1;
+                              const totalCost = item.costCredits * quantity;
+                              const canAfford = currentCredits >= totalCost;
+                              const alreadyOwned = selected?.equipment?.some(
+                                (e: any) => e.storeItemId === item.id
+                              );
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`rounded-xl border p-4 transition-all ${
+                                    !canAfford
+                                      ? 'border-red-500/30 bg-red-500/5'
+                                      : alreadyOwned
+                                      ? 'border-green-500/30 bg-green-500/5'
+                                      : 'border-white/10 bg-white/5 hover:border-violet-400/50 hover:bg-violet-500/5'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <h4 className="font-semibold text-zinc-100">{item.name}</h4>
+                                      <p className="text-xs text-zinc-400 mt-1">
+                                        {item.itemType}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-lg font-bold text-amber-200">
+                                        {item.costCredits}
+                                      </p>
+                                      <p className="text-[10px] text-zinc-500">credits ea.</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 space-y-2">
+                                    {alreadyOwned && (
+                                      <div className="text-xs text-green-400 font-medium mb-1">
+                                        ✓ Owned ({selected?.equipment?.find((e: any) => e.storeItemId === item.id)?.quantity || 0})
+                                      </div>
+                                    )}
+                                    
+                                    {!canAfford && quantity === 1 ? (
+                                      <div className="text-xs text-red-400 font-medium">
+                                        Insufficient Credits
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {/* Quantity Controls */}
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-zinc-400">Qty:</label>
+                                          <div className="flex items-center gap-1">
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className="w-8 h-8 p-0 text-lg"
+                                              onClick={() => {
+                                                const newQty = Math.max(1, quantity - 1);
+                                                setItemQuantities(prev => ({ ...prev, [item.id]: newQty }));
+                                              }}
+                                            >
+                                              -
+                                            </Button>
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              value={quantity}
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 1;
+                                                setItemQuantities(prev => ({ ...prev, [item.id]: Math.max(1, val) }));
+                                              }}
+                                              className="w-16 text-center text-sm"
+                                            />
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className="w-8 h-8 p-0 text-lg"
+                                              onClick={() => {
+                                                setItemQuantities(prev => ({ ...prev, [item.id]: quantity + 1 }));
+                                              }}
+                                            >
+                                              +
+                                            </Button>
+                                          </div>
+                                          {quantity > 1 && (
+                                            <span className="text-xs text-amber-300 font-medium ml-auto">
+                                              Total: {totalCost} credits
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          className="w-full bg-violet-600 hover:bg-violet-700"
+                                          disabled={purchasing || !canAfford}
+                                          onClick={() => purchaseItem(item.id, item.name, item.costCredits, quantity)}
+                                        >
+                                          {purchasing ? 'Purchasing...' : !canAfford ? 'Not Enough Credits' : 'Purchase'}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* Purchased Equipment */}
+                    {selected?.equipment && selected.equipment.length > 0 && (
+                      <Card className="rounded-2xl border border-emerald-300/30 bg-emerald-300/5 p-4">
+                        <h3 className="text-lg font-semibold text-emerald-200 mb-3">
+                          Your Equipment
+                        </h3>
+                        <div className="space-y-2">
+                          {selected.equipment.map((equip: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-3 rounded-lg bg-black/20 border border-emerald-400/20"
+                            >
+                              <div className="flex-1">
+                                <p className="font-medium text-zinc-100">
+                                  {equip.name}
+                                  {equip.quantity > 1 && (
+                                    <span className="ml-2 text-sm text-emerald-400">x{equip.quantity}</span>
+                                  )}
+                                </p>
+                                <p className="text-xs text-zinc-400">{equip.itemType}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-amber-200">
+                                  {equip.costCredits} credits ea.
+                                </p>
+                                {equip.quantity > 1 && (
+                                  <p className="text-xs text-zinc-500">
+                                    Total: {equip.costCredits * equip.quantity}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
                   </div>
                 )}
 

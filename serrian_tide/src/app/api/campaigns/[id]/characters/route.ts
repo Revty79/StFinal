@@ -126,10 +126,12 @@ export async function POST(
 
     const id = crypto.randomUUID();
 
+    // Set initial credits from campaign's startingCredits
     await db.insert(schema.campaignCharacters).values({
       id,
       campaignPlayerId: playerIdValue,
       name: body.name,
+      creditsRemaining: campaign.startingCredits,
       isSetupComplete: body.isSetupComplete ?? false,
     });
 
@@ -139,6 +141,7 @@ export async function POST(
         id,
         name: body.name,
         campaignPlayerId: playerIdValue,
+        creditsRemaining: campaign.startingCredits,
         isSetupComplete: body.isSetupComplete ?? false,
       },
     });

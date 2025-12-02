@@ -39,6 +39,7 @@ export async function GET(req: Request) {
         maxIntelligence: attrs.intelligence_max ? parseInt(attrs.intelligence_max) : 50,
         maxWisdom: attrs.wisdom_max ? parseInt(attrs.wisdom_max) : 50,
         maxCharisma: attrs.charisma_max ? parseInt(attrs.charisma_max) : 50,
+        baseMagic: attrs.base_magic ? parseInt(attrs.base_magic) : 0,
         baseMovement: attrs.base_movement ? parseInt(attrs.base_movement) : 5,
       };
     });
