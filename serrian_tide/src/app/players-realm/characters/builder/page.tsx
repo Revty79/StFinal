@@ -801,37 +801,6 @@ function CharacterBuilderContent() {
   const skillPointsRemaining = skillPointBudget - calculateSkillPointsSpent;
   const isInitialSkillPointsSpent = calculateSkillPointsSpent >= skillPointBudget;
 
-  // Calculate mana based on highest "magic stabilization" skill * base magic from race
-  const calculateMana = useMemo(() => {
-    if (!selected?.skill_allocations || !selected.baseMagic) return 0;
-    
-    const allocations = selected.skill_allocations;
-    let highestMagicStabilizationPoints = 0;
-    
-    // Find all skills with type "magic stabilization" and get the highest point value
-    Object.entries(allocations).forEach(([skillKey, points]) => {
-      // Extract the actual skill ID (might be contexted like "parentId:skillId")
-      const skillId = skillKey.includes(':') ? skillKey.split(':').pop() : skillKey;
-      const skill = allSkills.find(s => s.id === skillId);
-      
-      if (skill && skill.type === 'magic stabilization') {
-        if (points > highestMagicStabilizationPoints) {
-          highestMagicStabilizationPoints = points;
-        }
-      }
-    });
-    
-    // Mana = highest magic stabilization skill points * base magic from race
-    return highestMagicStabilizationPoints * (selected.baseMagic || 0);
-  }, [selected?.skill_allocations, selected?.baseMagic, allSkills]);
-
-  // Auto-update mana when it changes based on skills and baseMagic
-  useEffect(() => {
-    if (selected && selected.mana !== calculateMana) {
-      updateSelected({ mana: calculateMana });
-    }
-  }, [calculateMana, selected?.mana]);
-
   // Calculate points spent in each tier for unlock logic
   const tierPointsSpent = useMemo(() => {
     if (!selected?.skill_allocations) return { tier1: 0, tier2: 0 };
@@ -966,6 +935,28 @@ function CharacterBuilderContent() {
       // E.g., going from 5 to 6 costs 5 XP
       return currentPoints;
     }
+  };
+
+  // Calculate modifier from attribute score
+  const calculateMod = (attrValue: number | null): number => {
+    if (attrValue === null || attrValue === undefined) return -5;
+    if (attrValue < 1) return -5;
+    
+    // Clear progression based on ranges:
+    if (attrValue === 1) return -5;           // 1: -5
+    if (attrValue >= 2 && attrValue <= 5) return -4;   // 2-5: -4
+    if (attrValue >= 6 && attrValue <= 10) return -3;  // 6-10: -3
+    if (attrValue >= 11 && attrValue <= 15) return -2; // 11-15: -2
+    if (attrValue >= 16 && attrValue <= 20) return -1; // 16-20: -1
+    if (attrValue >= 21 && attrValue <= 29) return 0;  // 21-29: 0
+    
+    // 30+: starts at +1 and increases by +1 every 5 points
+    // 30-34: +1, 35-39: +2, 40-44: +3, 45-49: +4, etc.
+    if (attrValue >= 30) {
+      return Math.floor((attrValue - 30) / 5) + 1;
+    }
+    
+    return -5; // fallback
   };
 
   // Calculate skill rank (points + attribute mod)
@@ -1103,6 +1094,38 @@ function CharacterBuilderContent() {
     const rank = calculateSkillRank(skillPoints, attributeName, skillId, tier, contextParentId);
     return 100 - (rank + attributeValue);
   };
+
+  // Calculate mana based on highest "magic stabilization" skill RANK * base magic from race
+  const calculateMana = useMemo(() => {
+    if (!selected?.skill_allocations || !selected.baseMagic) return 0;
+    
+    const allocations = selected.skill_allocations;
+    let highestMagicStabilizationRank = 0;
+    
+    // Find all skills with type "magic stabilization" and get the highest rank
+    Object.entries(allocations).forEach(([skillKey, points]) => {
+      const skillId = skillKey.includes(':') ? skillKey.split(':').pop() : skillKey;
+      const skill = allSkills.find(s => s.id === skillId);
+      
+      if (skill && skill.type === 'magic stabilization') {
+        const contextParent = skillKey.includes(':') ? skillKey.split(':').slice(0, -1).join(':') : undefined;
+        const rank = calculateSkillRank(points, skill.primaryAttribute || '', skillId, skill.tier, contextParent);
+        
+        if (rank > highestMagicStabilizationRank) {
+          highestMagicStabilizationRank = rank;
+        }
+      }
+    });
+    
+    return highestMagicStabilizationRank * (selected.baseMagic || 0);
+  }, [selected?.skill_allocations, selected?.baseMagic, selected?.strength, selected?.dexterity, selected?.constitution, selected?.intelligence, selected?.wisdom, selected?.charisma, allSkills]);
+
+  // Auto-update mana when it changes based on skills and baseMagic
+  useEffect(() => {
+    if (selected && selected.mana !== calculateMana) {
+      updateSelected({ mana: calculateMana });
+    }
+  }, [calculateMana, selected?.mana]);
 
   // CR to XP lookup table for skill experience
   const CR_TO_XP: Record<number, number> = {
@@ -1270,28 +1293,6 @@ function CharacterBuilderContent() {
   }
 
   /* ---------- preview text ---------- */
-
-  // Calculate modifier from attribute score
-  const calculateMod = (attrValue: number | null): number => {
-    if (attrValue === null || attrValue === undefined) return -5;
-    if (attrValue < 1) return -5;
-    
-    // Clear progression based on ranges:
-    if (attrValue === 1) return -5;           // 1: -5
-    if (attrValue >= 2 && attrValue <= 5) return -4;   // 2-5: -4
-    if (attrValue >= 6 && attrValue <= 10) return -3;  // 6-10: -3
-    if (attrValue >= 11 && attrValue <= 15) return -2; // 11-15: -2
-    if (attrValue >= 16 && attrValue <= 20) return -1; // 16-20: -1
-    if (attrValue >= 21 && attrValue <= 29) return 0;  // 21-29: 0
-    
-    // 30+: starts at +1 and increases by +1 every 5 points
-    // 30-34: +1, 35-39: +2, 40-44: +3, 45-49: +4, etc.
-    if (attrValue >= 30) {
-      return Math.floor((attrValue - 30) / 5) + 1;
-    }
-    
-    return -5; // fallback
-  };
 
   // Calculate percentage from attribute score
   const calculatePercent = (attrValue: number | null): number => {
