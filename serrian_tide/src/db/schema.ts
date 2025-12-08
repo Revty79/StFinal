@@ -866,3 +866,39 @@ export const campaignStoreItems = pgTable('campaign_store_items', {
   bySource: index('idx_campaign_store_items_source').on(t.sourceType, t.sourceId),
   uniqueItem: index('idx_campaign_store_items_unique').on(t.campaignId, t.sourceType, t.sourceId),
 }));
+
+// Campaign Archetypes - preset character archetypes with attributes and tier 1 skills
+export const campaignArchetypes = pgTable('campaign_archetypes', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  campaignId: varchar('campaign_id', { length: 36 })
+    .notNull()
+    .references(() => campaigns.id, { onDelete: 'cascade' }),
+  
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  
+  // Attributes stored as JSONB { strength, dexterity, constitution, intelligence, wisdom, charisma }
+  attributes: jsonb('attributes').$type<{
+    strength?: number;
+    dexterity?: number;
+    constitution?: number;
+    intelligence?: number;
+    wisdom?: number;
+    charisma?: number;
+  }>().notNull().default({}),
+  
+  // Skills stored as JSONB array of { skillId, skillName, points }
+  skills: jsonb('skills').$type<Array<{ skillId: string; skillName: string; points: number }>>().notNull().default([]),
+  
+  // Tier 2/3 Magic Skill Guidance (text suggestions for advanced paths)
+  spellcraftGuidance: text('spellcraft_guidance'), // Suggested spheres and tier 3 spells
+  talismanismGuidance: text('talismanism_guidance'), // Suggested focuses and tier 3 spells
+  faithGuidance: text('faith_guidance'), // Suggested domains and tier 3 prayers
+  psonicsGuidance: text('psonics_guidance'), // Suggested disciplines and tier 3 psionic skills
+  bardicGuidance: text('bardic_guidance'), // Suggested resonance types and tier 3 reverberations
+  
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCampaign: index('idx_campaign_archetypes_campaign_id').on(t.campaignId),
+}));

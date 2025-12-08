@@ -724,6 +724,25 @@ CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_campaign_id" ON "campaign_s
 CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_source" ON "campaign_store_items"("source_type", "source_id");
 CREATE INDEX IF NOT EXISTS "idx_campaign_store_items_unique" ON "campaign_store_items"("campaign_id", "source_type", "source_id");
 
+-- Campaign Archetypes table
+CREATE TABLE IF NOT EXISTS "campaign_archetypes" (
+  "id" varchar(36) PRIMARY KEY,
+  "campaign_id" varchar(36) NOT NULL REFERENCES "campaigns"("id") ON DELETE CASCADE,
+  "name" varchar(255) NOT NULL,
+  "description" text,
+  "attributes" jsonb NOT NULL DEFAULT '{}',
+  "skills" jsonb NOT NULL DEFAULT '[]',
+  "spellcraft_guidance" text,
+  "talismanism_guidance" text,
+  "faith_guidance" text,
+  "psonics_guidance" text,
+  "bardic_guidance" text,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_campaign_archetypes_campaign_id" ON "campaign_archetypes"("campaign_id");
+
 -- ============================================
 -- SEED DEFAULT ROLES
 -- ============================================

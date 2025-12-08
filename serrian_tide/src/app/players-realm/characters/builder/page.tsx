@@ -14,7 +14,7 @@ import { generateCharacterPDF } from "@/lib/generateCharacterPDF";
 
 /* ---------- types & helpers ---------- */
 
-type CharacterTabKey = "identity" | "attributes" | "skills" | "story" | "equipment" | "preview";
+type CharacterTabKey = "archetypes" | "identity" | "attributes" | "skills" | "story" | "equipment" | "preview";
 
 export type Character = {
   id: string | number;
@@ -87,6 +87,7 @@ export type Character = {
 };
 
 const CHARACTER_TABS: { id: CharacterTabKey; label: string }[] = [
+  { id: "archetypes", label: "Archetypes" },
   { id: "identity", label: "Identity" },
   { id: "attributes", label: "Attributes" },
   { id: "skills", label: "Skills & Abilities" },
@@ -131,7 +132,7 @@ function CharacterBuilderContent() {
   // library data
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<CharacterTabKey>("identity");
+  const [activeTab, setActiveTab] = useState<CharacterTabKey>("archetypes");
   const [skillSubTab, setSkillSubTab] = useState<"strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma" | "special">("strength");
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
@@ -142,6 +143,23 @@ function CharacterBuilderContent() {
     baseMagic?: number;
     baseMovement?: number;
   }>>([]);
+
+  // Archetype state
+  type Archetype = {
+    id: string;
+    name: string;
+    description?: string;
+    attributes: { [key: string]: number };
+    skills: Array<{ skillId: string; skillName: string; points: number }>;
+    spellcraftGuidance?: string;
+    talismanismGuidance?: string;
+    faithGuidance?: string;
+    psonicsGuidance?: string;
+    bardicGuidance?: string;
+  };
+  const [archetypes, setArchetypes] = useState<Archetype[]>([]);
+  const [selectedArchetype, setSelectedArchetype] = useState<Archetype | null>(null);
+  const [archetypesLoading, setArchetypesLoading] = useState(false);
 
   // Reset character loaded flag when characterId changes
   useEffect(() => {
@@ -176,6 +194,23 @@ function CharacterBuilderContent() {
   const [purchasing, setPurchasing] = useState(false);
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
+  // Function to fetch campaign archetypes
+  const fetchCampaignArchetypes = async (cid: string) => {
+    try {
+      setArchetypesLoading(true);
+      const response = await fetch(`/api/campaigns/${cid}/archetypes`);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.ok && Array.isArray(data.archetypes)) {
+        setArchetypes(data.archetypes);
+      }
+    } catch (error) {
+      console.error("Error loading archetypes:", error);
+    } finally {
+      setArchetypesLoading(false);
+    }
+  };
+
   // Load campaign data from API
   useEffect(() => {
     async function loadCampaignData() {
@@ -193,6 +228,8 @@ function CharacterBuilderContent() {
         const data = await response.json();
         if (data.ok && data.campaign) {
           setCampaign(data.campaign);
+          // Fetch archetypes for this campaign
+          fetchCampaignArchetypes(campaignId);
         }
       } catch (error) {
         console.error("Error loading campaign:", error);
@@ -1607,6 +1644,132 @@ function CharacterBuilderContent() {
               </div>
 
               <div className="space-y-4">
+                {/* ARCHETYPES TAB */}
+                {activeTab === "archetypes" && (
+                  <div className="space-y-4">
+                    <Card className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                      <h2 className="text-xl font-semibold mb-6">Select an Archetype</h2>
+                      <p className="text-sm text-zinc-400 mb-6">
+                        Choose an archetype to guide your character build. This is optional and provides recommendations for attributes, skills, and magic abilities.
+                      </p>
+
+                      {archetypesLoading ? (
+                        <p className="text-zinc-400">Loading archetypes...</p>
+                      ) : archetypes.length === 0 ? (
+                        <p className="text-zinc-400">No archetypes available for this campaign.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {archetypes.map((archetype) => (
+                            <button
+                              key={archetype.id}
+                              onClick={() => setSelectedArchetype(archetype)}
+                              className={`p-4 rounded-xl border-2 transition-all text-left ${
+                                selectedArchetype?.id === archetype.id
+                                  ? 'bg-amber-600/20 border-amber-500/50'
+                                  : 'bg-black/20 border-white/10 hover:border-white/20'
+                              }`}
+                            >
+                              <h3 className="font-semibold text-zinc-200 mb-2">{archetype.name}</h3>
+                              {archetype.description && (
+                                <p className="text-xs text-zinc-400 line-clamp-2">{archetype.description}</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {selectedArchetype && (
+                        <div className="mt-8 p-4 rounded-xl bg-white/5 border border-white/10">
+                          <h3 className="font-semibold text-zinc-200 mb-4">Suggested Build: {selectedArchetype.name}</h3>
+                          
+                          {/* Suggested Attributes */}
+                          <div className="mb-6">
+                            <h4 className="text-sm font-semibold text-zinc-300 mb-3">Suggested Attributes</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map((attr) => {
+                                const value = selectedArchetype.attributes?.[attr] ?? 0;
+                                return value > 0 ? (
+                                  <div key={attr} className="p-2 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs text-zinc-400 capitalize">{attr}</p>
+                                    <p className="text-lg font-semibold text-amber-300">{value}</p>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Suggested Skills */}
+                          {selectedArchetype.skills && selectedArchetype.skills.length > 0 && (
+                            <div className="mb-6">
+                              <h4 className="text-sm font-semibold text-zinc-300 mb-3">Suggested Skills</h4>
+                              <div className="space-y-2">
+                                {selectedArchetype.skills.map((skill) => (
+                                  <div key={skill.skillId} className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-sm text-zinc-300">{skill.skillName}</p>
+                                    <p className="text-sm font-semibold text-emerald-300">{skill.points} pts</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Magic Guidance */}
+                          {(selectedArchetype.spellcraftGuidance || selectedArchetype.talismanismGuidance || selectedArchetype.faithGuidance || selectedArchetype.psonicsGuidance || selectedArchetype.bardicGuidance) && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-zinc-300 mb-3">Magic Traditions</h4>
+                              <div className="space-y-3">
+                                {selectedArchetype.spellcraftGuidance && (
+                                  <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs font-semibold text-blue-300 mb-1">Spellcraft</p>
+                                    <p className="text-xs text-zinc-400">{selectedArchetype.spellcraftGuidance}</p>
+                                  </div>
+                                )}
+                                {selectedArchetype.talismanismGuidance && (
+                                  <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs font-semibold text-purple-300 mb-1">Talismanism</p>
+                                    <p className="text-xs text-zinc-400">{selectedArchetype.talismanismGuidance}</p>
+                                  </div>
+                                )}
+                                {selectedArchetype.faithGuidance && (
+                                  <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs font-semibold text-amber-300 mb-1">Faith</p>
+                                    <p className="text-xs text-zinc-400">{selectedArchetype.faithGuidance}</p>
+                                  </div>
+                                )}
+                                {selectedArchetype.psonicsGuidance && (
+                                  <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs font-semibold text-pink-300 mb-1">Psionics</p>
+                                    <p className="text-xs text-zinc-400">{selectedArchetype.psonicsGuidance}</p>
+                                  </div>
+                                )}
+                                {selectedArchetype.bardicGuidance && (
+                                  <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                                    <p className="text-xs font-semibold text-green-300 mb-1">Bardic Resonance</p>
+                                    <p className="text-xs text-zinc-400">{selectedArchetype.bardicGuidance}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          <p className="mt-4 text-xs text-zinc-500 italic">
+                            These are suggestions only. You have complete control over your character build.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="mt-6">
+                        <Button
+                          variant="primary"
+                          onClick={() => setActiveTab("identity")}
+                        >
+                          Continue to Identity {selectedArchetype ? "→" : ""}
+                        </Button>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
                 {/* IDENTITY TAB */}
                 {activeTab === "identity" && (
                   <div className="space-y-4">

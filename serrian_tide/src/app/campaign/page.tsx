@@ -113,11 +113,43 @@ export default function CampaignPage() {
   const [itemSearchQuery, setItemSearchQuery] = useState("");
   const [isSavingStore, setIsSavingStore] = useState(false);
 
+  // Archetype state
+  type Archetype = {
+    id: string;
+    name: string;
+    description?: string;
+    attributes: { [key: string]: number };
+    skills: Array<{ skillId: string; skillName: string; points: number }>;
+    spellcraftGuidance?: string;
+    talismanismGuidance?: string;
+    faithGuidance?: string;
+    psonicsGuidance?: string;
+    bardicGuidance?: string;
+  };
+  const [archetypes, setArchetypes] = useState<Archetype[]>([]);
+  const [allSkills, setAllSkills] = useState<any[]>([]);
+  const [showArchetypeModal, setShowArchetypeModal] = useState(false);
+  const [newArchetype, setNewArchetype] = useState<Archetype>({
+    id: '',
+    name: '',
+    description: '',
+    attributes: { strength: 0, dexterity: 0, constitution: 0, intelligence: 0, wisdom: 0, charisma: 0 },
+    skills: [],
+    spellcraftGuidance: '',
+    talismanismGuidance: '',
+    faithGuidance: '',
+    psonicsGuidance: '',
+    bardicGuidance: '',
+  });
+  const [editingArchetype, setEditingArchetype] = useState<string | null>(null);
+  const [isSavingArchetype, setIsSavingArchetype] = useState(false);
+
   // Fetch campaigns on mount
   useEffect(() => {
     fetchCampaigns();
     fetchActiveUsers();
     fetchAvailableRaces();
+    fetchAllSkills();
     fetchAvailableInventory();
   }, []);
 
@@ -277,6 +309,95 @@ export default function CampaignPage() {
     }
   }
 
+  async function fetchAllSkills() {
+    try {
+      const res = await fetch("/api/worldbuilder/skills");
+      const data = await res.json();
+      if (data.ok && data.skills) {
+        // Filter to only tier 1 skills
+        const tier1Skills = data.skills.filter((s: any) => s.tier === 1);
+        setAllSkills(tier1Skills);
+      }
+    } catch (err) {
+      console.error("Failed to fetch skills:", err);
+    }
+  }
+
+  async function fetchCampaignArchetypes(campaignId: string) {
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/archetypes`);
+      const data = await res.json();
+      if (data.ok && data.archetypes) {
+        setArchetypes(data.archetypes);
+      }
+    } catch (err) {
+      console.error("Failed to fetch archetypes:", err);
+    }
+  }
+
+  async function saveArchetype(campaignId: string, archetype: Archetype) {
+    try {
+      setIsSavingArchetype(true);
+      
+      const isNew = !archetype.id;
+      const method = isNew ? "POST" : "PUT";
+      const url = isNew 
+        ? `/api/campaigns/${campaignId}/archetypes`
+        : `/api/campaigns/${campaignId}/archetypes/${archetype.id}`;
+      
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(archetype),
+      });
+      
+      const data = await res.json();
+      if (data.ok) {
+        await fetchCampaignArchetypes(campaignId);
+        setShowArchetypeModal(false);
+        setEditingArchetype(null);
+        setNewArchetype({
+          id: '',
+          name: '',
+          description: '',
+          attributes: { strength: 0, dexterity: 0, constitution: 0, intelligence: 0, wisdom: 0, charisma: 0 },
+          skills: [],
+          spellcraftGuidance: '',
+          talismanismGuidance: '',
+          faithGuidance: '',
+          psonicsGuidance: '',
+          bardicGuidance: '',
+        });
+      } else {
+        console.error('Failed to save archetype:', data.error);
+      }
+    } catch (err) {
+      console.error("Failed to save archetype:", err);
+    } finally {
+      setIsSavingArchetype(false);
+    }
+  }
+
+  async function deleteArchetype(campaignId: string, archetypeId: string) {
+    try {
+      setIsSavingArchetype(true);
+      const res = await fetch(`/api/campaigns/${campaignId}/archetypes/${archetypeId}`, {
+        method: "DELETE",
+      });
+      
+      const data = await res.json();
+      if (data.ok) {
+        await fetchCampaignArchetypes(campaignId);
+      } else {
+        console.error('Failed to delete archetype:', data.error);
+      }
+    } catch (err) {
+      console.error("Failed to delete archetype:", err);
+    } finally {
+      setIsSavingArchetype(false);
+    }
+  }
+
   async function removeCampaignStoreItem(campaignId: string, storeItemId: string) {
     try {
       setIsSavingStore(true);
@@ -318,6 +439,7 @@ export default function CampaignPage() {
     { id: "campaign", label: "Campaign" },
     { id: "players", label: "Players & Characters" },
     { id: "gear", label: "Starting Gear Shop" },
+    { id: "archetypes", label: "Archetypes" },
     { id: "preview", label: "Preview" },
     { id: "rewards", label: "Assign EXP & Quintessence" },
   ];
@@ -332,6 +454,8 @@ export default function CampaignPage() {
   useEffect(() => {
     if (selectedId && selected && (!selected.players || !selected.currencies)) {
       fetchCampaignDetails(selectedId);
+      fetchCampaignArchetypes(selectedId);
+      fetchCampaignStoreItems(selectedId);
     }
   }, [selectedId]);
 
@@ -974,7 +1098,7 @@ export default function CampaignPage() {
                                     }
                                     updateCampaign({ currencies: updated });
                                   }}
-                                  placeholder="25"
+                                  placeholder="0"
                                 />
                               </div>
                               <Button
@@ -1505,6 +1629,458 @@ export default function CampaignPage() {
                       </div>
                     </div>
                   </Card>
+                )}
+
+                {activeTab === "archetypes" && (
+                  <Card className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-semibold">Archetypes</h2>
+                      {selectedId && (
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            setShowArchetypeModal(true);
+                            setNewArchetype({
+                              id: '',
+                              name: '',
+                              description: '',
+                              attributes: { strength: 0, dexterity: 0, constitution: 0, intelligence: 0, wisdom: 0, charisma: 0 },
+                              skills: [],
+                            });
+                          }}
+                          disabled={isSavingArchetype}
+                        >
+                          {isSavingArchetype ? "Saving..." : "+ Add Archetype"}
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Campaign Selection Status */}
+                    {!selectedId ? (
+                      <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <p className="text-red-400 font-medium">
+                          ⚠️ Please select a campaign from the left sidebar to manage its archetypes.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        {archetypes.length === 0 ? (
+                          <div className="p-8 rounded-xl bg-black/20 border border-white/10 text-center">
+                            <p className="text-zinc-500 mb-4">No archetypes created yet</p>
+                            <Button
+                              variant="primary"
+                              onClick={() => setShowArchetypeModal(true)}
+                            >
+                              Create Your First Archetype
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {archetypes.map((archetype) => (
+                              <div
+                                key={archetype.id}
+                                className="p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex flex-col"
+                              >
+                                <div className="flex-1 mb-3">
+                                  <h4 className="font-semibold text-zinc-200">{archetype.name}</h4>
+                                  {archetype.description && (
+                                    <p className="text-xs text-zinc-400 mt-1">{archetype.description}</p>
+                                  )}
+                                  
+                                  {/* Attributes Summary */}
+                                  <div className="mt-3 text-xs">
+                                    <p className="text-zinc-500 mb-2">Attributes:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {Object.entries(archetype.attributes).map(([key, val]: [string, any]) => (
+                                        <span key={key} className="px-2 py-0.5 rounded bg-purple-600/20 text-purple-300">
+                                          {key.slice(0, 3).toUpperCase()} {val}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Skills Summary */}
+                                  {archetype.skills.length > 0 && (
+                                    <div className="mt-2 text-xs">
+                                      <p className="text-zinc-500 mb-1">Skills ({archetype.skills.length}):</p>
+                                      <div className="space-y-1">
+                                        {archetype.skills.slice(0, 3).map((skill, idx) => (
+                                          <div key={idx} className="text-zinc-400">
+                                            {skill.skillName} <span className="text-emerald-400">+{skill.points}</span>
+                                          </div>
+                                        ))}
+                                        {archetype.skills.length > 3 && (
+                                          <div className="text-zinc-500">+{archetype.skills.length - 3} more...</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-2 pt-3 border-t border-white/10">
+                                  <Button
+                                    variant="secondary"
+                                    className="text-xs px-3 py-1 flex-1"
+                                    onClick={() => {
+                                      setNewArchetype(archetype);
+                                      setShowArchetypeModal(true);
+                                    }}
+                                    disabled={isSavingArchetype}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    className="text-xs px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300"
+                                    onClick={() => deleteArchetype(selectedId, archetype.id)}
+                                    disabled={isSavingArchetype}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+                )}
+
+                {/* Archetype Modal */}
+                {showArchetypeModal && (
+                  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <Card className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-semibold">
+                          {newArchetype.id ? "Edit Archetype" : "Create New Archetype"}
+                        </h2>
+                        <button
+                          onClick={() => setShowArchetypeModal(false)}
+                          className="text-zinc-400 hover:text-zinc-200"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {/* Name and Description */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-zinc-400 mb-2 block">Archetype Name *</label>
+                            <Input
+                              placeholder="e.g., Warrior, Rogue, Mage"
+                              value={newArchetype.name}
+                              onChange={(e) => setNewArchetype({ ...newArchetype, name: e.target.value })}
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-zinc-400 mb-2 block">Description</label>
+                            <Input
+                              placeholder="Brief description..."
+                              value={newArchetype.description || ''}
+                              onChange={(e) => setNewArchetype({ ...newArchetype, description: e.target.value })}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Point Budget Display */}
+                        {selected && (
+                          <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                            <div>
+                              <p className="text-xs text-zinc-500 mb-1">Attribute Points</p>
+                              <p className="text-sm font-semibold text-zinc-200">
+                                {Object.values(newArchetype.attributes || {}).reduce((a, b) => a + b, 0)} / {selected.attributePoints || 150} spent
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-zinc-500 mb-1">Skill Points</p>
+                              <p className="text-sm font-semibold text-zinc-200">
+                                {(newArchetype.skills || []).reduce((sum, s) => sum + s.points, 0)} / {selected.skillPoints || 50} spent
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Attributes */}
+                        <div>
+                          <label className="text-sm text-zinc-400 mb-3 block font-semibold">Attributes</label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map((attr) => (
+                              <div key={attr}>
+                                <label className="text-xs text-zinc-500 mb-2 block capitalize">{attr}</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={newArchetype.attributes[attr] || 0}
+                                    onChange={(e) => setNewArchetype({
+                                      ...newArchetype,
+                                      attributes: { ...newArchetype.attributes, [attr]: parseInt(e.target.value) }
+                                    })}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-sm font-semibold text-zinc-300 w-8 text-right">
+                                    {newArchetype.attributes[attr] || 0}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Skills - Organized by Attribute (Same as Character Builder) */}
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <label className="text-sm text-zinc-400 block font-semibold">Select Tier 1 Skills</label>
+                            <span className="text-xs text-zinc-500">{newArchetype.skills.length} selected</span>
+                          </div>
+
+                          {allSkills.length === 0 ? (
+                            <p className="text-sm text-zinc-500">Loading skills...</p>
+                          ) : (
+                            <div className="space-y-4 max-h-96 overflow-y-auto">
+                              {/* Group skills by attribute - matching character builder logic */}
+                              {['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'].map((attr) => {
+                                const attrShort = attr.substring(0, 3).toUpperCase();
+                                const skillsByAttr = allSkills.filter(s => {
+                                  const primary = s.primaryAttribute?.toUpperCase();
+                                  const secondary = s.secondaryAttribute?.toUpperCase();
+                                  return primary === attrShort || secondary === attrShort;
+                                });
+                                
+                                if (skillsByAttr.length === 0) return null;
+                                
+                                return (
+                                  <div key={attr} className="border-l-2 border-white/20 pl-4">
+                                    <h4 className="text-xs font-semibold text-zinc-300 mb-2">{attr}</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      {skillsByAttr.map((skill) => {
+                                        const selected = newArchetype.skills.find(s => s.skillId === skill.id);
+                                        return (
+                                          <div
+                                            key={skill.id}
+                                            className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                              selected
+                                                ? 'bg-emerald-600/30 border-emerald-500/50'
+                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                            }`}
+                                            onClick={() => {
+                                              if (selected) {
+                                                setNewArchetype({
+                                                  ...newArchetype,
+                                                  skills: newArchetype.skills.filter(s => s.skillId !== skill.id)
+                                                });
+                                              } else {
+                                                setNewArchetype({
+                                                  ...newArchetype,
+                                                  skills: [...newArchetype.skills, { skillId: skill.id, skillName: skill.name, points: 0 }]
+                                                });
+                                              }
+                                            }}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-medium text-zinc-200">{skill.name}</span>
+                                              {selected && (
+                                                <span className="text-xs font-semibold text-emerald-300">✓</span>
+                                              )}
+                                            </div>
+                                            {selected && (
+                                              <div className="mt-2 flex items-center gap-2">
+                                                <label className="text-xs text-zinc-400">Points:</label>
+                                                <input
+                                                  type="number"
+                                                  value={selected.points}
+                                                  onChange={(e) => setNewArchetype({
+                                                    ...newArchetype,
+                                                    skills: newArchetype.skills.map(s =>
+                                                      s.skillId === skill.id ? { ...s, points: Math.max(0, Math.min(10, parseInt(e.target.value) || 0)) } : s
+                                                    )
+                                                  })}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  min="0"
+                                                  max="10"
+                                                  className="w-12 px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-zinc-300"
+                                                />
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Special Abilities Section */}
+                              {(() => {
+                                const specialAbilities = allSkills.filter(s => s.type === 'special ability');
+                                if (specialAbilities.length === 0) return null;
+                                
+                                return (
+                                  <div key="special" className="border-l-2 border-white/20 pl-4">
+                                    <h4 className="text-xs font-semibold text-zinc-300 mb-2">Special Abilities</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      {specialAbilities.map((skill) => {
+                                        const selected = newArchetype.skills.find(s => s.skillId === skill.id);
+                                        return (
+                                          <div
+                                            key={skill.id}
+                                            className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                              selected
+                                                ? 'bg-emerald-600/30 border-emerald-500/50'
+                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                            }`}
+                                            onClick={() => {
+                                              if (selected) {
+                                                setNewArchetype({
+                                                  ...newArchetype,
+                                                  skills: newArchetype.skills.filter(s => s.skillId !== skill.id)
+                                                });
+                                              } else {
+                                                setNewArchetype({
+                                                  ...newArchetype,
+                                                  skills: [...newArchetype.skills, { skillId: skill.id, skillName: skill.name, points: 0 }]
+                                                });
+                                              }
+                                            }}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-medium text-zinc-200">{skill.name}</span>
+                                              {selected && (
+                                                <span className="text-xs font-semibold text-emerald-300">✓</span>
+                                              )}
+                                            </div>
+                                            {selected && (
+                                              <div className="mt-2 flex items-center gap-2">
+                                                <label className="text-xs text-zinc-400">Points:</label>
+                                                <input
+                                                  type="number"
+                                                  value={selected.points}
+                                                  onChange={(e) => setNewArchetype({
+                                                    ...newArchetype,
+                                                    skills: newArchetype.skills.map(s =>
+                                                      s.skillId === skill.id ? { ...s, points: Math.max(0, Math.min(10, parseInt(e.target.value) || 0)) } : s
+                                                    )
+                                                  })}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  min="0"
+                                                  max="10"
+                                                  className="w-12 px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-zinc-300"
+                                                />
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Tier 2/3 Magic Guidance */}
+                        <div className="border-t border-white/10 pt-6">
+                          <h3 className="text-sm font-semibold text-zinc-300 mb-4">Tier 2/3 Magic Skill Guidance</h3>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-xs text-zinc-400 mb-2 block">Spellcraft Guidance</label>
+                              <textarea
+                                placeholder="e.g., Fire and Healing spheres for tier 2, Fireball and Cure Wounds for tier 3..."
+                                value={newArchetype.spellcraftGuidance || ''}
+                                onChange={(e) => setNewArchetype({ ...newArchetype, spellcraftGuidance: e.target.value })}
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 min-h-[80px]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-zinc-400 mb-2 block">Talismanism Guidance</label>
+                              <textarea
+                                placeholder="e.g., Divine Focus and Protection focus for tier 2..."
+                                value={newArchetype.talismanismGuidance || ''}
+                                onChange={(e) => setNewArchetype({ ...newArchetype, talismanismGuidance: e.target.value })}
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 min-h-[80px]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-zinc-400 mb-2 block">Faith Guidance</label>
+                              <textarea
+                                placeholder="e.g., Light and Healing domains for tier 2..."
+                                value={newArchetype.faithGuidance || ''}
+                                onChange={(e) => setNewArchetype({ ...newArchetype, faithGuidance: e.target.value })}
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 min-h-[80px]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-zinc-400 mb-2 block">Psionics Guidance</label>
+                              <textarea
+                                placeholder="e.g., Combat Psionics and Healing disciplines for tier 2..."
+                                value={newArchetype.psonicsGuidance || ''}
+                                onChange={(e) => setNewArchetype({ ...newArchetype, psonicsGuidance: e.target.value })}
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 min-h-[80px]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-zinc-400 mb-2 block">Bardic Resonance Guidance</label>
+                              <textarea
+                                placeholder="e.g., Combat and Healing resonance types for tier 2..."
+                                value={newArchetype.bardicGuidance || ''}
+                                onChange={(e) => setNewArchetype({ ...newArchetype, bardicGuidance: e.target.value })}
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 min-h-[80px]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="flex gap-3 pt-4 border-t border-white/10">
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              if (newArchetype.name.trim() && selectedId) {
+                                saveArchetype(selectedId, newArchetype);
+                              }
+                            }}
+                            disabled={!newArchetype.name.trim() || isSavingArchetype}
+                            className="flex-1"
+                          >
+                            {isSavingArchetype ? "Saving..." : "Save Archetype"}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => {
+                              setShowArchetypeModal(false);
+                              setNewArchetype({
+                                id: '',
+                                name: '',
+                                description: '',
+                                attributes: { strength: 0, dexterity: 0, constitution: 0, intelligence: 0, wisdom: 0, charisma: 0 },
+                                skills: [],
+                                spellcraftGuidance: '',
+                                talismanismGuidance: '',
+                                faithGuidance: '',
+                                psonicsGuidance: '',
+                                bardicGuidance: '',
+                              });
+                            }}
+                            disabled={isSavingArchetype}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
                 )}
 
                 {activeTab === "preview" && (
