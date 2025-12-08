@@ -78,6 +78,7 @@ export async function POST(
     });
   } catch (error) {
     console.error('POST /api/campaigns/[id]/archetypes error:', error);
-    return NextResponse.json({ ok: false, error: 'Failed to create archetype' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create archetype';
+    return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
