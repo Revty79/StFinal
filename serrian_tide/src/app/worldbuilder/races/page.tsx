@@ -410,6 +410,7 @@ export default function RacesPage() {
       name: "New Race",
       tagline: "",
       is_free: false,
+      canEdit: true, // New races are always editable by creator
       def: {},
       attr: {},
       bonusRows: makeBonusRows(MAX_BONUS_SKILLS),
