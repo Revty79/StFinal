@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
@@ -12,13 +12,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    // Admins can see all creatures, regular users see only their own
+    // Admins can see all creatures, regular users see their own + free content
     const creatures = user.role === 'admin'
       ? await db.select().from(schema.creatures).orderBy(schema.creatures.name)
       : await db
           .select()
           .from(schema.creatures)
-          .where(eq(schema.creatures.createdBy, user.id))
+          .where(or(
+            eq(schema.creatures.createdBy, user.id),
+            eq(schema.creatures.isFree, true)
+          ))
           .orderBy(schema.creatures.name);
 
     return NextResponse.json({ ok: true, creatures });

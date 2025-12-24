@@ -16,12 +16,15 @@ export async function GET(
 
     const { id } = await params;
 
-    // Admins can view all creatures, users only their own
+    // Admins can view all creatures, users can view their own + free content
     const whereClause = user.role === 'admin'
       ? eq(schema.creatures.id, id)
       : and(
           eq(schema.creatures.id, id),
-          eq(schema.creatures.createdBy, user.id)
+          or(
+            eq(schema.creatures.createdBy, user.id),
+            eq(schema.creatures.isFree, true)
+          )
         );
 
     const creature = await db
@@ -101,10 +104,14 @@ export async function PUT(
         isPublished: body.isPublished,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(schema.creatures.id, id),
-        eq(schema.creatures.createdBy, user.id)
-      ));
+      .where(
+        user.role === 'admin'
+          ? eq(schema.creatures.id, id)
+          : and(
+              eq(schema.creatures.id, id),
+              eq(schema.creatures.createdBy, user.id)
+            )
+      );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
