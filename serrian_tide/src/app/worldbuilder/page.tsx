@@ -171,7 +171,7 @@ export default async function SourceForgePage() {
             </p>
             
             <div className="mt-6">
-              <Link href="/worldbuilder/coming-soon">
+              <Link href="/worldbuilder/playground">
                 <Button variant="primary" size="md" className="w-full">
                   Enter Playground
                 </Button>

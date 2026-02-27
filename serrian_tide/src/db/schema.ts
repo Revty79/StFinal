@@ -689,6 +689,51 @@ export const calendarFestivals = pgTable('calendar_festivals', {
   byCalendar: index('idx_calendar_festivals_calendar_id').on(t.calendarId),
 }));
 
+/** ===== WORLDBUILDER: PLAYGROUND (WORLD TREE + WIKI) ===== **/
+
+export const playgroundNodes = pgTable('playground_nodes', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  type: varchar('type', { length: 50 }).notNull(), // cosmos|world|era|setting|folder|page (+future types)
+  parentId: varchar('parent_id', { length: 36 }).references((): any => playgroundNodes.id, { onDelete: 'cascade' }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  name: varchar('name', { length: 255 }).notNull(),
+  summary: text('summary'),
+  tags: jsonb('tags').$type<string[]>(),
+  markdown: text('markdown'),
+  meta: jsonb('meta').$type<Record<string, unknown>>(),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_playground_nodes_created_by').on(t.createdBy),
+  byParentSort: index('idx_playground_nodes_parent_sort').on(t.parentId, t.sortOrder),
+  byType: index('idx_playground_nodes_type').on(t.type),
+  byName: index('idx_playground_nodes_name').on(t.name),
+}));
+
+export const playgroundToolboxLinks = pgTable(
+  'playground_toolbox_links',
+  {
+    nodeId: varchar('node_id', { length: 36 })
+      .notNull()
+      .references(() => playgroundNodes.id, { onDelete: 'cascade' }),
+    toolboxType: varchar('toolbox_type', { length: 50 }).notNull(), // race|skill|creature|npc|calendar (+future)
+    toolboxId: varchar('toolbox_id', { length: 36 }).notNull(),
+    createdBy: varchar('created_by', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.nodeId, t.toolboxType, t.toolboxId] }),
+    byNode: index('idx_playground_toolbox_links_node').on(t.nodeId),
+    byToolbox: index('idx_playground_toolbox_links_toolbox').on(t.toolboxType, t.toolboxId),
+  })
+);
+
 /** ===== CAMPAIGN MANAGEMENT ===== **/
 
 export const campaigns = pgTable('campaigns', {

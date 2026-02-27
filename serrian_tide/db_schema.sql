@@ -592,6 +592,43 @@ CREATE TABLE IF NOT EXISTS "calendar_festivals" (
 CREATE INDEX IF NOT EXISTS "idx_calendar_festivals_calendar_id" ON "calendar_festivals"("calendar_id");
 
 -- ============================================
+-- WORLDBUILDER: PLAYGROUND (WORLD TREE + WIKI)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS "playground_nodes" (
+  "id" varchar(36) PRIMARY KEY NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "type" varchar(50) NOT NULL,
+  "parent_id" varchar(36) REFERENCES "playground_nodes"("id") ON DELETE CASCADE,
+  "sort_order" integer DEFAULT 0 NOT NULL,
+  "name" varchar(255) NOT NULL,
+  "summary" text,
+  "tags" jsonb,
+  "markdown" text,
+  "meta" jsonb,
+  "is_published" boolean DEFAULT false NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_playground_nodes_created_by" ON "playground_nodes"("created_by");
+CREATE INDEX IF NOT EXISTS "idx_playground_nodes_parent_sort" ON "playground_nodes"("parent_id", "sort_order");
+CREATE INDEX IF NOT EXISTS "idx_playground_nodes_type" ON "playground_nodes"("type");
+CREATE INDEX IF NOT EXISTS "idx_playground_nodes_name" ON "playground_nodes"("name");
+
+CREATE TABLE IF NOT EXISTS "playground_toolbox_links" (
+  "node_id" varchar(36) NOT NULL REFERENCES "playground_nodes"("id") ON DELETE CASCADE,
+  "toolbox_type" varchar(50) NOT NULL,
+  "toolbox_id" varchar(36) NOT NULL,
+  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  PRIMARY KEY ("node_id", "toolbox_type", "toolbox_id")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_playground_toolbox_links_node" ON "playground_toolbox_links"("node_id");
+CREATE INDEX IF NOT EXISTS "idx_playground_toolbox_links_toolbox" ON "playground_toolbox_links"("toolbox_type", "toolbox_id");
+
+-- ============================================
 -- CAMPAIGN MANAGEMENT
 -- ============================================
 
