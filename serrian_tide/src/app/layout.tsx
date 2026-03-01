@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { NavigationPixie } from "@/components/NavigationPixie";
 
 export const metadata: Metadata = {
   title: "Serrian Tide",
@@ -20,7 +21,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="theme-void">
       <body suppressHydrationWarning>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <NavigationPixie />
+        </ThemeProvider>
       </body>
     </html>
   );

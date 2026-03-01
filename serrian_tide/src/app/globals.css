@@ -301,3 +301,211 @@ input,
     padding-right: 2rem;
   }
 }
+
+/* =======================
+   Navigation Pixie
+   ======================= */
+
+@keyframes st-pixie-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(1px, -6px, 0); }
+  50% { transform: translate3d(3px, -3px, 0); }
+  75% { transform: translate3d(0, -7px, 0); }
+}
+
+@keyframes st-fairy-wing-flap {
+  0%, 100% { transform: rotate(-8deg) scale(1); opacity: 0.55; }
+  50% { transform: rotate(16deg) scale(1.14); opacity: 0.95; }
+}
+
+@keyframes st-fairy-wing-flap-right {
+  0%, 100% { transform: rotate(8deg) scale(1); opacity: 0.55; }
+  50% { transform: rotate(-16deg) scale(1.14); opacity: 0.95; }
+}
+
+@keyframes st-pixie-sparkle {
+  0%, 100% { transform: scale(0.75); opacity: 0.35; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+@keyframes st-fairy-wand-pulse {
+  0%, 100% { box-shadow: 0 0 7px rgba(251, 191, 36, 0.45); }
+  50% { box-shadow: 0 0 13px rgba(251, 191, 36, 0.8); }
+}
+
+.st-pixie-float {
+  animation: st-pixie-float 4.2s ease-in-out infinite;
+}
+
+.st-fairy-shell {
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.2) 0, transparent 34%),
+    radial-gradient(circle at 70% 70%, rgba(236, 72, 153, 0.22) 0, transparent 58%);
+}
+
+.st-fairy-wing {
+  position: absolute;
+  top: 26px;
+  width: 16px;
+  height: 22px;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, rgba(191, 219, 254, 0.95), rgba(147, 197, 253, 0.25));
+  border: 1px solid rgba(191, 219, 254, 0.55);
+  filter: drop-shadow(0 0 4px rgba(191, 219, 254, 0.65));
+  transform-origin: center bottom;
+}
+
+.st-fairy-wing-left {
+  left: 15px;
+  animation: st-fairy-wing-flap 0.38s ease-in-out infinite;
+}
+
+.st-fairy-wing-right {
+  right: 15px;
+  animation: st-fairy-wing-flap-right 0.38s ease-in-out infinite;
+}
+
+.st-fairy-halo {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 14px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  border: 1px solid rgba(253, 224, 71, 0.9);
+  box-shadow: 0 0 10px rgba(253, 224, 71, 0.5);
+}
+
+.st-fairy-head {
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: #fde68a;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.55);
+}
+
+.st-fairy-eye {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.st-fairy-eye-left {
+  left: 3px;
+}
+
+.st-fairy-eye-right {
+  right: 3px;
+}
+
+.st-fairy-blush {
+  position: absolute;
+  top: 7px;
+  width: 3px;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(251, 113, 133, 0.65);
+}
+
+.st-fairy-blush-left {
+  left: 1px;
+}
+
+.st-fairy-blush-right {
+  right: 1px;
+}
+
+.st-fairy-hair {
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  width: 14px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 9999px 9999px 6px 6px;
+  background: linear-gradient(to bottom, #f472b6, #ec4899);
+}
+
+.st-fairy-body {
+  position: absolute;
+  left: 50%;
+  top: 26px;
+  width: 14px;
+  height: 19px;
+  transform: translateX(-50%);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  background: linear-gradient(to bottom, #f0abfc, #c084fc 58%, #a855f7);
+  filter: drop-shadow(0 0 8px rgba(216, 180, 254, 0.65));
+}
+
+.st-fairy-wand {
+  position: absolute;
+  left: 36px;
+  top: 33px;
+  width: 2px;
+  height: 12px;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, rgba(251, 191, 36, 0.95), rgba(251, 191, 36, 0.25));
+  transform: rotate(-34deg);
+  transform-origin: top center;
+  animation: st-fairy-wand-pulse 1.2s ease-in-out infinite;
+}
+
+.st-fairy-star {
+  position: absolute;
+  left: 38px;
+  top: 28px;
+  width: 6px;
+  height: 6px;
+  background: #fef08a;
+  clip-path: polygon(50% 0%, 62% 35%, 100% 50%, 62% 65%, 50% 100%, 38% 65%, 0% 50%, 38% 35%);
+  filter: drop-shadow(0 0 6px rgba(254, 240, 138, 0.85));
+  animation: st-pixie-sparkle 1s ease-in-out infinite;
+}
+
+.st-pixie-spark {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.95));
+  animation: st-pixie-sparkle 1.1s ease-in-out infinite;
+}
+
+.st-pixie-spark-a {
+  left: 10px;
+  top: 12px;
+}
+
+.st-pixie-spark-b {
+  right: 9px;
+  top: 20px;
+  animation-delay: 0.24s;
+}
+
+.st-pixie-spark-c {
+  left: 14px;
+  bottom: 12px;
+  animation-delay: 0.46s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-pixie-float,
+  .st-fairy-wing-left,
+  .st-fairy-wing-right,
+  .st-pixie-spark,
+  .st-fairy-star,
+  .st-fairy-wand {
+    animation: none;
+  }
+}
