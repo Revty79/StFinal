@@ -57,7 +57,6 @@ function buildLinksByNode(
     if (!result[link.nodeId]) {
       result[link.nodeId] = {
         race: [],
-        skill: [],
         creature: [],
         npc: [],
         calendar: [],

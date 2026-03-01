@@ -14,7 +14,6 @@ export type PlaygroundNodeType = PlaygroundV1NodeType | string;
 
 export const PLAYGROUND_TOOLBOX_TYPES = [
   "race",
-  "skill",
   "creature",
   "npc",
   "calendar",
@@ -80,7 +79,6 @@ export function uniqueStrings(items: string[]): string[] {
 export function normalizeToolboxLinks(input: unknown): Record<PlaygroundToolboxType, string[]> {
   const result: Record<PlaygroundToolboxType, string[]> = {
     race: [],
-    skill: [],
     creature: [],
     npc: [],
     calendar: [],

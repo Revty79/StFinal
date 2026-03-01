@@ -187,13 +187,13 @@ export default async function Dashboard() {
                 Grab world packs, tools, and modules.
               </p>
               <div className="mt-4 flex gap-2">
-                <Link href="#">
+                <Link href="/coming-soon?realm=bazaar&tool=shop&back=/dashboard">
                   <Button variant="primary" size="sm">
                     Enter Shop
                   </Button>
                 </Link>
                 {canPublish && (
-                  <Link href="#">
+                  <Link href="/coming-soon?realm=bazaar&tool=publish&back=/dashboard">
                     <Button variant="secondary" size="sm">
                       Publish
                     </Button>

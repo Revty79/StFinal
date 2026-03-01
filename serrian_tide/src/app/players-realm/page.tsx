@@ -114,8 +114,8 @@ export default async function PlayersRealmPage() {
               review session notes, and prepare for adventures.
             </p>
             <div className="mt-auto">
-              <Link href="#">
-                <Button variant="primary" size="md" className="w-full" disabled>
+              <Link href="/coming-soon?realm=players-realm&tool=sessions&back=/players-realm">
+                <Button variant="primary" size="md" className="w-full">
                   Coming Soon
                 </Button>
               </Link>
@@ -154,8 +154,8 @@ export default async function PlayersRealmPage() {
               roll dice, and experience the adventure in real-time.
             </p>
             <div className="mt-auto">
-              <Link href="#">
-                <Button variant="primary" size="md" className="w-full" disabled>
+              <Link href="/coming-soon?realm=players-realm&tool=join-session&back=/players-realm">
+                <Button variant="primary" size="md" className="w-full">
                   Coming Soon
                 </Button>
               </Link>

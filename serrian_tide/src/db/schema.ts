@@ -734,6 +734,275 @@ export const playgroundToolboxLinks = pgTable(
   })
 );
 
+/** ===== WORLDBUILDER: TOOLBOX EXPANSION ===== **/
+
+export const factions = pgTable('factions', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    type?: string | null;
+    goals?: string | null;
+    methods?: string | null;
+    resources?: string | null;
+    territory?: string | null;
+    leaderNpcId?: string | null;
+    allies?: string[] | null;
+    enemies?: string[] | null;
+    fronts?: Array<{ title: string; step1?: string; step2?: string; step3?: string }> | null;
+    hooks?: string[] | null;
+    notes?: string | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_factions_created_by').on(t.createdBy),
+  byName: index('idx_factions_name').on(t.name),
+}));
+
+export const geography = pgTable('geography', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    scale?: string | null;
+    parentId?: string | null;
+    biome?: string | null;
+    climate?: string | null;
+    travelNotes?: string | null;
+    hazards?: string | null;
+    resources?: string | null;
+    controllingFactionId?: string | null;
+    keyNpcIds?: string[] | null;
+    tags?: string[] | null;
+    description?: string | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_geography_created_by').on(t.createdBy),
+  byName: index('idx_geography_name').on(t.name),
+}));
+
+export const plotHooks = pgTable('plot_hooks', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    premise?: string | null;
+    stakes?: string | null;
+    locationGeographyId?: string | null;
+    antagonistFactionId?: string | null;
+    npcIds?: string[] | null;
+    rewards?: string | null;
+    complications?: string | null;
+    ifIgnored?: string | null;
+    tags?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_plot_hooks_created_by').on(t.createdBy),
+  byName: index('idx_plot_hooks_name').on(t.name),
+}));
+
+export const timeline = pgTable('timeline', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    era?: string | null;
+    dateLabel?: string | null;
+    event?: string | null;
+    consequences?: string | null;
+    rumorVersion?: string | null;
+    relatedFactionIds?: string[] | null;
+    relatedGeographyIds?: string[] | null;
+    relatedNpcIds?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_timeline_created_by').on(t.createdBy),
+  byName: index('idx_timeline_name').on(t.name),
+}));
+
+export const settlements = pgTable('settlements', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    settlementType?: string | null;
+    populationScale?: string | null;
+    government?: string | null;
+    economy?: string | null;
+    defenses?: string | null;
+    districts?: string | null;
+    problems?: string | null;
+    secrets?: string | null;
+    controllingFactionId?: string | null;
+    geographyId?: string | null;
+    keyNpcIds?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_settlements_created_by').on(t.createdBy),
+  byName: index('idx_settlements_name').on(t.name),
+}));
+
+export const pantheon = pgTable('pantheon', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    deityType?: string | null;
+    domains?: string[] | null;
+    tenets?: string | null;
+    taboos?: string | null;
+    rites?: string | null;
+    holyDays?: string | null;
+    relics?: string | null;
+    factions?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_pantheon_created_by').on(t.createdBy),
+  byName: index('idx_pantheon_name').on(t.name),
+}));
+
+export const cultures = pgTable('cultures', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    namingRules?: string | null;
+    values?: string | null;
+    taboos?: string | null;
+    aesthetics?: string | null;
+    socialStructure?: string | null;
+    languageNotes?: string | null;
+    commonPhrases?: string | null;
+    regions?: string[] | null;
+    factions?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_cultures_created_by').on(t.createdBy),
+  byName: index('idx_cultures_name').on(t.name),
+}));
+
+export const economy = pgTable('economy', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    currencies?: string | null;
+    wages?: string | null;
+    priceNotes?: string | null;
+    tradeGoods?: string | null;
+    scarcity?: string | null;
+    blackMarket?: string | null;
+    regions?: string[] | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_economy_created_by').on(t.createdBy),
+  byName: index('idx_economy_name').on(t.name),
+}));
+
+export const encounters = pgTable('encounters', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    biome?: string | null;
+    weatherNotes?: string | null;
+    travelPace?: string | null;
+    encounterTable?: Array<{ roll: string; result: string }> | null;
+    hazardTable?: Array<{ roll: string; result: string }> | null;
+    restEvents?: Array<{ roll: string; result: string }> | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_encounters_created_by').on(t.createdBy),
+  byName: index('idx_encounters_name').on(t.name),
+}));
+
+export const dungeons = pgTable('dungeons', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  tagline: text('tagline'),
+  data: jsonb('data').$type<{
+    theme?: string | null;
+    factions?: string[] | null;
+    entranceHook?: string | null;
+    roomTable?: Array<{ roll: string; room: string }> | null;
+    hazardTable?: Array<{ roll: string; hazard: string }> | null;
+    lootNotes?: string | null;
+    livingEvents?: Array<{ trigger: string; event: string }> | null;
+  }>(),
+  isFree: boolean('is_free').notNull().default(true),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_dungeons_created_by').on(t.createdBy),
+  byName: index('idx_dungeons_name').on(t.name),
+}));
+
 /** ===== CAMPAIGN MANAGEMENT ===== **/
 
 export const campaigns = pgTable('campaigns', {

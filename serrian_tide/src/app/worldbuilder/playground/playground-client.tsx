@@ -57,7 +57,6 @@ const NODE_TYPE_LABELS: Record<string, string> = {
 
 const TOOLBOX_LABELS: Record<PlaygroundToolboxType, string> = {
   race: "Races",
-  skill: "Skills",
   creature: "Creatures",
   npc: "NPCs",
   calendar: "Calendars",
@@ -66,7 +65,6 @@ const TOOLBOX_LABELS: Record<PlaygroundToolboxType, string> = {
 function emptyLinks(): LinksMap {
   return {
     race: [],
-    skill: [],
     creature: [],
     npc: [],
     calendar: [],
@@ -85,7 +83,6 @@ function coerceLinks(input: unknown): LinksMap {
   const value = input as Record<string, unknown>;
   return {
     race: toStringArray(value.race),
-    skill: toStringArray(value.skill),
     creature: toStringArray(value.creature),
     npc: toStringArray(value.npc),
     calendar: toStringArray(value.calendar),
@@ -167,7 +164,6 @@ function getAttachedItems(
 ): Record<PlaygroundToolboxType, ToolboxItem[]> {
   const result: Record<PlaygroundToolboxType, ToolboxItem[]> = {
     race: [],
-    skill: [],
     creature: [],
     npc: [],
     calendar: [],
@@ -416,7 +412,6 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
 
   const [toolboxData, setToolboxData] = useState<Record<PlaygroundToolboxType, ToolboxItem[]>>({
     race: [],
-    skill: [],
     creature: [],
     npc: [],
     calendar: [],
@@ -425,7 +420,6 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
   const [toolboxLoading, setToolboxLoading] = useState(false);
   const [toolboxSearch, setToolboxSearch] = useState<Record<PlaygroundToolboxType, string>>({
     race: "",
-    skill: "",
     creature: "",
     npc: "",
     calendar: "",
@@ -514,17 +508,15 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
     try {
       setToolboxLoading(true);
 
-      const [racesRes, skillsRes, creaturesRes, npcsRes, calendarsRes] = await Promise.all([
+      const [racesRes, creaturesRes, npcsRes, calendarsRes] = await Promise.all([
         fetch("/api/worldbuilder/races", { cache: "no-store" }),
-        fetch("/api/worldbuilder/skills", { cache: "no-store" }),
         fetch("/api/worldbuilder/creatures", { cache: "no-store" }),
         fetch("/api/worldbuilder/npcs", { cache: "no-store" }),
         fetch("/api/worldbuilder/calendars", { cache: "no-store" }),
       ]);
 
-      const [racesData, skillsData, creaturesData, npcsData, calendarsData] = await Promise.all([
+      const [racesData, creaturesData, npcsData, calendarsData] = await Promise.all([
         racesRes.json().catch(() => ({})),
-        skillsRes.json().catch(() => ({})),
         creaturesRes.json().catch(() => ({})),
         npcsRes.json().catch(() => ({})),
         calendarsRes.json().catch(() => ({})),
@@ -532,10 +524,6 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
 
       const races = Array.isArray((racesData as { races?: unknown[] }).races)
         ? ((racesData as { races: Array<{ id: string; name: string; tagline?: string | null }> }).races ?? [])
-        : [];
-      const skills = Array.isArray((skillsData as { skills?: unknown[] }).skills)
-        ? ((skillsData as { skills: Array<{ id: string; name: string; type?: string | null; tier?: number | null }> })
-            .skills ?? [])
         : [];
       const creatures = Array.isArray((creaturesData as { creatures?: unknown[] }).creatures)
         ? ((creaturesData as { creatures: Array<{ id: string; name: string; challengeRating?: string | null }> })
@@ -555,11 +543,6 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
           id: race.id,
           name: race.name,
           detail: race.tagline || "",
-        })),
-        skill: skills.map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          detail: [skill.type, skill.tier ? `Tier ${skill.tier}` : ""].filter(Boolean).join(" | "),
         })),
         creature: creatures.map((creature) => ({
           id: creature.id,
@@ -1183,7 +1166,7 @@ export function PlaygroundClient({ user }: PlaygroundClientProps) {
               <p className="text-sm text-zinc-300 font-medium mb-1">Toolbox Attachments</p>
               <p className="text-xs text-zinc-500">
                 Select a <span className="text-amber-200">Setting</span> (or any child under one) to use
-                races, skills, creatures, NPCs, and calendars.
+                races, creatures, NPCs, and calendars.
               </p>
             </div>
           ) : selectedSetting ? (

@@ -45,6 +45,28 @@ type SimpleUser = {
   role: string | null;
 };
 
+function isLocalNpcId(value: NPC["id"]): value is string {
+  return typeof value === "string" && value.length < 20;
+}
+
+function normalizeAttributeCode(value: string | null | undefined): string {
+  const v = (value ?? "").trim().toLowerCase();
+  if (!v) return "";
+  if (v === "str" || v === "strength") return "STR";
+  if (v === "dex" || v === "dexterity") return "DEX";
+  if (v === "con" || v === "constitution") return "CON";
+  if (v === "int" || v === "intelligence") return "INT";
+  if (v === "wis" || v === "wisdom") return "WIS";
+  if (v === "cha" || v === "charisma") return "CHA";
+  if (v === "na" || v === "n/a") return "NA";
+  return v.substring(0, 3).toUpperCase();
+}
+
+function isSpecialAbilityType(value: string | null | undefined): boolean {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "special ability" || normalized === "special_ability" || normalized === "special-ability";
+}
+
 export type NPC = {
   id: string | number;
   name: string;
@@ -156,9 +178,15 @@ export default function NPCsPage() {
   const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
   const [races, setRaces] = useState<Array<{ 
-    id: number; 
+    id: string; 
     name: string; 
     baseMovement?: number;
+    maxStrength?: number;
+    maxDexterity?: number;
+    maxConstitution?: number;
+    maxIntelligence?: number;
+    maxWisdom?: number;
+    maxCharisma?: number;
   }>>([]);
   const [allSkills, setAllSkills] = useState<Array<{ 
     id: string; 
@@ -175,65 +203,87 @@ export default function NPCsPage() {
   // Load NPCs from database on mount (mirrors creatures)
   useEffect(() => {
     async function loadNPCs() {
+      setLoading(true);
+
+      // Load current user (non-blocking for other data)
       try {
-        // Load current user
         const userResponse = await fetch("/api/profile/me");
         const userData = await userResponse.json();
         if (userData.ok && userData.user) {
           setCurrentUser({ id: userData.user.id, role: userData.user.role });
         }
+      } catch (error) {
+        console.error("Error loading current user:", error);
+      }
 
-        // Load NPCs
-        const response = await fetch("/api/worldbuilder/npcs");
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+      // Load NPCs (do not block races/skills if this fails)
+      try {
+        const response = await fetch("/api/worldbuilder/npcs", { cache: "no-store" });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.ok) {
+          throw new Error(data?.error || `HTTP ${response.status}`);
         }
-
-        const data = await response.json();
-        if (!data.ok) throw new Error(data.error || "Failed to load NPCs");
-
-        // Transform API response to frontend format
         const transformedNpcs = (data.npcs || []).map(transformNpcFromApi);
         setNpcs(transformedNpcs);
+      } catch (error) {
+        console.error("Error loading NPCs:", error);
+        setNpcs([]);
+      }
 
-        // Load races for dropdown
+      // Load races for dropdown (independent)
+      try {
         const racesResponse = await fetch("/api/worldbuilder/races");
         if (racesResponse.ok) {
           const racesData = await racesResponse.json();
-          if (racesData.ok && racesData.races) {
+          if (racesData.ok && Array.isArray(racesData.races)) {
             setRaces(racesData.races.map((r: any) => ({
               id: r.id,
               name: r.name,
               baseMovement: r.baseMovement || 5,
+              maxStrength: r.maxStrength,
+              maxDexterity: r.maxDexterity,
+              maxConstitution: r.maxConstitution,
+              maxIntelligence: r.maxIntelligence,
+              maxWisdom: r.maxWisdom,
+              maxCharisma: r.maxCharisma,
             })));
+          } else {
+            setRaces([]);
           }
+        } else {
+          setRaces([]);
         }
+      } catch (error) {
+        console.error("Error loading races:", error);
+        setRaces([]);
+      }
 
-        // Load skills for skill allocation
-        const skillsResponse = await fetch("/api/worldbuilder/skills");
+      // Load skills for skill allocation (independent)
+      try {
+        const skillsResponse = await fetch("/api/worldbuilder/skills", { cache: "no-store" });
         if (skillsResponse.ok) {
           const skillsData = await skillsResponse.json();
-          if (skillsData.ok && skillsData.skills) {
+          if (skillsData.ok && Array.isArray(skillsData.skills)) {
             setAllSkills(skillsData.skills.map((s: any) => ({
               id: s.id,
               name: s.name,
               primaryAttribute: s.primaryAttribute,
               secondaryAttribute: s.secondaryAttribute,
-              tier: s.tier,
+              tier: s.tier === null || s.tier === undefined ? null : Number(s.tier),
               parentId: s.parentId,
               parent2Id: s.parent2Id,
               parent3Id: s.parent3Id,
-              type: s.type,
+              type: s.type ?? "",
             })));
+          } else {
+            setAllSkills([]);
           }
+        } else {
+          setAllSkills([]);
         }
       } catch (error) {
-        console.error("Error loading NPCs:", error);
-        alert(
-          `Failed to load NPCs: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        console.error("Error loading skills:", error);
+        setAllSkills([]);
       } finally {
         setLoading(false);
       }
@@ -247,6 +297,15 @@ export default function NPCsPage() {
       npcs.find((c) => String(c.id) === String(selectedId ?? "")) ?? null,
     [npcs, selectedId]
   );
+
+  const selectedCanEdit = useMemo(() => {
+    if (!selected || !currentUser) return false;
+    if (isLocalNpcId(selected.id)) return true;
+    if (currentUser.role?.toLowerCase() === "admin") return true;
+    if (selected.createdBy === currentUser.id) return true;
+    if (selected.created_by === currentUser.id) return true;
+    return selected.can_edit === true;
+  }, [selected, currentUser]);
 
   // Ensure something is selected once we have data
   useEffect(() => {
@@ -346,8 +405,11 @@ export default function NPCsPage() {
   async function saveSelected() {
     if (!selected) return;
 
-    const isNew =
-      typeof selected.id === "string" && selected.id.length < 20; // uid()
+    const isNew = isLocalNpcId(selected.id);
+    if (!isNew && !selectedCanEdit) {
+      alert("You can only save NPCs you created. Admins can edit any NPC.");
+      return;
+    }
 
     try {
       const payload = {
@@ -461,14 +523,8 @@ export default function NPCsPage() {
     if (!selected || !currentUser) return;
 
     const idStr = String(selected.id);
-    const isNew =
-      typeof selected.id === "string" && selected.id.length < 20;
-
-    const isAdmin =
-      currentUser.role?.toLowerCase() === "admin";
-    const isCreator = selected.createdBy === currentUser.id;
-
-    if (!isNew && !isAdmin && !isCreator) {
+    const isNew = isLocalNpcId(selected.id);
+    if (!isNew && !selectedCanEdit) {
       alert(
         "You can only delete NPCs you created. Admins can delete any NPC."
       );
@@ -516,7 +572,7 @@ export default function NPCsPage() {
   // Get max attributes for selected race
   const selectedRaceData = useMemo(() => {
     if (!selected?.race) return null;
-    return races.find(r => r.name === selected.race) || null;
+    return races.find(r => r.name === selected.race || r.id === selected.race) || null;
   }, [selected?.race, races]);
 
   // Calculate total attribute points spent (each attribute starts at 25, budget is 150 total)
@@ -1187,7 +1243,7 @@ export default function NPCsPage() {
                 <span>NPC Name</span>
                 <input
                   className="rounded-md border border-white/15 bg-black/50 px-2 py-1 text-xs text-zinc-100 outline-none"
-                  disabled={!selected}
+                  disabled={!selected || !selectedCanEdit}
                   value={selected?.name ?? ""}
                   onChange={(e) => updateSelected({ name: e.target.value })}
                 />
@@ -1196,7 +1252,7 @@ export default function NPCsPage() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                disabled={!selected || !currentUser || (currentUser.role?.toLowerCase() !== "admin" && selected.createdBy !== currentUser.id)}
+                disabled={!selected || !selectedCanEdit}
                 onClick={deleteSelected}
               >
                 Delete
@@ -1238,6 +1294,7 @@ export default function NPCsPage() {
                       <input
                         type="checkbox"
                         checked={selected.is_free ?? false}
+                        disabled={!selectedCanEdit}
                         onChange={(e) =>
                           updateSelected({
                             is_free: e.target.checked,
@@ -1266,6 +1323,7 @@ export default function NPCsPage() {
                       size="sm"
                       type="button"
                       onClick={deleteSelected}
+                      disabled={!selectedCanEdit}
                     >
                       Delete
                     </Button>
@@ -1274,6 +1332,7 @@ export default function NPCsPage() {
                       size="sm"
                       type="button"
                       onClick={saveSelected}
+                      disabled={!selectedCanEdit}
                     >
                       Save
                     </Button>
@@ -1307,7 +1366,7 @@ export default function NPCsPage() {
                           >
                             <select
                               id="npc-race-select"
-                              value={selected.race ?? ""}
+                              value={selectedRaceData?.name ?? selected.race ?? ""}
                               onChange={(e) => {
                                 const raceName = e.target.value;
                                 const race = races.find(r => r.name === raceName);
@@ -1325,6 +1384,15 @@ export default function NPCsPage() {
                                 </option>
                               ))}
                             </select>
+                            {races.length === 0 && (
+                              <p className="mt-2 text-xs text-amber-300">
+                                No races available. Create one in{" "}
+                                <Link href="/worldbuilder/races" className="underline text-amber-200">
+                                  Race Builder
+                                </Link>
+                                .
+                              </p>
+                            )}
                           </FormField>
 
                           <FormField
@@ -1604,8 +1672,15 @@ export default function NPCsPage() {
                                 const modSign = mod >= 0 ? '+' : '';
                                 
                                 // Get max value for this attribute from selected race
-                                const maxKey = `max${fullName}` as keyof typeof selectedRaceData;
-                                const maxValue = selectedRaceData?.[maxKey] as number | undefined || 50;
+                                const maxByAttribute = {
+                                  strength: selectedRaceData?.maxStrength ?? 50,
+                                  dexterity: selectedRaceData?.maxDexterity ?? 50,
+                                  constitution: selectedRaceData?.maxConstitution ?? 50,
+                                  intelligence: selectedRaceData?.maxIntelligence ?? 50,
+                                  wisdom: selectedRaceData?.maxWisdom ?? 50,
+                                  charisma: selectedRaceData?.maxCharisma ?? 50,
+                                } as const;
+                                const maxValue = maxByAttribute[key];
                                 const isOverMax = attrValue > maxValue;
                                 
                                 return (
@@ -1904,12 +1979,12 @@ export default function NPCsPage() {
                                   {(() => {
                                     // Filter skills by current sub-tab attribute
                                     const step1Filtered = allSkills.filter((skill) => {
-                                      const primary = skill.primaryAttribute?.toUpperCase();
-                                      const secondary = skill.secondaryAttribute?.toUpperCase();
+                                      const primary = normalizeAttributeCode(skill.primaryAttribute);
+                                      const secondary = normalizeAttributeCode(skill.secondaryAttribute);
                                       
                                       if (skillSubTab === "special") {
                                         // Special abilities tab - only show skills with type "special ability"
-                                        return skill.type === "special ability";
+                                        return isSpecialAbilityType(skill.type);
                                       }
                                       
                                       // Match by attribute (STR, DEX, CON, INT, WIS, CHA)

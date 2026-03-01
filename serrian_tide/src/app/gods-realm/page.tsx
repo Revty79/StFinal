@@ -114,8 +114,8 @@ export default async function GodsRealmPage() {
               Prepare your next adventure.
             </p>
             <div className="mt-auto">
-              <Link href="#">
-                <Button variant="primary" size="md" className="w-full" disabled>
+              <Link href="/coming-soon?realm=gods-realm&tool=create-session&back=/gods-realm">
+                <Button variant="primary" size="md" className="w-full">
                   Coming Soon
                 </Button>
               </Link>
@@ -160,8 +160,8 @@ export default async function GodsRealmPage() {
               and player management.
             </p>
             <div className="mt-auto">
-              <Link href="#">
-                <Button variant="primary" size="md" className="w-full" disabled>
+              <Link href="/coming-soon?realm=gods-realm&tool=run-session&back=/gods-realm">
+                <Button variant="primary" size="md" className="w-full">
                   Coming Soon
                 </Button>
               </Link>

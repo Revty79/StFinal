@@ -13,7 +13,6 @@ type LinksResponse = Record<(typeof PLAYGROUND_TOOLBOX_TYPES)[number], string[]>
 function emptyLinks(): LinksResponse {
   return {
     race: [],
-    skill: [],
     creature: [],
     npc: [],
     calendar: [],

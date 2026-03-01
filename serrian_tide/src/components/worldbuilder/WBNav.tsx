@@ -9,13 +9,19 @@ export type WBNavKey =
   | "npcs"
   | "factions"
   | "geography"
-  | "plot-hooks";
+  | "plot-hooks"
+  | "timeline"
+  | "settlements"
+  | "pantheon"
+  | "cultures"
+  | "economy"
+  | "encounters"
+  | "dungeons";
 
 interface NavItem {
   href: string;
   key: WBNavKey;
   label: string;
-  comingSoon?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -25,9 +31,16 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
   { href: "/worldbuilder/calendars", key: "calendars", label: "Calendars" },
   { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
-  { href: "/worldbuilder/coming-soon", key: "factions", label: "Factions", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "geography", label: "Geography & Regions", comingSoon: true },
-  { href: "/worldbuilder/coming-soon", key: "plot-hooks", label: "Plot Hooks", comingSoon: true },
+  { href: "/worldbuilder/factions", key: "factions", label: "Factions" },
+  { href: "/worldbuilder/geography", key: "geography", label: "Geography & Regions" },
+  { href: "/worldbuilder/plot-hooks", key: "plot-hooks", label: "Plot Hooks" },
+  { href: "/worldbuilder/timeline", key: "timeline", label: "Timeline" },
+  { href: "/worldbuilder/settlements", key: "settlements", label: "Settlements" },
+  { href: "/worldbuilder/pantheon", key: "pantheon", label: "Pantheon" },
+  { href: "/worldbuilder/cultures", key: "cultures", label: "Cultures" },
+  { href: "/worldbuilder/economy", key: "economy", label: "Economy" },
+  { href: "/worldbuilder/encounters", key: "encounters", label: "Encounters" },
+  { href: "/worldbuilder/dungeons", key: "dungeons", label: "Dungeons" },
 ];
 
 export function WBNav({ current }: { current?: WBNavKey }) {
@@ -47,9 +60,6 @@ export function WBNav({ current }: { current?: WBNavKey }) {
             ].join(" ")}
           >
             {it.label}
-            {it.comingSoon && (
-              <span className="ml-1.5 text-[10px] opacity-60">(soon)</span>
-            )}
           </Link>
         );
       })}

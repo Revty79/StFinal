@@ -6,6 +6,72 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+function mapNpcRow(row: any, canEdit: boolean) {
+  return {
+    id: row.id,
+    name: row.name,
+    alias: row.alias,
+    importance: row.importance,
+    role: row.role,
+    race: row.race,
+    occupation: row.occupation,
+    location: row.location,
+    timelineTag: row.timeline_tag,
+    tags: row.tags,
+    age: row.age,
+    gender: row.gender,
+
+    descriptionShort: row.description_short,
+    appearance: row.appearance,
+
+    strength: row.strength,
+    dexterity: row.dexterity,
+    constitution: row.constitution,
+    intelligence: row.intelligence,
+    wisdom: row.wisdom,
+    charisma: row.charisma,
+
+    baseMovement: row.base_movement,
+    hpTotal: row.hp_total,
+    initiative: row.initiative,
+    armorSoak: row.armor_soak,
+    defenseNotes: row.defense_notes,
+
+    challengeRating: row.challenge_rating,
+    skillAllocations: row.skill_allocations,
+    skillCheckpoint: row.skill_checkpoint,
+    isInitialSetupLocked: row.is_initial_setup_locked,
+    xpSpent: row.xp_spent,
+    xpCheckpoint: row.xp_checkpoint,
+
+    personality: row.personality,
+    ideals: row.ideals,
+    bonds: row.bonds,
+    flaws: row.flaws,
+    goals: row.goals,
+    secrets: row.secrets,
+    backstory: row.backstory,
+    motivations: row.motivations,
+    hooks: row.hooks,
+
+    faction: row.faction,
+    relationships: row.relationships,
+    attitudeTowardParty: row.attitude_toward_party,
+    allies: row.allies,
+    enemies: row.enemies,
+    affiliations: row.affiliations,
+    resources: row.resources,
+
+    notes: row.notes,
+    isFree: row.is_free,
+    isPublished: row.is_published,
+    createdBy: row.created_by,
+    canEdit,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 // GET /api/worldbuilder/npcs/:id
 export async function GET(
   req: Request,
@@ -34,69 +100,7 @@ export async function GET(
     const row = result.rows[0];
     const canEdit = user.role === 'admin' || row.created_by === user.id;
 
-    const npc = {
-      id: row.id,
-      name: row.name,
-      alias: row.alias,
-      importance: row.importance,
-      role: row.role,
-      race: row.race,
-      occupation: row.occupation,
-      location: row.location,
-      timelineTag: row.timeline_tag,
-      tags: row.tags,
-      age: row.age,
-      gender: row.gender,
-      
-      descriptionShort: row.description_short,
-      appearance: row.appearance,
-      
-      strength: row.strength,
-      dexterity: row.dexterity,
-      constitution: row.constitution,
-      intelligence: row.intelligence,
-      wisdom: row.wisdom,
-      charisma: row.charisma,
-      
-      baseMovement: row.base_movement,
-      hpTotal: row.hp_total,
-      initiative: row.initiative,
-      armorSoak: row.armor_soak,
-      defenseNotes: row.defense_notes,
-      
-      challengeRating: row.challenge_rating,
-      skillAllocations: row.skill_allocations,
-      skillCheckpoint: row.skill_checkpoint,
-      isInitialSetupLocked: row.is_initial_setup_locked,
-      xpSpent: row.xp_spent,
-      xpCheckpoint: row.xp_checkpoint,
-      
-      personality: row.personality,
-      ideals: row.ideals,
-      bonds: row.bonds,
-      flaws: row.flaws,
-      goals: row.goals,
-      secrets: row.secrets,
-      backstory: row.backstory,
-      motivations: row.motivations,
-      hooks: row.hooks,
-      
-      faction: row.faction,
-      relationships: row.relationships,
-      attitudeTowardParty: row.attitude_toward_party,
-      allies: row.allies,
-      enemies: row.enemies,
-      affiliations: row.affiliations,
-      resources: row.resources,
-      
-      notes: row.notes,
-      isFree: row.is_free,
-      isPublished: row.is_published,
-      createdBy: row.created_by,
-      canEdit,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    const npc = mapNpcRow(row, canEdit);
 
     return NextResponse.json({ ok: true, npc, canEdit });
   } catch (err) {
@@ -141,10 +145,9 @@ export async function PUT(
     addField('alias', 'alias');
     addField('importance', 'importance');
     addField('role', 'role');
-    addField('race', 'Race');
-    if (body.race !== undefined) {
+    if (body.race !== undefined || body.Race !== undefined) {
       updates.push(`race = $${paramCount}`);
-      values.push(body.race);
+      values.push(body.race ?? body.Race);
       paramCount++;
     }
     addField('occupation', 'occupation');
@@ -217,10 +220,31 @@ export async function PUT(
       values.push(user.id);
     }
 
-    const query = `UPDATE npcs SET ${updates.join(', ')} WHERE ${whereClause}`;
-    await pool.query(query, values);
+    const query = `UPDATE npcs SET ${updates.join(', ')} WHERE ${whereClause} RETURNING *`;
+    const result = await pool.query(query, values);
 
-    return NextResponse.json({ ok: true });
+    if (result.rowCount === 0) {
+      if (user.role === 'admin') {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      const existenceCheck = await pool.query(
+        'SELECT created_by FROM npcs WHERE id = $1',
+        [id]
+      );
+
+      if (existenceCheck.rowCount === 0) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+    }
+
+    const row = result.rows[0];
+    const canEdit = user.role === 'admin' || row.created_by === user.id;
+    const npc = mapNpcRow(row, canEdit);
+
+    return NextResponse.json({ ok: true, npc, canEdit });
   } catch (err) {
     console.error("Update npc error:", err);
     return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
@@ -241,11 +265,28 @@ export async function DELETE(
     const { id } = await context.params;
 
     const query = user.role === 'admin'
-      ? 'DELETE FROM npcs WHERE id = $1'
-      : 'DELETE FROM npcs WHERE id = $1 AND created_by = $2';
+      ? 'DELETE FROM npcs WHERE id = $1 RETURNING id'
+      : 'DELETE FROM npcs WHERE id = $1 AND created_by = $2 RETURNING id';
     
     const params = user.role === 'admin' ? [id] : [id, user.id];
-    await pool.query(query, params);
+    const result = await pool.query(query, params);
+
+    if (result.rowCount === 0) {
+      if (user.role === 'admin') {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      const existenceCheck = await pool.query(
+        'SELECT created_by FROM npcs WHERE id = $1',
+        [id]
+      );
+
+      if (existenceCheck.rowCount === 0) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
