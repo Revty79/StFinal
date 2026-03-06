@@ -734,6 +734,90 @@ export const playgroundToolboxLinks = pgTable(
   })
 );
 
+/** ===== WORLDBUILDER: GALAXY FORGE ===== **/
+
+export const galaxyWorlds = pgTable('galaxy_worlds', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCreator: index('idx_galaxy_worlds_created_by').on(t.createdBy),
+  byName: index('idx_galaxy_worlds_name').on(t.name),
+}));
+
+export const galaxyEras = pgTable('galaxy_eras', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  worldId: varchar('world_id', { length: 36 })
+    .notNull()
+    .references(() => galaxyWorlds.id, { onDelete: 'cascade' }),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+  colorHex: varchar('color_hex', { length: 7 }),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byWorld: index('idx_galaxy_eras_world_id').on(t.worldId),
+  byWorldOrder: index('idx_galaxy_eras_world_order').on(t.worldId, t.orderIndex),
+  byCreator: index('idx_galaxy_eras_created_by').on(t.createdBy),
+}));
+
+export const galaxySettings = pgTable('galaxy_settings', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  worldId: varchar('world_id', { length: 36 })
+    .notNull()
+    .references(() => galaxyWorlds.id, { onDelete: 'cascade' }),
+  eraId: varchar('era_id', { length: 36 }).references(() => galaxyEras.id, { onDelete: 'set null' }),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  startYear: integer('start_year'),
+  endYear: integer('end_year'),
+  colorHex: varchar('color_hex', { length: 7 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byWorld: index('idx_galaxy_settings_world_id').on(t.worldId),
+  byEra: index('idx_galaxy_settings_era_id').on(t.eraId),
+  byCreator: index('idx_galaxy_settings_created_by').on(t.createdBy),
+}));
+
+export const galaxyMarkers = pgTable('galaxy_markers', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  worldId: varchar('world_id', { length: 36 })
+    .notNull()
+    .references(() => galaxyWorlds.id, { onDelete: 'cascade' }),
+  eraId: varchar('era_id', { length: 36 }).references(() => galaxyEras.id, { onDelete: 'set null' }),
+  settingId: varchar('setting_id', { length: 36 }).references(() => galaxySettings.id, { onDelete: 'set null' }),
+  createdBy: varchar('created_by', { length: 36 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  year: integer('year'),
+  category: varchar('category', { length: 100 }),
+  visibility: varchar('visibility', { length: 20 }).notNull().default('canon'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byWorldYear: index('idx_galaxy_markers_world_year').on(t.worldId, t.year),
+  byEra: index('idx_galaxy_markers_era_id').on(t.eraId),
+  bySetting: index('idx_galaxy_markers_setting_id').on(t.settingId),
+  byCreator: index('idx_galaxy_markers_created_by').on(t.createdBy),
+}));
+
 /** ===== WORLDBUILDER: TOOLBOX EXPANSION ===== **/
 
 export const factions = pgTable('factions', {

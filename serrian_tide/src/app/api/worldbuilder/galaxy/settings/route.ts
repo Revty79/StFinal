@@ -1,0 +1,154 @@
+import crypto from "crypto";
+import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/db/client";
+import { getSessionUser } from "@/server/session";
+import {
+  canUseGalaxy,
+  cleanOptionalString,
+  cleanRequiredName,
+  getAccessibleEra,
+  getAccessibleSetting,
+  getAccessibleWorld,
+  normalizeYearRange,
+  parseColorHex,
+  parseNullableInteger,
+  serializeSetting,
+} from "@/lib/galaxy/server";
+
+type UpsertSettingBody = {
+  id?: unknown;
+  worldId?: unknown;
+  eraId?: unknown;
+  name?: unknown;
+  description?: unknown;
+  startYear?: unknown;
+  endYear?: unknown;
+  colorHex?: unknown;
+};
+
+// POST /api/worldbuilder/galaxy/settings
+export async function POST(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    }
+
+    if (!canUseGalaxy(user.role)) {
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+    }
+
+    const body = (await req.json().catch(() => null)) as UpsertSettingBody | null;
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+    }
+
+    const worldId = typeof body.worldId === "string" ? body.worldId.trim() : "";
+    if (!worldId) {
+      return NextResponse.json({ ok: false, error: "WORLD_REQUIRED" }, { status: 400 });
+    }
+
+    const world = await getAccessibleWorld(user, worldId);
+    if (!world) {
+      return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+    }
+
+    const eraId = typeof body.eraId === "string" ? body.eraId.trim() : "";
+    if (eraId) {
+      const era = await getAccessibleEra(user, eraId);
+      if (!era) {
+        return NextResponse.json({ ok: false, error: "ERA_NOT_FOUND" }, { status: 404 });
+      }
+      if (era.worldId !== worldId) {
+        return NextResponse.json({ ok: false, error: "WORLD_MISMATCH" }, { status: 400 });
+      }
+    }
+
+    const name = cleanRequiredName(body.name);
+    if (!name) {
+      return NextResponse.json({ ok: false, error: "SETTING_NAME_REQUIRED" }, { status: 400 });
+    }
+
+    const startYear = parseNullableInteger(body.startYear);
+    const endYear = parseNullableInteger(body.endYear);
+    if (startYear === "INVALID" || endYear === "INVALID") {
+      return NextResponse.json({ ok: false, error: "INVALID_YEAR" }, { status: 400 });
+    }
+
+    const colorHex = parseColorHex(body.colorHex);
+    if (colorHex === "INVALID") {
+      return NextResponse.json({ ok: false, error: "INVALID_COLOR" }, { status: 400 });
+    }
+
+    const years = normalizeYearRange(startYear, endYear);
+    const now = new Date();
+    const settingId = typeof body.id === "string" ? body.id.trim() : "";
+    const normalizedEraId = eraId || null;
+
+    if (settingId) {
+      const existing = await getAccessibleSetting(user, settingId);
+      if (!existing) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      if (existing.worldId !== worldId) {
+        return NextResponse.json({ ok: false, error: "WORLD_MISMATCH" }, { status: 400 });
+      }
+
+      await db
+        .update(schema.galaxySettings)
+        .set({
+          worldId,
+          eraId: normalizedEraId,
+          name,
+          description: cleanOptionalString(body.description),
+          startYear: years.startYear,
+          endYear: years.endYear,
+          colorHex,
+          updatedAt: now,
+        })
+        .where(eq(schema.galaxySettings.id, settingId));
+
+      const updatedRows = await db
+        .select()
+        .from(schema.galaxySettings)
+        .where(eq(schema.galaxySettings.id, settingId))
+        .limit(1);
+
+      const updated = updatedRows[0];
+      if (!updated) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: true, setting: serializeSetting(updated) });
+    }
+
+    const created = {
+      id: crypto.randomUUID(),
+      worldId,
+      eraId: normalizedEraId,
+      createdBy: user.id,
+      name,
+      description: cleanOptionalString(body.description),
+      startYear: years.startYear,
+      endYear: years.endYear,
+      colorHex,
+      createdAt: now,
+      updatedAt: now,
+    } satisfies typeof schema.galaxySettings.$inferInsert;
+
+    await db.insert(schema.galaxySettings).values(created);
+
+    return NextResponse.json(
+      {
+        ok: true,
+        setting: serializeSetting(created),
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error("Upsert galaxy setting error:", err);
+    return NextResponse.json({ ok: false, error: "INTERNAL_ERROR" }, { status: 500 });
+  }
+}

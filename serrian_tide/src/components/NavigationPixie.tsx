@@ -96,7 +96,7 @@ export function NavigationPixie() {
     return [
       { href: "/worldbuilder", label: "Source Forge Hub" },
       { href: "/worldbuilder/toolbox", label: "Toolbox" },
-      { href: "/worldbuilder/playground", label: "G.O.D's Playground" },
+      { href: "/worldbuilder/galaxy", label: "Galaxy Forge" },
       { href: "/worldbuilder/creatures", label: "Creatures" },
       { href: "/worldbuilder/skillsets", label: "Skillsets" },
       { href: "/worldbuilder/races", label: "Races" },

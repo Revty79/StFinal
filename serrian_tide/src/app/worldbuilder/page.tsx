@@ -118,7 +118,7 @@ export default async function SourceForgePage() {
           <p className="text-sm text-zinc-200 text-center">
             <span className="font-semibold text-violet-200">Start here:</span> Use the{" "}
             <span className="text-amber-200">World Builder's Toolbox</span> to create reusable components.
-            Then head to <span className="text-emerald-200">The G.O.D's Playground</span> to assemble your cosmos.
+            Then head to <span className="text-emerald-200">Galaxy Forge</span> to assemble your cosmos.
           </p>
         </Card>
 
@@ -151,7 +151,7 @@ export default async function SourceForgePage() {
             </div>
           </Card>
 
-          {/* The G.O.D's Playground */}
+          {/* Galaxy Forge */}
           <Card
             padded={false}
             className="group rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-8 shadow-2xl hover:shadow-[0_0_50px_rgba(167,139,250,0.2)] transition"
@@ -164,16 +164,16 @@ export default async function SourceForgePage() {
               variant="card-title"
               className="font-portcullion text-2xl md:text-3xl"
             >
-              The G.O.D's Playground
+              Galaxy Forge
             </GradientText>
             <p className="mt-3 text-base text-zinc-300/90 leading-relaxed">
-              Assemble complete cosmos by combining your tools and defining cosmology, eras, and the rules that govern reality.
+              Build timeline-first worlds by organizing eras, settings, and events in one connected forge.
             </p>
             
             <div className="mt-6">
-              <Link href="/worldbuilder/playground">
+              <Link href="/worldbuilder/galaxy">
                 <Button variant="primary" size="md" className="w-full">
-                  Enter Playground
+                  Open Galaxy Forge
                 </Button>
               </Link>
             </div>
