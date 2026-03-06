@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { getRoleCapabilities } from "@/lib/authorization";
 
@@ -22,6 +22,10 @@ export function canUseGalaxy(role: string | null | undefined): boolean {
 
 export function isAdminRole(role: string | null | undefined): boolean {
   return String(role ?? "").toLowerCase() === "admin";
+}
+
+export function canEditGalaxyRow(user: SessionLikeUser, createdBy: string): boolean {
+  return isAdminRole(user.role) || createdBy === user.id;
 }
 
 export function cleanRequiredName(value: unknown): string | null {
@@ -81,7 +85,38 @@ export function normalizeYearRange(startYear: number | null, endYear: number | n
   return { startYear: endYear, endYear: startYear };
 }
 
-export async function getAccessibleWorld(user: SessionLikeUser, worldId: string): Promise<WorldRow | null> {
+export async function listReadableWorlds(user: SessionLikeUser): Promise<WorldRow[]> {
+  return isAdminRole(user.role)
+    ? await db.select().from(schema.galaxyWorlds).orderBy(desc(schema.galaxyWorlds.createdAt))
+    : await db
+        .select()
+        .from(schema.galaxyWorlds)
+        .where(or(eq(schema.galaxyWorlds.createdBy, user.id), eq(schema.galaxyWorlds.isFree, true)))
+        .orderBy(desc(schema.galaxyWorlds.createdAt));
+}
+
+export async function getReadableWorld(user: SessionLikeUser, worldId: string): Promise<WorldRow | null> {
+  const rows = isAdminRole(user.role)
+    ? await db
+        .select()
+        .from(schema.galaxyWorlds)
+        .where(eq(schema.galaxyWorlds.id, worldId))
+        .limit(1)
+    : await db
+        .select()
+        .from(schema.galaxyWorlds)
+        .where(
+          and(
+            eq(schema.galaxyWorlds.id, worldId),
+            or(eq(schema.galaxyWorlds.createdBy, user.id), eq(schema.galaxyWorlds.isFree, true)),
+          ),
+        )
+        .limit(1);
+
+  return rows[0] ?? null;
+}
+
+export async function getEditableWorld(user: SessionLikeUser, worldId: string): Promise<WorldRow | null> {
   const rows = isAdminRole(user.role)
     ? await db
         .select()
@@ -97,7 +132,7 @@ export async function getAccessibleWorld(user: SessionLikeUser, worldId: string)
   return rows[0] ?? null;
 }
 
-export async function getAccessibleEra(user: SessionLikeUser, eraId: string): Promise<EraRow | null> {
+export async function getEditableEra(user: SessionLikeUser, eraId: string): Promise<EraRow | null> {
   const rows = isAdminRole(user.role)
     ? await db
         .select()
@@ -113,7 +148,7 @@ export async function getAccessibleEra(user: SessionLikeUser, eraId: string): Pr
   return rows[0] ?? null;
 }
 
-export async function getAccessibleSetting(user: SessionLikeUser, settingId: string): Promise<SettingRow | null> {
+export async function getEditableSetting(user: SessionLikeUser, settingId: string): Promise<SettingRow | null> {
   const rows = isAdminRole(user.role)
     ? await db
         .select()
@@ -129,7 +164,7 @@ export async function getAccessibleSetting(user: SessionLikeUser, settingId: str
   return rows[0] ?? null;
 }
 
-export async function getAccessibleMarker(user: SessionLikeUser, markerId: string): Promise<MarkerRow | null> {
+export async function getEditableMarker(user: SessionLikeUser, markerId: string): Promise<MarkerRow | null> {
   const rows = isAdminRole(user.role)
     ? await db
         .select()
@@ -145,6 +180,42 @@ export async function getAccessibleMarker(user: SessionLikeUser, markerId: strin
   return rows[0] ?? null;
 }
 
+export async function worldExists(worldId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.galaxyWorlds.id })
+    .from(schema.galaxyWorlds)
+    .where(eq(schema.galaxyWorlds.id, worldId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function eraExists(eraId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.galaxyEras.id })
+    .from(schema.galaxyEras)
+    .where(eq(schema.galaxyEras.id, eraId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function settingExists(settingId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.galaxySettings.id })
+    .from(schema.galaxySettings)
+    .where(eq(schema.galaxySettings.id, settingId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+export async function markerExists(markerId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.galaxyMarkers.id })
+    .from(schema.galaxyMarkers)
+    .where(eq(schema.galaxyMarkers.id, markerId))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function getNextEraOrderIndex(worldId: string): Promise<number> {
   const rows = await db
     .select({ orderIndex: schema.galaxyEras.orderIndex })
@@ -156,17 +227,20 @@ export async function getNextEraOrderIndex(worldId: string): Promise<number> {
   return (rows[0]?.orderIndex ?? -1) + 1;
 }
 
-export function serializeWorld(row: WorldRow) {
+export function serializeWorld(row: WorldRow, user?: SessionLikeUser) {
   return {
     id: row.id,
     name: row.name,
     description: row.description,
+    isFree: row.isFree,
+    isPublished: row.isPublished,
+    canEdit: user ? canEditGalaxyRow(user, row.createdBy) : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-export function serializeEra(row: EraRow) {
+export function serializeEra(row: EraRow, user?: SessionLikeUser) {
   return {
     id: row.id,
     worldId: row.worldId,
@@ -176,10 +250,11 @@ export function serializeEra(row: EraRow) {
     endYear: row.endYear,
     colorHex: row.colorHex,
     orderIndex: row.orderIndex,
+    canEdit: user ? canEditGalaxyRow(user, row.createdBy) : undefined,
   };
 }
 
-export function serializeSetting(row: SettingRow) {
+export function serializeSetting(row: SettingRow, user?: SessionLikeUser) {
   return {
     id: row.id,
     worldId: row.worldId,
@@ -189,10 +264,11 @@ export function serializeSetting(row: SettingRow) {
     startYear: row.startYear,
     endYear: row.endYear,
     colorHex: row.colorHex,
+    canEdit: user ? canEditGalaxyRow(user, row.createdBy) : undefined,
   };
 }
 
-export function serializeMarker(row: MarkerRow) {
+export function serializeMarker(row: MarkerRow, user?: SessionLikeUser) {
   return {
     id: row.id,
     worldId: row.worldId,
@@ -203,5 +279,6 @@ export function serializeMarker(row: MarkerRow) {
     year: row.year,
     category: row.category,
     visibility: row.visibility as GalaxyVisibility,
+    canEdit: user ? canEditGalaxyRow(user, row.createdBy) : undefined,
   };
 }

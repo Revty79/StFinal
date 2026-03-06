@@ -7,14 +7,16 @@ import {
   canUseGalaxy,
   cleanOptionalString,
   cleanRequiredName,
-  getAccessibleEra,
-  getAccessibleWorld,
+  eraExists,
+  getEditableEra,
+  getEditableWorld,
   getNextEraOrderIndex,
   normalizeYearRange,
   parseColorHex,
   parseNullableInteger,
   parseOrderIndex,
   serializeEra,
+  worldExists,
 } from "@/lib/galaxy/server";
 
 type UpsertEraBody = {
@@ -50,9 +52,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "WORLD_REQUIRED" }, { status: 400 });
     }
 
-    const world = await getAccessibleWorld(user, worldId);
+    const world = await getEditableWorld(user, worldId);
     if (!world) {
-      return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      const exists = await worldExists(worldId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const name = cleanRequiredName(body.name);
@@ -81,9 +87,13 @@ export async function POST(req: Request) {
     const eraId = typeof body.id === "string" ? body.id.trim() : "";
 
     if (eraId) {
-      const existing = await getAccessibleEra(user, eraId);
+      const existing = await getEditableEra(user, eraId);
       if (!existing) {
-        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+        const exists = await eraExists(eraId);
+        if (!exists) {
+          return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+        }
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
       }
 
       if (existing.worldId !== worldId) {
@@ -114,7 +124,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
       }
 
-      return NextResponse.json({ ok: true, era: serializeEra(updated) });
+      return NextResponse.json({ ok: true, era: serializeEra(updated, user) });
     }
 
     const created = {
@@ -136,7 +146,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        era: serializeEra(created),
+        era: serializeEra(created, user),
       },
       { status: 201 }
     );

@@ -25,6 +25,8 @@ export function WorldFormModal({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [isFree, setIsFree] = useState(initial?.isFree ?? true);
+  const [isPublished, setIsPublished] = useState(initial?.isPublished ?? false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -42,6 +44,8 @@ export function WorldFormModal({
         id: initial?.id,
         name,
         description,
+        isFree,
+        isPublished,
       });
     } catch (nextError) {
       setError(readErrorMessage(nextError));
@@ -71,6 +75,24 @@ export function WorldFormModal({
             className={`${inputStyle} min-h-[88px]`}
           />
         </label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex items-center gap-2 rounded-md border border-white/15 bg-black/25 px-3 py-2 text-sm text-zinc-200">
+            <input
+              type="checkbox"
+              checked={isFree}
+              onChange={(event) => setIsFree(event.target.checked)}
+            />
+            Free visibility
+          </label>
+          <label className="flex items-center gap-2 rounded-md border border-white/15 bg-black/25 px-3 py-2 text-sm text-zinc-200">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(event) => setIsPublished(event.target.checked)}
+            />
+            Published
+          </label>
+        </div>
         {error && <p className="text-sm text-red-300">{error}</p>}
         <div className="flex justify-end gap-2">
           <button

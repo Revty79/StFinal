@@ -637,6 +637,8 @@ CREATE TABLE IF NOT EXISTS "galaxy_worlds" (
   "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
   "name" varchar(255) NOT NULL,
   "description" text,
+  "is_free" boolean DEFAULT true NOT NULL,
+  "is_published" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

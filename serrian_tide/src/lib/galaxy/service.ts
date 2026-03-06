@@ -5,6 +5,8 @@ export interface UpsertWorldInput {
   id?: string;
   name: string;
   description?: string;
+  isFree?: boolean;
+  isPublished?: boolean;
 }
 
 export interface UpsertEraInput {
@@ -78,7 +80,7 @@ export class GalaxyService {
     }
 
     if (!input.id) {
-      return this.repository.createWorld(name, input.description);
+      return this.repository.createWorld(name, input.description, input.isFree, input.isPublished);
     }
 
     const current = await this.repository.getWorld(input.id);
@@ -89,6 +91,8 @@ export class GalaxyService {
       ...current,
       name,
       description: input.description?.trim() || undefined,
+      isFree: input.isFree ?? current.isFree,
+      isPublished: input.isPublished ?? current.isPublished,
     };
     await this.repository.updateWorld(updated);
     return updated;

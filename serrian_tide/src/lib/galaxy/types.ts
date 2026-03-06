@@ -4,6 +4,9 @@ export interface WorldSummary {
   id: string;
   name: string;
   description?: string;
+  isFree: boolean;
+  isPublished: boolean;
+  canEdit: boolean;
   createdAt: number;
 }
 
@@ -16,6 +19,7 @@ export interface EraModel {
   endYear?: number;
   colorHex?: string;
   orderIndex: number;
+  canEdit?: boolean;
 }
 
 export interface SettingModel {
@@ -27,6 +31,7 @@ export interface SettingModel {
   startYear?: number;
   endYear?: number;
   colorHex?: string;
+  canEdit?: boolean;
 }
 
 export interface MarkerModel {
@@ -39,6 +44,7 @@ export interface MarkerModel {
   year?: number;
   category?: string;
   visibility: MarkerVisibility;
+  canEdit?: boolean;
 }
 
 export interface WorldAggregate extends WorldSummary {

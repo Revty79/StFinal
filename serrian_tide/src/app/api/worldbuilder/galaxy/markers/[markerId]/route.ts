@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { getSessionUser } from "@/server/session";
-import { canUseGalaxy, getAccessibleMarker } from "@/lib/galaxy/server";
+import { canUseGalaxy, getEditableMarker, markerExists } from "@/lib/galaxy/server";
 
 // DELETE /api/worldbuilder/galaxy/markers/[markerId]
 export async function DELETE(
@@ -20,9 +20,13 @@ export async function DELETE(
     }
 
     const { markerId } = await context.params;
-    const existing = await getAccessibleMarker(user, markerId);
+    const existing = await getEditableMarker(user, markerId);
     if (!existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await markerExists(markerId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     await db.delete(schema.galaxyMarkers).where(eq(schema.galaxyMarkers.id, markerId));

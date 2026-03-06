@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { getSessionUser } from "@/server/session";
-import { canUseGalaxy, getAccessibleEra } from "@/lib/galaxy/server";
+import { canUseGalaxy, eraExists, getEditableEra } from "@/lib/galaxy/server";
 
 // DELETE /api/worldbuilder/galaxy/eras/[eraId]
 export async function DELETE(
@@ -20,9 +20,13 @@ export async function DELETE(
     }
 
     const { eraId } = await context.params;
-    const existing = await getAccessibleEra(user, eraId);
+    const existing = await getEditableEra(user, eraId);
     if (!existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await eraExists(eraId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     await db.delete(schema.galaxyEras).where(eq(schema.galaxyEras.id, eraId));

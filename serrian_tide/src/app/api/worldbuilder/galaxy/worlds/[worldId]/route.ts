@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { getSessionUser } from "@/server/session";
 import {
   canUseGalaxy,
   cleanOptionalString,
   cleanRequiredName,
-  getAccessibleWorld,
-  isAdminRole,
+  getEditableWorld,
+  getReadableWorld,
   serializeEra,
   serializeMarker,
   serializeSetting,
   serializeWorld,
+  worldExists,
 } from "@/lib/galaxy/server";
 
 // GET /api/worldbuilder/galaxy/worlds/[worldId]
@@ -30,46 +31,38 @@ export async function GET(
     }
 
     const { worldId } = await context.params;
-    const world = await getAccessibleWorld(user, worldId);
+    const world = await getReadableWorld(user, worldId);
     if (!world) {
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
-
-    const erasWhere = isAdminRole(user.role)
-      ? eq(schema.galaxyEras.worldId, worldId)
-      : and(eq(schema.galaxyEras.worldId, worldId), eq(schema.galaxyEras.createdBy, user.id));
-    const settingsWhere = isAdminRole(user.role)
-      ? eq(schema.galaxySettings.worldId, worldId)
-      : and(eq(schema.galaxySettings.worldId, worldId), eq(schema.galaxySettings.createdBy, user.id));
-    const markersWhere = isAdminRole(user.role)
-      ? eq(schema.galaxyMarkers.worldId, worldId)
-      : and(eq(schema.galaxyMarkers.worldId, worldId), eq(schema.galaxyMarkers.createdBy, user.id));
 
     const [eras, settings, markers] = await Promise.all([
       db
         .select()
         .from(schema.galaxyEras)
-        .where(erasWhere)
+        .where(eq(schema.galaxyEras.worldId, worldId))
         .orderBy(asc(schema.galaxyEras.orderIndex), asc(schema.galaxyEras.name)),
       db
         .select()
         .from(schema.galaxySettings)
-        .where(settingsWhere)
+        .where(eq(schema.galaxySettings.worldId, worldId))
         .orderBy(asc(schema.galaxySettings.name)),
       db
         .select()
         .from(schema.galaxyMarkers)
-        .where(markersWhere)
+        .where(eq(schema.galaxyMarkers.worldId, worldId))
         .orderBy(asc(schema.galaxyMarkers.year), asc(schema.galaxyMarkers.name)),
     ]);
 
+    const serializedWorld = serializeWorld(world, user);
     return NextResponse.json({
       ok: true,
+      canEdit: serializedWorld.canEdit,
       world: {
-        ...serializeWorld(world),
-        eras: eras.map(serializeEra),
-        settings: settings.map(serializeSetting),
-        markers: markers.map(serializeMarker),
+        ...serializedWorld,
+        eras: eras.map((row) => serializeEra(row, user)),
+        settings: settings.map((row) => serializeSetting(row, user)),
+        markers: markers.map((row) => serializeMarker(row, user)),
       },
     });
   } catch (err) {
@@ -94,9 +87,13 @@ export async function PUT(
     }
 
     const { worldId } = await context.params;
-    const existing = await getAccessibleWorld(user, worldId);
+    const existing = await getEditableWorld(user, worldId);
     if (!existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await worldExists(worldId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -123,6 +120,22 @@ export async function PUT(
       hasUpdates = true;
     }
 
+    if ("isFree" in body) {
+      if (typeof body.isFree !== "boolean") {
+        return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+      }
+      updates.isFree = body.isFree;
+      hasUpdates = true;
+    }
+
+    if ("isPublished" in body) {
+      if (typeof body.isPublished !== "boolean") {
+        return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+      }
+      updates.isPublished = body.isPublished;
+      hasUpdates = true;
+    }
+
     if (!hasUpdates) {
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
@@ -132,14 +145,14 @@ export async function PUT(
       .set(updates)
       .where(eq(schema.galaxyWorlds.id, worldId));
 
-    const updated = await getAccessibleWorld(user, worldId);
+    const updated = await getReadableWorld(user, worldId);
     if (!updated) {
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
     return NextResponse.json({
       ok: true,
-      world: serializeWorld(updated),
+      world: serializeWorld(updated, user),
     });
   } catch (err) {
     console.error("Update galaxy world error:", err);
@@ -163,9 +176,13 @@ export async function DELETE(
     }
 
     const { worldId } = await context.params;
-    const existing = await getAccessibleWorld(user, worldId);
+    const existing = await getEditableWorld(user, worldId);
     if (!existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await worldExists(worldId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     await db.delete(schema.galaxyWorlds).where(eq(schema.galaxyWorlds.id, worldId));

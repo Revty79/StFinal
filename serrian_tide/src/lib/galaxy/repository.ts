@@ -23,10 +23,22 @@ function readApiError(response: Response, payload: ApiEnvelope | null): string {
   return `Request failed (${response.status})`;
 }
 
+function withWorldDefaults(world: Partial<WorldSummary>): WorldSummary {
+  return {
+    id: world.id ?? "",
+    name: world.name ?? "",
+    description: world.description,
+    isFree: world.isFree ?? true,
+    isPublished: world.isPublished ?? false,
+    canEdit: world.canEdit ?? true,
+    createdAt: world.createdAt ?? 0,
+  };
+}
+
 export interface GalaxyRepository {
   listWorlds(): Promise<WorldSummary[]>;
   getWorld(worldId: string): Promise<WorldAggregate | null>;
-  createWorld(name: string, description?: string): Promise<WorldSummary>;
+  createWorld(name: string, description?: string, isFree?: boolean, isPublished?: boolean): Promise<WorldSummary>;
   updateWorld(world: WorldSummary): Promise<void>;
   deleteWorld(worldId: string): Promise<void>;
 
@@ -53,7 +65,7 @@ export class ApiGalaxyRepository implements GalaxyRepository {
     }
 
     const worlds = payload.worlds;
-    return Array.isArray(worlds) ? (worlds as WorldSummary[]) : [];
+    return Array.isArray(worlds) ? worlds.map((entry) => withWorldDefaults(entry as Partial<WorldSummary>)) : [];
   }
 
   async getWorld(worldId: string): Promise<WorldAggregate | null> {
@@ -70,16 +82,27 @@ export class ApiGalaxyRepository implements GalaxyRepository {
       throw new Error(readApiError(response, payload));
     }
 
-    return (payload.world as WorldAggregate | undefined) ?? null;
+    const world = payload.world as Partial<WorldAggregate> | undefined;
+    if (!world) {
+      return null;
+    }
+    return {
+      ...withWorldDefaults(world),
+      eras: Array.isArray(world.eras) ? (world.eras as EraModel[]) : [],
+      settings: Array.isArray(world.settings) ? (world.settings as SettingModel[]) : [],
+      markers: Array.isArray(world.markers) ? (world.markers as MarkerModel[]) : [],
+    };
   }
 
-  async createWorld(name: string, description?: string): Promise<WorldSummary> {
+  async createWorld(name: string, description?: string, isFree?: boolean, isPublished?: boolean): Promise<WorldSummary> {
     const response = await fetch("/api/worldbuilder/galaxy/worlds", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name,
         description: description ?? null,
+        isFree,
+        isPublished,
       }),
     });
     const payload = await readApiPayload(response);
@@ -102,6 +125,8 @@ export class ApiGalaxyRepository implements GalaxyRepository {
       body: JSON.stringify({
         name: world.name,
         description: world.description ?? null,
+        isFree: world.isFree,
+        isPublished: world.isPublished,
       }),
     });
     const payload = await readApiPayload(response);

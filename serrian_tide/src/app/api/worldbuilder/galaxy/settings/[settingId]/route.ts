@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 import { getSessionUser } from "@/server/session";
-import { canUseGalaxy, getAccessibleSetting } from "@/lib/galaxy/server";
+import { canUseGalaxy, getEditableSetting, settingExists } from "@/lib/galaxy/server";
 
 // DELETE /api/worldbuilder/galaxy/settings/[settingId]
 export async function DELETE(
@@ -20,9 +20,13 @@ export async function DELETE(
     }
 
     const { settingId } = await context.params;
-    const existing = await getAccessibleSetting(user, settingId);
+    const existing = await getEditableSetting(user, settingId);
     if (!existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await settingExists(settingId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     await db.delete(schema.galaxySettings).where(eq(schema.galaxySettings.id, settingId));

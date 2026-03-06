@@ -7,13 +7,16 @@ import {
   canUseGalaxy,
   cleanOptionalString,
   cleanRequiredName,
-  getAccessibleEra,
-  getAccessibleSetting,
-  getAccessibleWorld,
+  eraExists,
+  getEditableEra,
+  getEditableSetting,
+  getEditableWorld,
   normalizeYearRange,
   parseColorHex,
   parseNullableInteger,
+  settingExists,
   serializeSetting,
+  worldExists,
 } from "@/lib/galaxy/server";
 
 type UpsertSettingBody = {
@@ -49,16 +52,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "WORLD_REQUIRED" }, { status: 400 });
     }
 
-    const world = await getAccessibleWorld(user, worldId);
+    const world = await getEditableWorld(user, worldId);
     if (!world) {
-      return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      const exists = await worldExists(worldId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const eraId = typeof body.eraId === "string" ? body.eraId.trim() : "";
     if (eraId) {
-      const era = await getAccessibleEra(user, eraId);
+      const era = await getEditableEra(user, eraId);
       if (!era) {
-        return NextResponse.json({ ok: false, error: "ERA_NOT_FOUND" }, { status: 404 });
+        const eraIsPresent = await eraExists(eraId);
+        if (!eraIsPresent) {
+          return NextResponse.json({ ok: false, error: "ERA_NOT_FOUND" }, { status: 404 });
+        }
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
       }
       if (era.worldId !== worldId) {
         return NextResponse.json({ ok: false, error: "WORLD_MISMATCH" }, { status: 400 });
@@ -87,9 +98,13 @@ export async function POST(req: Request) {
     const normalizedEraId = eraId || null;
 
     if (settingId) {
-      const existing = await getAccessibleSetting(user, settingId);
+      const existing = await getEditableSetting(user, settingId);
       if (!existing) {
-        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+        const exists = await settingExists(settingId);
+        if (!exists) {
+          return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+        }
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
       }
 
       if (existing.worldId !== worldId) {
@@ -121,7 +136,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
       }
 
-      return NextResponse.json({ ok: true, setting: serializeSetting(updated) });
+      return NextResponse.json({ ok: true, setting: serializeSetting(updated, user) });
     }
 
     const created = {
@@ -143,7 +158,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        setting: serializeSetting(created),
+        setting: serializeSetting(created, user),
       },
       { status: 201 }
     );

@@ -7,13 +7,17 @@ import {
   canUseGalaxy,
   cleanOptionalString,
   cleanRequiredName,
-  getAccessibleEra,
-  getAccessibleMarker,
-  getAccessibleSetting,
-  getAccessibleWorld,
+  eraExists,
+  getEditableEra,
+  getEditableMarker,
+  getEditableSetting,
+  getEditableWorld,
+  markerExists,
   parseNullableInteger,
   parseVisibility,
+  settingExists,
   serializeMarker,
+  worldExists,
 } from "@/lib/galaxy/server";
 
 type UpsertMarkerBody = {
@@ -50,16 +54,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "WORLD_REQUIRED" }, { status: 400 });
     }
 
-    const world = await getAccessibleWorld(user, worldId);
+    const world = await getEditableWorld(user, worldId);
     if (!world) {
-      return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      const exists = await worldExists(worldId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "WORLD_NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const eraId = typeof body.eraId === "string" ? body.eraId.trim() : "";
     if (eraId) {
-      const era = await getAccessibleEra(user, eraId);
+      const era = await getEditableEra(user, eraId);
       if (!era) {
-        return NextResponse.json({ ok: false, error: "ERA_NOT_FOUND" }, { status: 404 });
+        const eraIsPresent = await eraExists(eraId);
+        if (!eraIsPresent) {
+          return NextResponse.json({ ok: false, error: "ERA_NOT_FOUND" }, { status: 404 });
+        }
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
       }
       if (era.worldId !== worldId) {
         return NextResponse.json({ ok: false, error: "WORLD_MISMATCH" }, { status: 400 });
@@ -68,9 +80,13 @@ export async function POST(req: Request) {
 
     const settingId = typeof body.settingId === "string" ? body.settingId.trim() : "";
     if (settingId) {
-      const setting = await getAccessibleSetting(user, settingId);
+      const setting = await getEditableSetting(user, settingId);
       if (!setting) {
-        return NextResponse.json({ ok: false, error: "SETTING_NOT_FOUND" }, { status: 404 });
+        const settingIsPresent = await settingExists(settingId);
+        if (!settingIsPresent) {
+          return NextResponse.json({ ok: false, error: "SETTING_NOT_FOUND" }, { status: 404 });
+        }
+        return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
       }
       if (setting.worldId !== worldId) {
         return NextResponse.json({ ok: false, error: "WORLD_MISMATCH" }, { status: 400 });
@@ -91,9 +107,13 @@ export async function POST(req: Request) {
     }
 
     const markerId = typeof body.id === "string" ? body.id.trim() : "";
-    const existing = markerId ? await getAccessibleMarker(user, markerId) : null;
+    const existing = markerId ? await getEditableMarker(user, markerId) : null;
     if (markerId && !existing) {
-      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      const exists = await markerExists(markerId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     if (existing && existing.worldId !== worldId) {
@@ -142,7 +162,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
       }
 
-      return NextResponse.json({ ok: true, marker: serializeMarker(updated) });
+      return NextResponse.json({ ok: true, marker: serializeMarker(updated, user) });
     }
 
     const created = {
@@ -165,7 +185,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        marker: serializeMarker(created),
+        marker: serializeMarker(created, user),
       },
       { status: 201 }
     );

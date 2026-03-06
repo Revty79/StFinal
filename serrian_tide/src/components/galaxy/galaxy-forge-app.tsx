@@ -116,6 +116,13 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
     void loadWorld(selectedWorldId);
   }, [selectedWorldId, loadWorld]);
 
+  const selectedWorldSummary = useMemo(
+    () => worlds.find((world) => world.id === selectedWorldId) ?? null,
+    [worlds, selectedWorldId],
+  );
+
+  const canEditActiveWorld = (activeWorld?.canEdit ?? selectedWorldSummary?.canEdit) ?? false;
+
   const timelineData = useMemo<TimelineViewData | null>(() => {
     if (!activeWorld) {
       return null;
@@ -406,15 +413,17 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                     <div className="mt-2 flex justify-end gap-2 text-xs">
                       <button
                         type="button"
+                        disabled={!world.canEdit}
                         onClick={() => setWorldModal({ world })}
-                        className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15"
+                        className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
+                        disabled={!world.canEdit}
                         onClick={() => void handleDeleteWorld(world)}
-                        className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30"
+                        className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Delete
                       </button>
@@ -452,6 +461,14 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                 <p className="mt-1 text-sm text-zinc-300/80">
                   {activeWorld.description || "No description"}
                 </p>
+                <p className="mt-2 text-xs text-zinc-400">
+                  Visibility: {activeWorld.isFree ? "Free" : "Private"} | {activeWorld.isPublished ? "Published" : "Draft"}
+                </p>
+                {!canEditActiveWorld && (
+                  <p className="mt-2 text-xs text-amber-300/90">
+                    Read-only world. You can view this world, but only the owner or an admin can edit it.
+                  </p>
+                )}
               </Card>
 
               <TimelineView
@@ -459,9 +476,18 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                 pxPerYear={pxPerYear}
                 onZoomChange={setPxPerYear}
                 onSelectedYearChange={setSelectedYear}
-                onEditEra={(era) => setEraModal({ era })}
-                onEditSetting={(setting) => setSettingModal({ setting })}
-                onEditMarker={(marker) => setMarkerModal({ marker })}
+                onEditEra={(era) => {
+                  if (!canEditActiveWorld || era.canEdit === false) return;
+                  setEraModal({ era });
+                }}
+                onEditSetting={(setting) => {
+                  if (!canEditActiveWorld || setting.canEdit === false) return;
+                  setSettingModal({ setting });
+                }}
+                onEditMarker={(marker) => {
+                  if (!canEditActiveWorld || marker.canEdit === false) return;
+                  setMarkerModal({ marker });
+                }}
               />
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
@@ -469,7 +495,12 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                   <Card className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-zinc-100">Eras</h3>
-                      <Button size="sm" variant="secondary" onClick={() => setEraModal({})}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setEraModal({})}
+                        disabled={!canEditActiveWorld}
+                      >
                         Add Era
                       </Button>
                     </div>
@@ -487,15 +518,17 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                               <div className="flex gap-2 text-xs">
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || era.canEdit === false}
                                   onClick={() => setEraModal({ era })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15"
+                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || era.canEdit === false}
                                   onClick={() => void handleDeleteEra(era)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30"
+                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Delete
                                 </button>
@@ -510,7 +543,12 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                   <Card className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-zinc-100">Settings</h3>
-                      <Button size="sm" variant="secondary" onClick={() => setSettingModal({})}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setSettingModal({})}
+                        disabled={!canEditActiveWorld}
+                      >
                         Add Setting
                       </Button>
                     </div>
@@ -533,15 +571,17 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                               <div className="flex gap-2 text-xs">
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || setting.canEdit === false}
                                   onClick={() => setSettingModal({ setting })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15"
+                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || setting.canEdit === false}
                                   onClick={() => void handleDeleteSetting(setting)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30"
+                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Delete
                                 </button>
@@ -558,7 +598,12 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                   <Card className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-zinc-100">Events</h3>
-                      <Button size="sm" variant="secondary" onClick={() => setMarkerModal({})}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setMarkerModal({})}
+                        disabled={!canEditActiveWorld}
+                      >
                         Add Event
                       </Button>
                     </div>
@@ -583,15 +628,17 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                               <div className="flex gap-2 text-xs">
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || marker.canEdit === false}
                                   onClick={() => setMarkerModal({ marker })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15"
+                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Edit
                                 </button>
                                 <button
                                   type="button"
+                                  disabled={!canEditActiveWorld || marker.canEdit === false}
                                   onClick={() => void handleDeleteMarker(marker)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30"
+                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   Delete
                                 </button>
