@@ -112,9 +112,6 @@ const CAL_TABS: { id: CalendarTabKey; label: string }[] = [
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const nv = (x: unknown) =>
-  x === null || x === undefined || x === "" ? "—" : String(x);
-
 // Calculate total days in a month from week structures
 const calculateMonthDays = (weekStructures: WeekStructure[]): number => {
   if (weekStructures.length === 0) return 0;

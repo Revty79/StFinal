@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
 // GET /api/campaigns - Get all campaigns for current user
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {

@@ -50,7 +50,7 @@ export default async function Dashboard() {
   if (!user) redirect("/login");
 
   const role = user.role.toLowerCase();
-  const { isAdmin, canWorldBuild, canPublish, canSeeAdmin, canAccessSourceForge } =
+  const { canWorldBuild, canPublish, canSeeAdmin, canAccessSourceForge } =
     getCapabilities(role);
 
   return (

@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/campaigns/player - Get all campaigns where user is a player
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {

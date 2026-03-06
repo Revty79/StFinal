@@ -8,7 +8,8 @@ const pool = new Pool({
 });
 
 // GET /api/worldbuilder/npcs
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {

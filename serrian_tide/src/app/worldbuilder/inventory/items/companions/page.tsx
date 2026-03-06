@@ -14,8 +14,6 @@ import { InventoryNav } from "@/components/worldbuilder/InventoryNav";
 
 /* ---------- types & helpers ---------- */
 
-type ShopRole = "loot_only" | "shop_stock" | "exclusive" | null;
-
 export type CompanionRow = {
   id: string | number;
   name: string;
@@ -791,7 +789,7 @@ export default function InventoryCompanionsPage() {
               <FormField
                 label="Care / Logistics"
                 htmlFor="companion-care"
-                description="Upkeep, stabling, food, temperament, or any leash the GM can tug."
+                description="Upkeep, stabling, food, temperament, or any leash the G.O.D can tug."
               >
                 <textarea
                   id="companion-care"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -66,17 +66,7 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState<Role | "">("");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function init() {
-      const hasAccess = await checkAccess();
-      if (hasAccess) {
-        await Promise.all([loadStats(), loadUsers()]);
-      }
-    }
-    init();
-  }, []);
-
-  async function checkAccess(): Promise<boolean> {
+  const checkAccess = useCallback(async (): Promise<boolean> => {
     try {
       const res = await fetch("/api/profile/me");
       const data = await res.json();
@@ -90,7 +80,17 @@ export default function AdminDashboard() {
       router.push("/dashboard");
       return false;
     }
-  }
+  }, [router]);
+
+  useEffect(() => {
+    async function init() {
+      const hasAccess = await checkAccess();
+      if (hasAccess) {
+        await Promise.all([loadStats(), loadUsers()]);
+      }
+    }
+    init();
+  }, [checkAccess]);
 
   async function loadStats() {
     try {

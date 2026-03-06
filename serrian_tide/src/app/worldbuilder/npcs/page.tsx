@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -387,7 +387,7 @@ export default function NPCsPage() {
     setActiveTab("identity");
   }
 
-  function updateSelected(patch: Partial<NPC>) {
+  const updateSelected = useCallback((patch: Partial<NPC>) => {
     if (!selected) return;
     const idStr = String(selected.id);
     setNpcs((prev) =>
@@ -400,7 +400,7 @@ export default function NPCsPage() {
           : c
       )
     );
-  }
+  }, [selected]);
 
   async function saveSelected() {
     if (!selected) return;
@@ -585,7 +585,7 @@ export default function NPCsPage() {
     const wis = selected.wisdom ?? 25;
     const cha = selected.charisma ?? 25;
     return str + dex + con + int + wis + cha;
-  }, [selected?.strength, selected?.dexterity, selected?.constitution, selected?.intelligence, selected?.wisdom, selected?.charisma]);
+  }, [selected]);
 
   const attributePointsRemaining = 150 - calculateAttributePointsSpent;
 
@@ -596,19 +596,6 @@ export default function NPCsPage() {
   }, [selected?.skill_allocations]);
 
   const skillPointsRemaining = 50 - calculateSkillPointsSpent;
-  const isInitialSkillPointsSpent = calculateSkillPointsSpent >= 50;
-
-  // Calculate cost to increase a skill by 1 point
-  const calculateSkillCost = (currentPoints: number, isUsingInitialPoints: boolean): number => {
-    if (isUsingInitialPoints) {
-      // Initial 50 points: 1-to-1 cost
-      return 1;
-    } else {
-      // XP spending: cost equals current points in skill
-      // E.g., going from 5 to 6 costs 5 XP
-      return currentPoints;
-    }
-  };
 
   // Calculate skill rank (points + attribute mod)
   // For tier 1: rank = points + attribute mod
@@ -647,7 +634,7 @@ export default function NPCsPage() {
               const allocations = selected.skill_allocations || {};
               const contextedKey = Object.keys(allocations).find(key => {
                 if (key.includes(':')) {
-                  const [prefix, skillIdPart] = key.split(':');
+                  const skillIdPart = key.split(':')[1];
                   return skillIdPart === parentId;
                 }
                 return false;
@@ -737,13 +724,13 @@ export default function NPCsPage() {
   };
 
   // CR to XP lookup table for skill experience
-  const CR_TO_XP: Record<number, number> = {
+  const CR_TO_XP = useMemo<Record<number, number>>(() => ({
     1: 0, 2: 25, 3: 50, 4: 75, 5: 125, 6: 200, 7: 325, 8: 525, 9: 850, 10: 1020,
     11: 1224, 12: 1469, 13: 1763, 14: 2116, 15: 2540, 16: 3048, 17: 3658, 18: 4390, 19: 5268, 20: 6322,
     21: 7587, 22: 9105, 23: 10926, 24: 13112, 25: 15735, 26: 18882, 27: 22659, 28: 27191, 29: 32630, 30: 39156,
     31: 45812, 32: 53501, 33: 62696, 34: 73355, 35: 85826, 36: 100423, 37: 117517, 38: 137495, 39: 160869, 40: 188217,
     41: 220214, 42: 257650, 43: 301450, 44: 352696, 45: 412654, 46: 482805, 47: 564882, 48: 660912, 49: 773267, 50: 904722,
-  };
+  }), []);
 
   // Calculate available XP based on CR (only after initial 50 skill points are spent)
   const availableXP = useMemo(() => {
@@ -752,7 +739,7 @@ export default function NPCsPage() {
     // Only show XP if initial setup is locked
     if (!selected.is_initial_setup_locked) return 0;
     return CR_TO_XP[cr] || 0;
-  }, [selected?.challenge_rating, selected?.is_initial_setup_locked]);
+  }, [selected?.challenge_rating, selected?.is_initial_setup_locked, CR_TO_XP]);
 
   const xpSpent = selected?.xp_spent ?? 0;
   const xpRemaining = selected?.is_initial_setup_locked ? availableXP - xpSpent : 0;
@@ -867,29 +854,6 @@ export default function NPCsPage() {
     });
   }
 
-  // Helper to check if a skill is unlocked (tier 2/3 require parent skills at 25+ points)
-  function isSkillUnlocked(skill: typeof allSkills[0]): boolean {
-    if (!selected) return false;
-    
-    // Tier 1 skills are always unlocked
-    if (skill.tier === 1) return true;
-    
-    // Tier 2/3 require at least one parent skill to have 25+ points
-    // Check all possible parent fields
-    const parentIds = [skill.parentId, skill.parent2Id, skill.parent3Id].filter(Boolean);
-    
-    for (const parentId of parentIds) {
-      if (parentId) {
-        const parentPoints = (selected.skill_allocations || {})[parentId] ?? 0;
-        if (parentPoints >= 25) {
-          return true; // At least one parent has enough points
-        }
-      }
-    }
-    
-    return false;
-  }
-
   // Function to lock initial setup and enable XP spending
   function lockInitialSetup() {
     if (!selected) return;
@@ -954,28 +918,10 @@ export default function NPCsPage() {
     return 100 - attrValue;
   };
 
-  // Calculate HP total from constitution
-  const calculateHP = (constitution: number | null): number => {
-    if (constitution === null || constitution === undefined) return 0;
-    const baseHP = constitution * 2;
-    const conMod = calculateMod(constitution);
-    return baseHP + conMod;
-  };
-
-  // Calculate Base Initiative from Dexterity (Serrian Tide rules)
-  // Start with 1 at DEX 1, gain +1 at DEX 5, then +1 for every 5 points
   const calculateBaseInitiative = (dexterity: number | null): number => {
     if (dexterity === null || dexterity === undefined || dexterity < 1) return 1;
     if (dexterity < 5) return 1;
-    // At DEX 5+, add 1 for every 5 points
     return 1 + Math.floor(dexterity / 5);
-  };
-
-  // Calculate Total Initiative
-  const calculateInitiative = (dexterity: number | null, baseMovement: number | null): number => {
-    const baseInit = calculateBaseInitiative(dexterity);
-    const movement = baseMovement ?? 5; // Default to 5 if not set
-    return baseInit * movement;
   };
 
   // Derive location HP from total HP using predefined percentages
@@ -1008,9 +954,34 @@ export default function NPCsPage() {
   // Auto-calculate derived stats when attributes change
   useEffect(() => {
     if (!selected) return;
-    
-    const newHP = calculateHP(selected.constitution ?? null);
-    const newInitiative = calculateInitiative(selected.dexterity ?? null, selected.base_movement ?? null);
+
+    const constitution = selected.constitution ?? null;
+    const dexterity = selected.dexterity ?? null;
+    const baseMovement = selected.base_movement ?? null;
+
+    let conMod = -5;
+    if (constitution !== null && constitution !== undefined) {
+      if (constitution >= 5) conMod = -4;
+      if (constitution >= 10) conMod = -3;
+      if (constitution >= 15) conMod = -2;
+      if (constitution >= 20) conMod = -1;
+      if (constitution >= 25) conMod = 0;
+      if (constitution >= 30) conMod = Math.floor((constitution - 30) / 5) + 1;
+    }
+
+    const newHP =
+      constitution === null || constitution === undefined
+        ? 0
+        : constitution * 2 + conMod;
+
+    const baseInit =
+      dexterity === null || dexterity === undefined || dexterity < 1
+        ? 1
+        : dexterity < 5
+          ? 1
+          : 1 + Math.floor(dexterity / 5);
+    const movement = baseMovement ?? 5;
+    const newInitiative = baseInit * movement;
     
     // Only update if values changed to avoid infinite loops
     if (selected.hp_total !== newHP || selected.initiative !== newInitiative) {
@@ -1019,9 +990,7 @@ export default function NPCsPage() {
         initiative: newInitiative,
       });
     }
-  }, [selected?.strength, selected?.dexterity, selected?.constitution, 
-      selected?.intelligence, selected?.wisdom, selected?.charisma, 
-      selected?.base_movement]);
+  }, [selected, updateSelected]);
 
   const previewText = useMemo(() => {
     if (!selected) return "";
@@ -1067,7 +1036,7 @@ export default function NPCsPage() {
       "— Skills —",
       n.skill_allocations && Object.keys(n.skill_allocations).length > 0
         ? Object.entries(n.skill_allocations)
-            .filter(([_, points]) => points > 0)
+            .filter(([, points]) => points > 0)
             .map(([allocationKey, points]) => {
               // Parse allocation key: "skillId" for tier 1, "parentId:skillId" for tier 2/3
               const skillId = allocationKey.includes(':') ? allocationKey.split(':')[1] : allocationKey;
@@ -1137,7 +1106,7 @@ export default function NPCsPage() {
             <p className="text-xs sm:text-sm text-zinc-300/90 max-w-2xl">
               Create reusable NPCs for your worlds, eras, and campaigns.
               This tool focuses on fast identity, clean stats, and sharp
-              story hooks, so your GM brain can stay in G.O.D mode.
+              story hooks, so your G.O.D brain can stay in G.O.D mode.
             </p>
           </div>
           <Link href="/worldbuilder/toolbox">
@@ -2606,7 +2575,7 @@ export default function NPCsPage() {
                           </FormField>
 
                           <FormField
-                            label="GM Notes"
+                            label="G.O.D Notes"
                             htmlFor="npc-notes"
                           >
                             <textarea

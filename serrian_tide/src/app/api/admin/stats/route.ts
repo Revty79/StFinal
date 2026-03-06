@@ -3,7 +3,8 @@ import { pool } from "@/db/client";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/admin/stats
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user || user.role !== "admin") {

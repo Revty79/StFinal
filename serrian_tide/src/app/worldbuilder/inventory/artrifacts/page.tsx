@@ -1028,7 +1028,7 @@ export default function InventoryArtifactsPage() {
               <FormField
                 label="Narrative Notes"
                 htmlFor="artifact-notes"
-                description="GM guidance, role in prophecy, or how it should feel in play."
+                description="G.O.D guidance, role in prophecy, or how it should feel in play."
               >
                 <textarea
                   id="artifact-notes"

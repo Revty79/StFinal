@@ -10,8 +10,6 @@ interface WorldBuilderCardProps {
 }
 
 export default function WorldBuilderCard({
-  canWorldBuild,
-  role,
   canAccessSourceForge,
 }: WorldBuilderCardProps) {
   // Only show Source Forge card to admin or privileged users

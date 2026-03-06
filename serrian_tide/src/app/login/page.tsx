@@ -293,7 +293,7 @@ export default function LoginPage() {
             <button className="hover:text-slate-200 hover:underline">
               Forgot password?
             </button>
-            <span className="select-none">GM is G.O.D.</span>
+            <span className="select-none">G.O.D mode</span>
           </div>
         </Card>
       </div>

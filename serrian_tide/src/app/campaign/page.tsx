@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { GradientText } from "@/components/GradientText";
 import { Card } from "@/components/Card";
@@ -94,7 +94,6 @@ export default function CampaignPage() {
   const [showAddPlayerDropdown, setShowAddPlayerDropdown] = useState(false);
   const [activeUsers, setActiveUsers] = useState<{ id: string; name: string }[]>([]);
   const [availableRaces, setAvailableRaces] = useState<{ id: string; name: string; tagline: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   
   // Gear shop state
   type ShopItem = {
@@ -141,26 +140,7 @@ export default function CampaignPage() {
     psonicsGuidance: '',
     bardicGuidance: '',
   });
-  const [editingArchetype, setEditingArchetype] = useState<string | null>(null);
   const [isSavingArchetype, setIsSavingArchetype] = useState(false);
-
-  // Fetch campaigns on mount
-  useEffect(() => {
-    fetchCampaigns();
-    fetchActiveUsers();
-    fetchAvailableRaces();
-    fetchAllSkills();
-    fetchAvailableInventory();
-  }, []);
-
-  // Load store items when campaign is selected
-  useEffect(() => {
-    if (selectedId) {
-      fetchCampaignStoreItems(selectedId);
-    } else {
-      setShopItems([]);
-    }
-  }, [selectedId]);
 
   async function fetchCampaigns() {
     try {
@@ -171,8 +151,6 @@ export default function CampaignPage() {
       }
     } catch (err) {
       console.error("Failed to fetch campaigns:", err);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -200,7 +178,7 @@ export default function CampaignPage() {
     }
   }
 
-  async function fetchAvailableInventory() {
+  const fetchAvailableInventory = useCallback(async () => {
     try {
       const [itemsRes, weaponsRes, armorRes] = await Promise.all([
         fetch("/api/worldbuilder/inventory/items"),
@@ -252,9 +230,9 @@ export default function CampaignPage() {
     } catch (err) {
       console.error("Failed to fetch inventory:", err);
     }
-  }
+  }, []);
 
-  async function fetchCampaignStoreItems(campaignId: string) {
+  const fetchCampaignStoreItems = useCallback(async (campaignId: string) => {
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/store`);
       const data = await res.json();
@@ -272,7 +250,25 @@ export default function CampaignPage() {
     } catch (err) {
       console.error("Failed to fetch campaign store items:", err);
     }
-  }
+  }, []);
+
+  // Fetch campaigns and static dependencies on initial load.
+  useEffect(() => {
+    fetchCampaigns();
+    fetchActiveUsers();
+    fetchAvailableRaces();
+    fetchAllSkills();
+    fetchAvailableInventory();
+  }, [fetchAvailableInventory]);
+
+  // Keep store items in sync with selected campaign.
+  useEffect(() => {
+    if (selectedId) {
+      fetchCampaignStoreItems(selectedId);
+    } else {
+      setShopItems([]);
+    }
+  }, [selectedId, fetchCampaignStoreItems]);
 
   async function saveCampaignStoreItems(campaignId: string, items: ShopItem[]) {
     try {
@@ -355,7 +351,6 @@ export default function CampaignPage() {
       if (data.ok) {
         await fetchCampaignArchetypes(campaignId);
         setShowArchetypeModal(false);
-        setEditingArchetype(null);
         setNewArchetype({
           id: '',
           name: '',
@@ -457,7 +452,7 @@ export default function CampaignPage() {
       fetchCampaignArchetypes(selectedId);
       fetchCampaignStoreItems(selectedId);
     }
-  }, [selectedId]);
+  }, [selectedId, selected, fetchCampaignStoreItems]);
 
   const filteredList = useMemo(() => {
     const q = qtext.trim().toLowerCase();
@@ -530,7 +525,7 @@ export default function CampaignPage() {
     }
   }
 
-  async function addPlayerToCampaign(userId: string, userName: string) {
+  async function addPlayerToCampaign(userId: string) {
     if (!selected) return;
     
     try {
@@ -1205,7 +1200,7 @@ export default function CampaignPage() {
                             try {
                               await updateCampaign({});
                               alert("Campaign saved successfully!");
-                            } catch (err) {
+                            } catch {
                               alert("Failed to save campaign. Please try again.");
                             }
                           }}
@@ -1241,7 +1236,7 @@ export default function CampaignPage() {
                                 <button
                                   key={user.id}
                                   type="button"
-                                  onClick={() => addPlayerToCampaign(user.id, user.name)}
+                                  onClick={() => addPlayerToCampaign(user.id)}
                                   className="w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-white/5 border-b border-white/5 last:border-b-0 transition"
                                 >
                                   {user.name}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -35,7 +35,7 @@ export type Character = {
   eyeColor?: string | null;
   hairColor?: string | null;
   deity?: string | null;
-  fame?: number | null; // Locked, GM assigned
+  fame?: number | null; // Locked, G.O.D assigned
   experience?: number | null; // In-game
   totalExperience?: number | null; // In-game
   quintessence?: number | null; // In-game
@@ -96,8 +96,6 @@ const CHARACTER_TABS: { id: CharacterTabKey; label: string }[] = [
   { id: "preview", label: "Preview" },
 ];
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-
 /* ---------- main page ---------- */
 
 export default function CharacterBuilderPage() {
@@ -134,7 +132,6 @@ function CharacterBuilderContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CharacterTabKey>("archetypes");
   const [skillSubTab, setSkillSubTab] = useState<"strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma" | "special">("strength");
-  const [qtext, setQtext] = useState("");
   const [loading, setLoading] = useState(true);
   const [characterLoaded, setCharacterLoaded] = useState(false);
   const [races, setRaces] = useState<Array<{
@@ -448,6 +445,10 @@ function CharacterBuilderContent() {
     return selected.is_initial_setup_locked === true;
   }, [selected]);
 
+  // Point budgets from campaign settings
+  const attributePointBudget = campaign?.attributePoints ?? 150;
+  const skillPointBudget = campaign?.skillPoints ?? 50;
+
 
   // Ensure something is selected once we have data
   useEffect(() => {
@@ -457,93 +458,15 @@ function CharacterBuilderContent() {
     }
   }, [characters, selected]);
 
-  // Ensure campaign name is synced when campaign loads
-  useEffect(() => {
-    if (campaign && selected && !selected.campaignName) {
-      updateSelected({ campaignName: campaign.name });
-    }
-  }, [campaign, selected]);
-
-  const filteredList = useMemo(() => {
-    const q = qtext.trim().toLowerCase();
-    if (!q) return characters;
-    return characters.filter((c) => {
-      const base = [
-        c.characterName,
-        c.playerName ?? "",
-        c.campaignName ?? "",
-        c.race ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return base.includes(q);
-    });
-  }, [characters, qtext]);
-
   /* ---------- CRUD helpers ---------- */
 
   // Save characters to localStorage
-  function saveToLocalStorage(chars: Character[]) {
+  const saveToLocalStorage = useCallback((chars: Character[]) => {
     localStorage.setItem('serrian_characters', JSON.stringify(chars));
-  }
-
-  function createCharacter() {
-    const id = uid();
-    const row: Character = {
-      id,
-      playerName: null,
-      characterName: "New Character",
-      campaignName: null,
-      race: null,
-      age: null,
-      baseMagic: null,
-      baseMovement: null,
-      sex: null,
-      height: null,
-      weight: null,
-      skinColor: null,
-      eyeColor: null,
-      hairColor: null,
-      deity: null,
-      fame: 0,
-      experience: 0,
-      totalExperience: 0,
-      quintessence: 0,
-      totalQuintessence: 0,
-      definingMarks: null,
-      strength: 25,
-      dexterity: 25,
-      constitution: 25,
-      intelligence: 25,
-      wisdom: 25,
-      charisma: 25,
-      hp_total: null,
-      initiative: null,
-      mana: null,
-      armor_soak: null,
-      defense_notes: null,
-      challenge_rating: 1,
-      skill_allocations: {},
-      personality: null,
-      goals: null,
-      secrets: null,
-      backstory: null,
-      motivations: null,
-      faction: null,
-      relationships: null,
-      attitude_toward_party: null,
-      resources: null,
-      notes: null,
-    };
-    const newChars = [row, ...characters];
-    setCharacters(newChars);
-    saveToLocalStorage(newChars);
-    setSelectedId(String(id));
-    setActiveTab("identity");
-  }
+  }, []);
 
   // Check if character setup is complete
-  function checkCharacterComplete(character: Character): boolean {
+  const checkCharacterComplete = useCallback((character: Character): boolean => {
     // 1. Character has a proper name (not default)
     if (!character.characterName || character.characterName === "New Character" || character.characterName.trim() === "") {
       return false;
@@ -605,10 +528,10 @@ function CharacterBuilderContent() {
     
     // Character is complete and ready for play!
     return true;
-  }
+  }, [attributePointBudget, skillPointBudget]);
 
   // Auto-save character to database
-  async function saveCharacterToAPI(character: Character) {
+  const saveCharacterToAPI = useCallback(async (character: Character) => {
     if (!campaignId || !characterId) return;
     
     // Check if character is complete
@@ -686,9 +609,9 @@ function CharacterBuilderContent() {
     } catch (error) {
       console.error("Error saving character:", error);
     }
-  }
+  }, [campaignId, characterId, checkCharacterComplete]);
 
-  function updateSelected(patch: Partial<Character>) {
+  const updateSelected = useCallback((patch: Partial<Character>) => {
     if (!selected) return;
     const idStr = String(selected.id);
     const updated = characters.map((c) =>
@@ -707,7 +630,14 @@ function CharacterBuilderContent() {
     if (updatedChar && characterId) {
       saveCharacterToAPI(updatedChar);
     }
-  }
+  }, [selected, characters, characterId, saveCharacterToAPI, saveToLocalStorage]);
+
+  // Ensure campaign name is synced when campaign loads
+  useEffect(() => {
+    if (campaign && selected && !selected.campaignName) {
+      updateSelected({ campaignName: campaign.name });
+    }
+  }, [campaign, selected, updateSelected]);
 
   function saveSelected() {
     if (!selected) return;
@@ -735,14 +665,7 @@ function CharacterBuilderContent() {
 
   /* ---------- Equipment Shop Functions ---------- */
 
-  // Load store items when equipment tab is opened
-  useEffect(() => {
-    if (activeTab === "equipment" && campaignId && storeItems.length === 0) {
-      loadStoreItems();
-    }
-  }, [activeTab, campaignId]);
-
-  async function loadStoreItems() {
+  const loadStoreItems = useCallback(async () => {
     if (!campaignId) return;
     
     setStoreLoading(true);
@@ -760,7 +683,14 @@ function CharacterBuilderContent() {
     } finally {
       setStoreLoading(false);
     }
-  }
+  }, [campaignId]);
+
+  // Load store items when equipment tab is opened
+  useEffect(() => {
+    if (activeTab === "equipment" && campaignId && storeItems.length === 0) {
+      loadStoreItems();
+    }
+  }, [activeTab, campaignId, storeItems.length, loadStoreItems]);
 
   async function purchaseItem(storeItemId: string, itemName: string, cost: number, quantity: number = 1) {
     if (!campaignId || !characterId || !selected) return;
@@ -844,10 +774,6 @@ function CharacterBuilderContent() {
     return races.find(r => r.name === selected.race) || null;
   }, [selected?.race, races]);
 
-  // Get point budgets from campaign settings
-  const attributePointBudget = campaign?.attributePoints ?? 150;
-  const skillPointBudget = campaign?.skillPoints ?? 50;
-
   // Calculate total attribute points spent (each attribute starts at 25, budget comes from campaign)
   const calculateAttributePointsSpent = useMemo(() => {
     if (!selected) return 0;
@@ -858,7 +784,7 @@ function CharacterBuilderContent() {
     const wis = selected.wisdom ?? 25;
     const cha = selected.charisma ?? 25;
     return str + dex + con + int + wis + cha;
-  }, [selected?.strength, selected?.dexterity, selected?.constitution, selected?.intelligence, selected?.wisdom, selected?.charisma]);
+  }, [selected]);
 
   const attributePointsRemaining = attributePointBudget - calculateAttributePointsSpent;
 
@@ -869,30 +795,6 @@ function CharacterBuilderContent() {
   }, [selected?.skill_allocations]);
 
   const skillPointsRemaining = skillPointBudget - calculateSkillPointsSpent;
-  const isInitialSkillPointsSpent = calculateSkillPointsSpent >= skillPointBudget;
-
-  // Calculate points spent in each tier for unlock logic
-  const tierPointsSpent = useMemo(() => {
-    if (!selected?.skill_allocations) return { tier1: 0, tier2: 0 };
-    
-    const allocations = selected.skill_allocations;
-    let tier1Total = 0;
-    let tier2Total = 0;
-    
-    // Sum points by tier
-    Object.entries(allocations).forEach(([skillId, points]) => {
-      const skill = allSkills.find(s => s.id === skillId);
-      if (skill) {
-        if (skill.tier === 1) {
-          tier1Total += points;
-        } else if (skill.tier === 2) {
-          tier2Total += points;
-        }
-      }
-    });
-    
-    return { tier1: tier1Total, tier2: tier2Total };
-  }, [selected?.skill_allocations, allSkills]);
 
   // Helper to check if a skill is unlocked based on tier rules
   const isSkillUnlocked = useMemo(() => (skill: any): boolean => {
@@ -993,22 +895,10 @@ function CharacterBuilderContent() {
     }
     
     return false;
-  }, [selected, selected?.skill_allocations, allSkills, campaign?.pointsNeededForNextTier]);
-
-  // Calculate cost to increase a skill by 1 point
-  const calculateSkillCost = (currentPoints: number, isUsingInitialPoints: boolean): number => {
-    if (isUsingInitialPoints) {
-      // Initial 50 points: 1-to-1 cost
-      return 1;
-    } else {
-      // XP spending: cost equals current points in skill
-      // E.g., going from 5 to 6 costs 5 XP
-      return currentPoints;
-    }
-  };
+  }, [selected, allSkills, campaign?.pointsNeededForNextTier]);
 
   // Calculate modifier from attribute score
-  const calculateMod = (attrValue: number | null): number => {
+  const calculateMod = useCallback((attrValue: number | null): number => {
     if (attrValue === null || attrValue === undefined) return -5;
     if (attrValue < 1) return -5;
     
@@ -1027,13 +917,13 @@ function CharacterBuilderContent() {
     }
     
     return -5; // fallback
-  };
+  }, []);
 
   // Calculate skill rank (points + attribute mod)
   // For tier 1: rank = points + attribute mod
   // For tier 2: rank = parent tier 1 rank + points in tier 2 skill
   // For tier 3: rank = parent tier 2 rank + points in tier 3 skill
-  const calculateSkillRank = (skillPoints: number, attributeName: string, skillId?: string, tier?: number | null, contextParentId?: string): number => {
+  const calculateSkillRank = useCallback((skillPoints: number, attributeName: string, skillId?: string, tier?: number | null, contextParentId?: string): number => {
     if (!selected) return skillPoints;
     
     // Handle NA or empty for special abilities - no attribute modifier
@@ -1125,7 +1015,7 @@ function CharacterBuilderContent() {
     
     const attributeMod = calculateMod(attributeValue);
     return skillPoints + attributeMod;
-  };
+  }, [selected, allSkills, calculateMod]);
 
   // Calculate skill percentage (100 - (rank + attribute))
   // For tier 1: % = 100 - (rank + attribute)
@@ -1188,23 +1078,23 @@ function CharacterBuilderContent() {
     });
     
     return highestMagicStabilizationRank * (selected.baseMagic || 0);
-  }, [selected?.skill_allocations, selected?.baseMagic, selected?.strength, selected?.dexterity, selected?.constitution, selected?.intelligence, selected?.wisdom, selected?.charisma, allSkills]);
+  }, [selected?.skill_allocations, selected?.baseMagic, allSkills, calculateSkillRank]);
 
   // Auto-update mana when it changes based on skills and baseMagic
   useEffect(() => {
     if (selected && selected.mana !== calculateMana) {
       updateSelected({ mana: calculateMana });
     }
-  }, [calculateMana, selected?.mana]);
+  }, [calculateMana, selected, updateSelected]);
 
   // CR to XP lookup table for skill experience
-  const CR_TO_XP: Record<number, number> = {
+  const CR_TO_XP = useMemo<Record<number, number>>(() => ({
     1: 0, 2: 25, 3: 50, 4: 75, 5: 125, 6: 200, 7: 325, 8: 525, 9: 850, 10: 1020,
     11: 1224, 12: 1469, 13: 1763, 14: 2116, 15: 2540, 16: 3048, 17: 3658, 18: 4390, 19: 5268, 20: 6322,
     21: 7587, 22: 9105, 23: 10926, 24: 13112, 25: 15735, 26: 18882, 27: 22659, 28: 27191, 29: 32630, 30: 39156,
     31: 45812, 32: 53501, 33: 62696, 34: 73355, 35: 85826, 36: 100423, 37: 117517, 38: 137495, 39: 160869, 40: 188217,
     41: 220214, 42: 257650, 43: 301450, 44: 352696, 45: 412654, 46: 482805, 47: 564882, 48: 660912, 49: 773267, 50: 904722,
-  };
+  }), []);
 
   // Calculate available XP based on CR (only after initial 50 skill points are spent)
   const availableXP = useMemo(() => {
@@ -1213,7 +1103,7 @@ function CharacterBuilderContent() {
     // Only show XP if initial setup is locked
     if (!selected.is_initial_setup_locked) return 0;
     return CR_TO_XP[cr] || 0;
-  }, [selected?.challenge_rating, selected?.is_initial_setup_locked]);
+  }, [selected?.challenge_rating, selected?.is_initial_setup_locked, CR_TO_XP]);
 
   const xpSpent = selected?.xp_spent ?? 0;
   const xpRemaining = selected?.is_initial_setup_locked ? availableXP - xpSpent : 0;
@@ -1328,25 +1218,6 @@ function CharacterBuilderContent() {
     });
   }
 
-  // Function to lock initial setup and enable XP spending
-  function lockInitialSetup() {
-    if (!selected) return;
-    if (calculateSkillPointsSpent !== skillPointBudget) {
-      alert(`You must spend exactly ${skillPointBudget} skill points before locking initial setup.`);
-      return;
-    }
-    
-    // Create checkpoint of current skill allocations
-    const checkpoint = { ...(selected.skill_allocations || {}) };
-    
-    updateSelected({ 
-      is_initial_setup_locked: true,
-      skill_checkpoint: checkpoint,
-      xp_spent: 0,
-      xp_checkpoint: 0
-    });
-  }
-
   // Function to create a new checkpoint (save current state)
   function createCheckpoint() {
     if (!selected || !selected.is_initial_setup_locked) return;
@@ -1370,28 +1241,10 @@ function CharacterBuilderContent() {
     return 100 - attrValue;
   };
 
-  // Calculate HP total from constitution
-  const calculateHP = (constitution: number | null): number => {
-    if (constitution === null || constitution === undefined) return 0;
-    const baseHP = constitution * 2;
-    const conMod = calculateMod(constitution);
-    return baseHP + conMod;
-  };
-
-  // Calculate Base Initiative from Dexterity (Serrian Tide rules)
-  // Start with 1 at DEX 1, gain +1 at DEX 5, then +1 for every 5 points
   const calculateBaseInitiative = (dexterity: number | null): number => {
     if (dexterity === null || dexterity === undefined || dexterity < 1) return 1;
     if (dexterity < 5) return 1;
-    // At DEX 5+, add 1 for every 5 points
     return 1 + Math.floor(dexterity / 5);
-  };
-
-  // Calculate Total Initiative
-  const calculateInitiative = (dexterity: number | null, baseMovement: number | null): number => {
-    const baseInit = calculateBaseInitiative(dexterity);
-    const movement = baseMovement ?? 5; // Default to 5 if not set
-    return baseInit * movement;
   };
 
   // Derive location HP from total HP using predefined percentages
@@ -1424,9 +1277,34 @@ function CharacterBuilderContent() {
   // Auto-calculate derived stats when attributes change
   useEffect(() => {
     if (!selected) return;
-    
-    const newHP = calculateHP(selected.constitution ?? null);
-    const newInitiative = calculateInitiative(selected.dexterity ?? null, selected.baseMovement ?? null);
+
+    const constitution = selected.constitution ?? null;
+    const dexterity = selected.dexterity ?? null;
+    const baseMovement = selected.baseMovement ?? null;
+
+    let conMod = -5;
+    if (constitution !== null && constitution !== undefined) {
+      if (constitution >= 5) conMod = -4;
+      if (constitution >= 10) conMod = -3;
+      if (constitution >= 15) conMod = -2;
+      if (constitution >= 20) conMod = -1;
+      if (constitution >= 25) conMod = 0;
+      if (constitution >= 30) conMod = Math.floor((constitution - 30) / 5) + 1;
+    }
+
+    const newHP =
+      constitution === null || constitution === undefined
+        ? 0
+        : constitution * 2 + conMod;
+
+    const baseInit =
+      dexterity === null || dexterity === undefined || dexterity < 1
+        ? 1
+        : dexterity < 5
+          ? 1
+          : 1 + Math.floor(dexterity / 5);
+    const movement = baseMovement ?? 5;
+    const newInitiative = baseInit * movement;
     
     // Only update if values changed to avoid infinite loops
     if (selected.hp_total !== newHP || selected.initiative !== newInitiative) {
@@ -1435,9 +1313,7 @@ function CharacterBuilderContent() {
         initiative: newInitiative,
       });
     }
-  }, [selected?.strength, selected?.dexterity, selected?.constitution, 
-      selected?.intelligence, selected?.wisdom, selected?.charisma, 
-      selected?.baseMovement]);
+  }, [selected, updateSelected]);
 
   const previewText = useMemo(() => {
     if (!selected) return "";
@@ -2932,7 +2808,7 @@ function CharacterBuilderContent() {
                           </h3>
                           <p className="text-sm text-zinc-300 max-w-md mx-auto">
                             {storeItems.length === 0
-                              ? 'Your GM hasn\'t added any equipment to the store yet.'
+                              ? 'Your G.O.D hasn\'t added any equipment to the store yet.'
                               : 'Try adjusting your search or filters.'}
                           </p>
                         </div>

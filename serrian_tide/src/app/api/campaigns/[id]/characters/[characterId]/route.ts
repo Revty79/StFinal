@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/campaigns/[id]/characters/[characterId] - Get a specific character
 export async function GET(
-  req: Request,
+  request: Request,
   context: { params: Promise<{ id: string; characterId: string }> }
 ) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {
@@ -31,7 +32,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if user has access (either as GM or as the player who owns this character)
+    // Check if user has access (either as G.O.D or as the player who owns this character)
     const [campaign] = await db
       .select()
       .from(schema.campaigns)
@@ -42,10 +43,10 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const isGM = campaign.createdBy === user.id;
+    const isGod = campaign.createdBy === user.id;
     const isOwner = result.campaign_players.userId === user.id;
 
-    if (!isGM && !isOwner) {
+    if (!isGod && !isOwner) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
@@ -170,7 +171,7 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if user has access (either as GM or as the player who owns this character)
+    // Check if user has access (either as G.O.D or as the player who owns this character)
     const [campaign] = await db
       .select()
       .from(schema.campaigns)
@@ -181,10 +182,10 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const isGM = campaign.createdBy === user.id;
+    const isGod = campaign.createdBy === user.id;
     const isOwner = result.campaign_players.userId === user.id;
 
-    if (!isGM && !isOwner) {
+    if (!isGod && !isOwner) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
@@ -211,7 +212,7 @@ export async function PUT(
     if (body.deity !== undefined) updateData.deity = body.deity;
     if (body.definingMarks !== undefined) updateData.definingMarks = body.definingMarks;
 
-    // In-game values (typically GM-only but we'll allow for now)
+    // In-game values (typically G.O.D-only but we'll allow for now)
     if (body.fame !== undefined) updateData.fame = body.fame;
     if (body.experience !== undefined) updateData.experience = body.experience;
     if (body.totalExperience !== undefined) updateData.totalExperience = body.totalExperience;
@@ -326,7 +327,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if user has access (either as GM or as the player who owns this character)
+    // Check if user has access (either as G.O.D or as the player who owns this character)
     const [campaign] = await db
       .select()
       .from(schema.campaigns)
@@ -337,10 +338,10 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    const isGM = campaign.createdBy === user.id;
+    const isGod = campaign.createdBy === user.id;
     const isOwner = result.campaign_players.userId === user.id;
 
-    if (!isGM && !isOwner) {
+    if (!isGod && !isOwner) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 

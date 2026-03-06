@@ -17,7 +17,7 @@ export async function GET(
 
     const { id: campaignId } = await params;
 
-    // Verify user is a player in this campaign OR is the GM
+    // Verify user is a player in this campaign OR is the G.O.D
     const [campaign] = await db
       .select()
       .from(campaigns)
@@ -31,12 +31,12 @@ export async function GET(
       );
     }
 
-    // Check if user is GM
-    const isGM = campaign.createdBy === user.id;
+    // Check if user is G.O.D
+    const isGod = campaign.createdBy === user.id;
 
     // Check if user is a player
     let isPlayer = false;
-    if (!isGM) {
+    if (!isGod) {
       const [playerRecord] = await db
         .select()
         .from(campaignPlayers)
@@ -51,9 +51,9 @@ export async function GET(
       isPlayer = !!playerRecord;
     }
 
-    if (!isGM && !isPlayer) {
+    if (!isGod && !isPlayer) {
       return NextResponse.json(
-        { ok: false, error: "Access denied - not a player or GM in this campaign" },
+        { ok: false, error: "Access denied - not a player or G.O.D in this campaign" },
         { status: 403 }
       );
     }

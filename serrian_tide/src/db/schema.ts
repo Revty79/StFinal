@@ -1136,7 +1136,7 @@ export const campaignCharacters = pgTable('campaign_characters', {
   deity: varchar('deity', { length: 255 }),
   definingMarks: text('defining_marks'),
   
-  // In-Game Values (GM assigned/earned)
+  // In-Game Values (G.O.D assigned/earned)
   fame: integer('fame').notNull().default(0),
   experience: integer('experience').notNull().default(0),
   totalExperience: integer('total_experience').notNull().default(0),

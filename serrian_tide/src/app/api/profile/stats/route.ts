@@ -13,7 +13,7 @@ import {
   campaignPlayers,
   campaignCharacters
 } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 export async function GET() {
   try {
@@ -43,7 +43,7 @@ export async function GET() {
       db.select({ count: sql<number>`count(*)` }).from(npcs).where(eq(npcs.createdBy, userId)),
     ]);
 
-    // Count campaigns created (as GM)
+    // Count campaigns created (as G.O.D)
     const campaignsCreatedResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(campaigns)

@@ -28,10 +28,10 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if user has access (either as GM or as a player)
-    const isGM = campaign.createdBy === user.id;
+    // Check if user has access (either as G.O.D or as a player)
+    const isGod = campaign.createdBy === user.id;
     
-    if (!isGM) {
+    if (!isGod) {
       // Check if user is a player in this campaign
       const [playerRecord] = await db
         .select()
@@ -105,10 +105,10 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if user has permission (GM or the player creating their own character)
-    const isGM = campaign.createdBy === user.id;
+    // Check if user has permission (G.O.D or the player creating their own character)
+    const isGod = campaign.createdBy === user.id;
     
-    if (!isGM) {
+    if (!isGod) {
       // Verify this campaignPlayerId belongs to the current user
       const [playerRecord] = await db
         .select()

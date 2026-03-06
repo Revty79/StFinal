@@ -210,7 +210,7 @@ export default function CharactersPage() {
               <div className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 text-center">
                 <p className="text-sm text-amber-200 mb-2">No Campaigns Yet</p>
                 <p className="text-xs text-zinc-400">
-                  You're not in any campaigns. Ask your GM to add you to a campaign.
+                  You're not in any campaigns. Ask your G.O.D to add you to a campaign.
                 </p>
               </div>
             ) : (

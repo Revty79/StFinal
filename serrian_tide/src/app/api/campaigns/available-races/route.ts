@@ -4,7 +4,8 @@ import { eq, or } from "drizzle-orm";
 import { getSessionUser } from "@/server/session";
 
 // GET /api/campaigns/available-races
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {

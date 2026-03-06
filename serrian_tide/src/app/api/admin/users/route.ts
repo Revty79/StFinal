@@ -19,7 +19,8 @@ function pickPrimaryRole(roleCodes: string[]): string {
 }
 
 // GET /api/admin/users
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user || user.role !== "admin") {

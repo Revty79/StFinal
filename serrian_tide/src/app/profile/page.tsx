@@ -96,7 +96,7 @@ export default function ProfilePage() {
       } else {
         setMessage('Failed to save preferences.');
       }
-    } catch (err) {
+    } catch {
       setMessage('Network error. Try again.');
     } finally {
       setSaving(false);

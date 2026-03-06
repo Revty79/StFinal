@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   ToolboxCrudBuilder,
@@ -149,7 +149,7 @@ export default function EconomyPage() {
       presets={presets}
       previewHighlights={previewHighlights}
       tabLabels={{ edit: "Trade Desk", preview: "Market Brief" }}
-      editHint="Tip: Write this like a GM-facing economy snapshot: what changed, what got expensive, who profits."
+      editHint="Tip: Write this like a G.O.D-facing economy snapshot: what changed, what got expensive, who profits."
       renderPreview={renderPreview}
       theme={{
         activeCardClass: "border-lime-400/50 bg-lime-500/10",

@@ -4,7 +4,8 @@ import { getSessionUser } from "@/server/session";
 import crypto from "crypto";
 
 // GET /api/worldbuilder/calendars
-export async function GET(req: Request) {
+export async function GET(request: Request) {
+  void request;
   try {
     const user = await getSessionUser();
     if (!user) {
