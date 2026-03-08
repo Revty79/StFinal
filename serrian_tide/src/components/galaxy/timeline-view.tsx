@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AXIS_Y,
   ERA_Y,
@@ -52,9 +52,14 @@ export interface TimelineViewData {
   markersAtYear: MarkerAtYear[];
 }
 
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 12;
+const ZOOM_STEP = 0.25;
+
 export function TimelineView({
   data,
   pxPerYear,
+  focusRequest,
   onSelectedYearChange,
   onZoomChange,
   onEditEra,
@@ -63,6 +68,7 @@ export function TimelineView({
 }: {
   data: TimelineViewData;
   pxPerYear: number;
+  focusRequest?: { year: number; token: number } | null;
   onSelectedYearChange: (year: number) => void;
   onZoomChange: (next: number) => void;
   onEditEra: (era: EraModel) => void;
@@ -70,6 +76,7 @@ export function TimelineView({
   onEditMarker: (marker: MarkerModel) => void;
 }) {
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const lastHandledFocusTokenRef = useRef<number | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const panStateRef = useRef<{ active: boolean; startX: number; startScrollLeft: number; moved: boolean }>({
     active: false,
@@ -77,6 +84,23 @@ export function TimelineView({
     startScrollLeft: 0,
     moved: false,
   });
+  useEffect(() => {
+    if (!focusRequest) {
+      return;
+    }
+    if (lastHandledFocusTokenRef.current === focusRequest.token) {
+      return;
+    }
+    lastHandledFocusTokenRef.current = focusRequest.token;
+    const scroller = timelineScrollRef.current;
+    if (!scroller) {
+      return;
+    }
+    const x = yearToX(focusRequest.year, data.viewport, pxPerYear);
+    const maxLeft = Math.max(0, data.width - scroller.clientWidth);
+    const nextLeft = clamp(Math.round(x - scroller.clientWidth / 2), 0, maxLeft);
+    scroller.scrollTo({ left: nextLeft, behavior: "smooth" });
+  }, [focusRequest, data.viewport, data.width, pxPerYear]);
 
   const handleTimelinePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -154,7 +178,11 @@ export function TimelineView({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => onZoomChange(clamp(pxPerYear - 0.5, 1.5, 12))}
+            onClick={() =>
+              onZoomChange(
+                clamp(Number((pxPerYear - ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM),
+              )
+            }
             className="rounded-md border border-white/15 bg-black/25 px-2 py-1 text-sm text-zinc-100 hover:bg-white/10"
           >
             Zoom -
@@ -164,11 +192,24 @@ export function TimelineView({
           </span>
           <button
             type="button"
-            onClick={() => onZoomChange(clamp(pxPerYear + 0.5, 1.5, 12))}
+            onClick={() =>
+              onZoomChange(
+                clamp(Number((pxPerYear + ZOOM_STEP).toFixed(2)), MIN_ZOOM, MAX_ZOOM),
+              )
+            }
             className="rounded-md border border-white/15 bg-black/25 px-2 py-1 text-sm text-zinc-100 hover:bg-white/10"
           >
             Zoom +
           </button>
+          <input
+            type="range"
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
+            step={ZOOM_STEP}
+            value={pxPerYear}
+            onChange={(event) => onZoomChange(Number.parseFloat(event.target.value))}
+            className="min-w-[140px] w-40"
+          />
           <button
             type="button"
             onClick={() => onSelectedYearChange(clamp(data.selectedYear - 1, data.viewport.minYear, data.viewport.maxYear))}
@@ -202,7 +243,7 @@ export function TimelineView({
             className="min-w-[220px] flex-1"
           />
           <span className="rounded-md bg-black/35 px-2 py-1 text-xs text-zinc-400">
-            Click timeline to set year. Drag background to pan.
+            Click timeline to set year. Drag background to pan. Min zoom: {MIN_ZOOM} px/year.
           </span>
         </div>
       </div>

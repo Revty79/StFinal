@@ -51,7 +51,6 @@ const fieldGroups: ToolFieldGroup[] = [
 const relatedTools: RelatedToolLink[] = [
   { label: "Cultures", href: "/worldbuilder/cultures", note: "Align values, taboos, and naming with belief systems." },
   { label: "Factions", href: "/worldbuilder/factions", note: "Track churches, sects, inquisitions, and cults." },
-  { label: "Timeline", href: "/worldbuilder/timeline", note: "Record schisms, revelations, and holy wars." },
   { label: "Settlements", href: "/worldbuilder/settlements", note: "Link temples, pilgrimage cities, and sacred ruins." },
 ];
 

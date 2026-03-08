@@ -207,7 +207,7 @@ export const computeEventAnchors = ({
 };
 
 export const pickTickStep = (pxPerYear: number): number => {
-  const candidates = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000];
+  const candidates = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
   let best = candidates[0] ?? 1;
   let bestScore = Number.POSITIVE_INFINITY;
 

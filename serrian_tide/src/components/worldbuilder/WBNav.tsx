@@ -9,8 +9,6 @@ export type WBNavKey =
   | "npcs"
   | "factions"
   | "geography"
-  | "plot-hooks"
-  | "timeline"
   | "settlements"
   | "pantheon"
   | "cultures"
@@ -33,8 +31,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },
   { href: "/worldbuilder/factions", key: "factions", label: "Factions" },
   { href: "/worldbuilder/geography", key: "geography", label: "Geography & Regions" },
-  { href: "/worldbuilder/plot-hooks", key: "plot-hooks", label: "Plot Hooks" },
-  { href: "/worldbuilder/timeline", key: "timeline", label: "Timeline" },
   { href: "/worldbuilder/settlements", key: "settlements", label: "Settlements" },
   { href: "/worldbuilder/pantheon", key: "pantheon", label: "Pantheon" },
   { href: "/worldbuilder/cultures", key: "cultures", label: "Cultures" },

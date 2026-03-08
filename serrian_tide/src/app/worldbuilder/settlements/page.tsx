@@ -70,7 +70,6 @@ const relatedTools: RelatedToolLink[] = [
   { label: "Factions", href: "/worldbuilder/factions", note: "Connect ruling, criminal, or religious influence." },
   { label: "NPCs", href: "/worldbuilder/npcs", note: "Reference mayors, ward bosses, and local heroes." },
   { label: "Economy", href: "/worldbuilder/economy", note: "Reuse trade, pricing, and scarcity assumptions." },
-  { label: "Plot Hooks", href: "/worldbuilder/plot-hooks", note: "Seed immediate adventures from local tensions." },
 ];
 
 

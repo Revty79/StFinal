@@ -28,7 +28,7 @@ export default async function GodsRealmPage() {
             </GradientText>
             <p className="text-xs sm:text-sm text-zinc-300/90 max-w-2xl">
               Design campaigns, plan sessions, and orchestrate epic adventures.
-              Welcome to the Game Master's command center.
+              Welcome to the G.O.D.'s realm.
             </p>
           </div>
           <Link href="/dashboard">
@@ -192,7 +192,7 @@ export default async function GodsRealmPage() {
             </div>
             <div>
               <p className="text-sm font-semibold text-blue-200 mb-1">
-                Game Master Command Center
+                G.O.D.'s' Command Center
               </p>
               <p className="text-xs sm:text-sm text-zinc-300/90">
                 The Gods' Realm provides comprehensive tools for creating and managing your campaigns.

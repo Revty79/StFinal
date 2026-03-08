@@ -70,7 +70,6 @@ const fieldGroups: ToolFieldGroup[] = [
 
 const relatedTools: RelatedToolLink[] = [
   { label: "Factions", href: "/worldbuilder/factions", note: "Define who currently occupies or covets the site." },
-  { label: "Plot Hooks", href: "/worldbuilder/plot-hooks", note: "Use hooks as dungeon entry points and mission context." },
   { label: "Settlements", href: "/worldbuilder/settlements", note: "Tie delves to nearby towns and supply lines." },
   { label: "Encounters", href: "/worldbuilder/encounters", note: "Reuse travel and hazard logic before and after the delve." },
 ];

@@ -38,7 +38,7 @@ const fieldGroups: ToolFieldGroup[] = [
   },
   {
     title: "Alliances & Conflicts",
-    description: "Cross-links to other factions and hooks.",
+    description: "Cross-links to allies, rivals, and active story pressures.",
     fields: [
       {
         key: "allies",
@@ -64,13 +64,9 @@ const fieldGroups: ToolFieldGroup[] = [
       },
       {
         key: "hooks",
-        label: "Plot Hooks",
+        label: "Story Hooks",
         kind: "csv",
-        relation: {
-          endpoint: "/api/worldbuilder/plot-hooks",
-          listKey: "plotHooks",
-          multi: true,
-        },
+        placeholder: "insurrection, succession crisis, border raid...",
       },
     ],
   },
@@ -93,10 +89,8 @@ const fieldGroups: ToolFieldGroup[] = [
 
 const relatedTools: RelatedToolLink[] = [
   { label: "NPCs", href: "/worldbuilder/npcs", note: "Use for leadership, lieutenants, and notable agents." },
-  { label: "Plot Hooks", href: "/worldbuilder/plot-hooks", note: "Attach factions directly to active story seeds." },
   { label: "Geography", href: "/worldbuilder/geography", note: "Mark faction control zones and contested regions." },
   { label: "Settlements", href: "/worldbuilder/settlements", note: "Connect seats of power and local influence." },
-  { label: "Timeline", href: "/worldbuilder/timeline", note: "Track coups, treaties, and wars across eras." },
 ];
 
 

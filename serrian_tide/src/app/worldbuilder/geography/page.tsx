@@ -220,7 +220,6 @@ const relatedTools: RelatedToolLink[] = [
   { label: "Encounters", href: "/worldbuilder/encounters", note: "Attach biome-specific travel and encounter logic." },
   { label: "Factions", href: "/worldbuilder/factions", note: "Track political or military control over regions." },
   { label: "Economy", href: "/worldbuilder/economy", note: "Connect trade corridors and scarcity patterns." },
-  { label: "Timeline", href: "/worldbuilder/timeline", note: "Record historical shifts in borders and ownership." },
 ];
 
 

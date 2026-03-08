@@ -146,8 +146,6 @@ const DEFAULT_LAYOUT_BY_NAV: Partial<Record<WBNavKey, BuilderLayoutVariant>> = {
   economy: "ledger",
   encounters: "forge",
   dungeons: "forge",
-  "plot-hooks": "atlas",
-  timeline: "ledger",
   pantheon: "atlas",
 };
 

@@ -59,6 +59,8 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
   const [markerModal, setMarkerModal] = useState<{ marker?: MarkerModel } | null>(null);
 
   const latestWorldRequestRef = useRef(0);
+  const timelineFocusTokenRef = useRef(0);
+  const [timelineFocusRequest, setTimelineFocusRequest] = useState<{ year: number; token: number } | null>(null);
 
   const loadWorlds = useCallback(
     async (preferredWorldId?: string | null) => {
@@ -198,6 +200,7 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
   useEffect(() => {
     if (!timelineData) {
       setSelectedYear(null);
+      setTimelineFocusRequest(null);
       return;
     }
     setSelectedYear((current) =>
@@ -208,6 +211,56 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
       ),
     );
   }, [timelineData]);
+
+  const getEraJumpYear = useCallback((era: EraModel): number | null => {
+    const hasStart = typeof era.startYear === "number";
+    const hasEnd = typeof era.endYear === "number";
+    if (hasStart && hasEnd) {
+      const [start, end] = normalizeRange(era.startYear!, era.endYear!);
+      return Math.round((start + end) / 2);
+    }
+    if (hasStart) {
+      return era.startYear!;
+    }
+    if (hasEnd) {
+      return era.endYear!;
+    }
+    return null;
+  }, []);
+
+  const getSettingJumpYear = useCallback((setting: SettingModel): number | null => {
+    const hasStart = typeof setting.startYear === "number";
+    const hasEnd = typeof setting.endYear === "number";
+    if (hasStart && hasEnd) {
+      const [start, end] = normalizeRange(setting.startYear!, setting.endYear!);
+      return Math.round((start + end) / 2);
+    }
+    if (hasStart) {
+      return setting.startYear!;
+    }
+    if (hasEnd) {
+      return setting.endYear!;
+    }
+    return null;
+  }, []);
+
+  const getMarkerJumpYear = useCallback(
+    (marker: MarkerModel): number | null => (typeof marker.year === "number" ? marker.year : null),
+    [],
+  );
+
+  const focusTimelineYear = useCallback(
+    (year: number | null) => {
+      if (year === null || !timelineData) {
+        return;
+      }
+      const clampedYear = clamp(year, timelineData.viewport.minYear, timelineData.viewport.maxYear);
+      setSelectedYear(clampedYear);
+      timelineFocusTokenRef.current += 1;
+      setTimelineFocusRequest({ year: clampedYear, token: timelineFocusTokenRef.current });
+    },
+    [timelineData],
+  );
 
   const refreshActiveWorld = useCallback(async () => {
     if (!selectedWorldId) {
@@ -474,6 +527,7 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
               <TimelineView
                 data={timelineData}
                 pxPerYear={pxPerYear}
+                focusRequest={timelineFocusRequest}
                 onZoomChange={setPxPerYear}
                 onSelectedYearChange={setSelectedYear}
                 onEditEra={(era) => {
@@ -508,34 +562,43 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                       <p className="text-sm text-zinc-400">No eras yet.</p>
                     ) : (
                       <ul className="space-y-2">
-                        {activeWorld.eras.map((era) => (
-                          <li key={era.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-zinc-100">{era.name}</div>
-                                <div className="text-xs text-zinc-400">{eraRangeLabel(era)}</div>
-                              </div>
-                              <div className="flex gap-2 text-xs">
+                        {activeWorld.eras.map((era) => {
+                          const jumpYear = getEraJumpYear(era);
+                          return (
+                            <li key={era.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                              <div className="flex items-center justify-between gap-3">
                                 <button
                                   type="button"
-                                  disabled={!canEditActiveWorld || era.canEdit === false}
-                                  onClick={() => setEraModal({ era })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  onClick={() => focusTimelineYear(jumpYear)}
+                                  disabled={jumpYear === null}
+                                  className="min-w-0 flex-1 text-left disabled:cursor-not-allowed disabled:opacity-55"
+                                  title={jumpYear === null ? "No timeline year set for this era." : `Jump to year ${jumpYear}`}
                                 >
-                                  Edit
+                                  <div className="truncate text-sm font-semibold text-zinc-100 hover:text-emerald-200">{era.name}</div>
+                                  <div className="text-xs text-zinc-400">{eraRangeLabel(era)}</div>
                                 </button>
-                                <button
-                                  type="button"
-                                  disabled={!canEditActiveWorld || era.canEdit === false}
-                                  onClick={() => void handleDeleteEra(era)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Delete
-                                </button>
+                                <div className="flex gap-2 text-xs">
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || era.canEdit === false}
+                                    onClick={() => setEraModal({ era })}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || era.canEdit === false}
+                                    onClick={() => void handleDeleteEra(era)}
+                                    className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </Card>
@@ -556,39 +619,48 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                       <p className="text-sm text-zinc-400">No settings yet.</p>
                     ) : (
                       <ul className="space-y-2">
-                        {activeWorld.settings.map((setting) => (
-                          <li key={setting.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-zinc-100">{setting.name}</div>
-                                <div className="truncate text-xs text-zinc-400">
-                                  {settingRangeLabel(setting)}
-                                  {setting.eraId
-                                    ? ` - ${worldEraMap.get(setting.eraId)?.name ?? "Unknown era"}`
-                                    : ""}
+                        {activeWorld.settings.map((setting) => {
+                          const jumpYear = getSettingJumpYear(setting);
+                          return (
+                            <li key={setting.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => focusTimelineYear(jumpYear)}
+                                  disabled={jumpYear === null}
+                                  className="min-w-0 flex-1 text-left disabled:cursor-not-allowed disabled:opacity-55"
+                                  title={jumpYear === null ? "No timeline year set for this setting." : `Jump to year ${jumpYear}`}
+                                >
+                                  <div className="truncate text-sm font-semibold text-zinc-100 hover:text-emerald-200">{setting.name}</div>
+                                  <div className="truncate text-xs text-zinc-400">
+                                    {settingRangeLabel(setting)}
+                                    {setting.eraId
+                                      ? ` - ${worldEraMap.get(setting.eraId)?.name ?? "Unknown era"}`
+                                      : ""}
+                                  </div>
+                                </button>
+                                <div className="flex gap-2 text-xs">
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || setting.canEdit === false}
+                                    onClick={() => setSettingModal({ setting })}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || setting.canEdit === false}
+                                    onClick={() => void handleDeleteSetting(setting)}
+                                    className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
                                 </div>
                               </div>
-                              <div className="flex gap-2 text-xs">
-                                <button
-                                  type="button"
-                                  disabled={!canEditActiveWorld || setting.canEdit === false}
-                                  onClick={() => setSettingModal({ setting })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={!canEditActiveWorld || setting.canEdit === false}
-                                  onClick={() => void handleDeleteSetting(setting)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </Card>
@@ -611,41 +683,50 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                       <p className="text-sm text-zinc-400">No events yet.</p>
                     ) : (
                       <ul className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-                        {activeWorld.markers.map((marker) => (
-                          <li key={marker.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-zinc-100">{marker.name}</div>
-                                <div className="truncate text-xs text-zinc-400">
-                                  {markerYearLabel(marker)}
-                                  {marker.settingId
-                                    ? ` - setting: ${worldSettingMap.get(marker.settingId)?.name ?? "Unknown"}`
-                                    : marker.eraId
-                                      ? ` - era: ${worldEraMap.get(marker.eraId)?.name ?? "Unknown"}`
-                                      : " - unassigned"}
+                        {activeWorld.markers.map((marker) => {
+                          const jumpYear = getMarkerJumpYear(marker);
+                          return (
+                            <li key={marker.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => focusTimelineYear(jumpYear)}
+                                  disabled={jumpYear === null}
+                                  className="min-w-0 flex-1 text-left disabled:cursor-not-allowed disabled:opacity-55"
+                                  title={jumpYear === null ? "No timeline year set for this event." : `Jump to year ${jumpYear}`}
+                                >
+                                  <div className="truncate text-sm font-semibold text-zinc-100 hover:text-emerald-200">{marker.name}</div>
+                                  <div className="truncate text-xs text-zinc-400">
+                                    {markerYearLabel(marker)}
+                                    {marker.settingId
+                                      ? ` - setting: ${worldSettingMap.get(marker.settingId)?.name ?? "Unknown"}`
+                                      : marker.eraId
+                                        ? ` - era: ${worldEraMap.get(marker.eraId)?.name ?? "Unknown"}`
+                                        : " - unassigned"}
+                                  </div>
+                                </button>
+                                <div className="flex gap-2 text-xs">
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || marker.canEdit === false}
+                                    onClick={() => setMarkerModal({ marker })}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!canEditActiveWorld || marker.canEdit === false}
+                                    onClick={() => void handleDeleteMarker(marker)}
+                                    className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
                                 </div>
                               </div>
-                              <div className="flex gap-2 text-xs">
-                                <button
-                                  type="button"
-                                  disabled={!canEditActiveWorld || marker.canEdit === false}
-                                  onClick={() => setMarkerModal({ marker })}
-                                  className="rounded border border-white/15 bg-white/10 px-2 py-1 text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={!canEditActiveWorld || marker.canEdit === false}
-                                  onClick={() => void handleDeleteMarker(marker)}
-                                  className="rounded border border-red-400/40 bg-red-500/20 px-2 py-1 text-red-200 hover:bg-red-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </Card>
@@ -655,32 +736,69 @@ export function GalaxyForgeApp({ user }: GalaxyForgeAppProps) {
                     <div className="mt-3 space-y-3 text-sm">
                       <div>
                         <div className="font-medium text-zinc-100">Active eras</div>
-                        <div className="text-zinc-400">
+                        <div className="mt-1 flex flex-wrap gap-1.5">
                           {timelineData.activeEras.length > 0
-                            ? timelineData.activeEras.map((era) => era.name).join(", ")
-                            : "None"}
+                            ? timelineData.activeEras.map((era) => {
+                                const jumpYear = getEraJumpYear(era);
+                                return (
+                                  <button
+                                    key={era.id}
+                                    type="button"
+                                    onClick={() => focusTimelineYear(jumpYear)}
+                                    disabled={jumpYear === null}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-0.5 text-xs text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
+                                    title={jumpYear === null ? "No timeline year set for this era." : `Jump to year ${jumpYear}`}
+                                  >
+                                    {era.name}
+                                  </button>
+                                );
+                              })
+                            : <span className="text-zinc-400">None</span>}
                         </div>
                       </div>
                       <div>
                         <div className="font-medium text-zinc-100">Active settings</div>
-                        <div className="text-zinc-400">
+                        <div className="mt-1 flex flex-wrap gap-1.5">
                           {timelineData.activeSettings.length > 0
-                            ? timelineData.activeSettings.map((setting) => setting.setting.name).join(", ")
-                            : "None"}
+                            ? timelineData.activeSettings.map((packed) => {
+                                const jumpYear = getSettingJumpYear(packed.setting);
+                                return (
+                                  <button
+                                    key={packed.setting.id}
+                                    type="button"
+                                    onClick={() => focusTimelineYear(jumpYear)}
+                                    disabled={jumpYear === null}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-0.5 text-xs text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
+                                    title={jumpYear === null ? "No timeline year set for this setting." : `Jump to year ${jumpYear}`}
+                                  >
+                                    {packed.setting.name}
+                                  </button>
+                                );
+                              })
+                            : <span className="text-zinc-400">None</span>}
                         </div>
                       </div>
                       <div>
                         <div className="font-medium text-zinc-100">Events at year</div>
-                        <div className="text-zinc-400">
+                        <div className="mt-1 flex flex-wrap gap-1.5">
                           {timelineData.markersAtYear.length > 0
-                            ? timelineData.markersAtYear
-                                .map(({ marker, setting, era }) => {
-                                  if (setting) return `${marker.name} [${setting.name}]`;
-                                  if (era) return `${marker.name} [${era.name}]`;
-                                  return `${marker.name} [unassigned]`;
-                                })
-                                .join(", ")
-                            : "None"}
+                            ? timelineData.markersAtYear.map(({ marker, setting, era }) => {
+                                const jumpYear = getMarkerJumpYear(marker);
+                                const contextLabel = setting ? setting.name : era ? era.name : "unassigned";
+                                return (
+                                  <button
+                                    key={marker.id}
+                                    type="button"
+                                    onClick={() => focusTimelineYear(jumpYear)}
+                                    disabled={jumpYear === null}
+                                    className="rounded border border-white/15 bg-white/10 px-2 py-0.5 text-xs text-zinc-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-55"
+                                    title={jumpYear === null ? "No timeline year set for this event." : `Jump to year ${jumpYear}`}
+                                  >
+                                    {marker.name} [{contextLabel}]
+                                  </button>
+                                );
+                              })
+                            : <span className="text-zinc-400">None</span>}
                         </div>
                       </div>
                     </div>
