@@ -10,6 +10,7 @@ import { FormField } from "@/components/FormField";
 import { Input } from "@/components/Input";
 import { Tabs } from "@/components/Tabs";
 import { WBNav } from "@/components/worldbuilder/WBNav";
+import { buildRaceHierarchyMetaMap } from "@/lib/raceHierarchy";
 
 /* ---------- Types (mirroring your old logic) ---------- */
 
@@ -50,11 +51,16 @@ type BonusRow = {
 
 type RaceRecord = {
   id: string | number;
+  parentRaceId?: string | null;
   name: string;
   tagline: string;
   is_free?: boolean;
   createdBy?: string;
   canEdit?: boolean; // Add canEdit flag from API
+  masterRaceLabel?: string;
+  lineageDepth?: number;
+  lineagePath?: string[];
+  hasLineageCycle?: boolean;
   def: RaceDefinition;
   attr: RaceAttributes;
   bonusRows: BonusRow[];
@@ -91,6 +97,65 @@ function makeBonusRows(count: number): BonusRow[] {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+function sortRacesAsTree(races: RaceRecord[]): RaceRecord[] {
+  const byId = new Map<string, RaceRecord>();
+  const childrenByParentId = new Map<string, RaceRecord[]>();
+  const roots: RaceRecord[] = [];
+
+  for (const race of races) {
+    byId.set(String(race.id), race);
+  }
+
+  for (const race of races) {
+    const id = String(race.id);
+    const parentId = race.parentRaceId ? String(race.parentRaceId) : null;
+    if (parentId && parentId !== id && byId.has(parentId)) {
+      const list = childrenByParentId.get(parentId) ?? [];
+      list.push(race);
+      childrenByParentId.set(parentId, list);
+      continue;
+    }
+    roots.push(race);
+  }
+
+  const byName = (a: RaceRecord, b: RaceRecord) =>
+    (a.name || "").localeCompare(b.name || "");
+
+  roots.sort(byName);
+  for (const [parentId, children] of childrenByParentId.entries()) {
+    children.sort(byName);
+    childrenByParentId.set(parentId, children);
+  }
+
+  const ordered: RaceRecord[] = [];
+  const visited = new Set<string>();
+
+  const walk = (node: RaceRecord) => {
+    const id = String(node.id);
+    if (visited.has(id)) return;
+    visited.add(id);
+    ordered.push(node);
+    const children = childrenByParentId.get(id) ?? [];
+    for (const child of children) {
+      walk(child);
+    }
+  };
+
+  for (const root of roots) {
+    walk(root);
+  }
+
+  const leftovers = races
+    .filter((race) => !visited.has(String(race.id)))
+    .sort(byName);
+
+  for (const race of leftovers) {
+    walk(race);
+  }
+
+  return ordered;
+}
 
 /* ---------- Batch parsing helpers ---------- */
 
@@ -316,11 +381,16 @@ export default function RacesPage() {
         // Transform API response to match our UI format
         const transformed: RaceRecord[] = (racesData.races || []).map((r: any) => ({
           id: r.id,
+          parentRaceId: r.parentRaceId ?? null,
           name: r.name,
           tagline: r.tagline || "",
           is_free: r.isFree ?? false,
           createdBy: r.createdBy,
           canEdit: r.canEdit ?? true, // Use canEdit from API
+          masterRaceLabel: r.masterRaceLabel || r.name || "Unnamed Race",
+          lineageDepth: typeof r.lineageDepth === "number" ? r.lineageDepth : 0,
+          lineagePath: Array.isArray(r.lineagePath) ? r.lineagePath : [r.name || "Unnamed Race"],
+          hasLineageCycle: Boolean(r.hasLineageCycle),
           def: r.definition || {},
           attr: r.attributes || {},
           bonusRows: [
@@ -385,13 +455,67 @@ export default function RacesPage() {
     }
   }, [races, selected]);
 
+  const hierarchyByRaceId = useMemo(
+    () =>
+      buildRaceHierarchyMetaMap(
+        races.map((race) => ({
+          id: String(race.id),
+          name: race.name,
+          parentRaceId: race.parentRaceId ?? null,
+        }))
+      ),
+    [races]
+  );
+
+  const orderedRaces = useMemo(() => sortRacesAsTree(races), [races]);
+
+  const selectedHierarchy = useMemo(() => {
+    if (!selected) return null;
+    return hierarchyByRaceId.get(String(selected.id)) ?? null;
+  }, [hierarchyByRaceId, selected]);
+
+  const parentChoices = useMemo(() => {
+    if (!selected) return orderedRaces;
+
+    const selectedIdStr = String(selected.id);
+    const childrenByParentId = new Map<string, string[]>();
+
+    for (const race of races) {
+      const childId = String(race.id);
+      const parentId = race.parentRaceId ? String(race.parentRaceId) : null;
+      if (!parentId || parentId === childId) continue;
+      const list = childrenByParentId.get(parentId) ?? [];
+      list.push(childId);
+      childrenByParentId.set(parentId, list);
+    }
+
+    const blockedIds = new Set<string>([selectedIdStr]);
+    const queue: string[] = [selectedIdStr];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId) continue;
+      const childIds = childrenByParentId.get(currentId) ?? [];
+      for (const childId of childIds) {
+        if (blockedIds.has(childId)) continue;
+        blockedIds.add(childId);
+        queue.push(childId);
+      }
+    }
+
+    return orderedRaces.filter((race) => !blockedIds.has(String(race.id)));
+  }, [orderedRaces, races, selected]);
+
   const filteredList = useMemo(() => {
     const q = qtext.trim().toLowerCase();
-    if (!q) return races;
-    return races.filter((r) => {
+    if (!q) return orderedRaces;
+    return orderedRaces.filter((r) => {
+      const hierarchy = hierarchyByRaceId.get(String(r.id));
       const base = [
         r.name,
         r.tagline,
+        hierarchy?.masterRaceLabel ?? "",
+        (hierarchy?.lineagePath ?? []).join(" "),
         r.def.examples_by_genre ?? "",
         r.def.cultural_mindset ?? "",
       ]
@@ -399,7 +523,7 @@ export default function RacesPage() {
         .toLowerCase();
       return base.includes(q);
     });
-  }, [races, qtext]);
+  }, [hierarchyByRaceId, orderedRaces, qtext]);
 
   /* ---------- library CRUD helpers (UI-only) ---------- */
 
@@ -407,10 +531,15 @@ export default function RacesPage() {
     const id = uid();
     const newRace: RaceRecord = {
       id,
+      parentRaceId: null,
       name: "New Race",
       tagline: "",
       is_free: false,
       canEdit: true, // New races are always editable by creator
+      masterRaceLabel: "New Race",
+      lineageDepth: 0,
+      lineagePath: ["New Race"],
+      hasLineageCycle: false,
       def: {},
       attr: {},
       bonusRows: makeBonusRows(MAX_BONUS_SKILLS),
@@ -570,6 +699,7 @@ export default function RacesPage() {
 
       const payload = {
         name: selected.name,
+        parentRaceId: selected.parentRaceId || null,
         tagline: selected.tagline || null,
         isFree: selected.is_free ?? false,
         definition: selected.def,
@@ -604,17 +734,36 @@ export default function RacesPage() {
         throw new Error(data.error || "Failed to save race");
       }
 
-      // Update the local state with the saved race (including the new ID if it was created)
-      if (isNew && data.race) {
+      if (data.race) {
         const oldId = selected.id;
         setRaces((prev) =>
-          prev.map((r) =>
-            String(r.id) === String(oldId)
-              ? { ...r, id: data.race.id }
-              : r
-          )
+          prev.map((r) => {
+            if (String(r.id) !== String(oldId)) return r;
+            return {
+              ...r,
+              id: data.race.id ?? r.id,
+              parentRaceId: data.race.parentRaceId ?? null,
+              createdBy: data.race.createdBy ?? r.createdBy,
+              canEdit: data.race.canEdit ?? r.canEdit,
+              masterRaceLabel: data.race.masterRaceLabel ?? r.masterRaceLabel,
+              lineageDepth:
+                typeof data.race.lineageDepth === "number"
+                  ? data.race.lineageDepth
+                  : r.lineageDepth,
+              lineagePath: Array.isArray(data.race.lineagePath)
+                ? data.race.lineagePath
+                : r.lineagePath,
+              hasLineageCycle:
+                data.race.hasLineageCycle !== undefined
+                  ? Boolean(data.race.hasLineageCycle)
+                  : r.hasLineageCycle,
+            } as RaceRecord;
+          })
         );
-        setSelectedId(data.race.id);
+
+        if (isNew && data.race.id) {
+          setSelectedId(String(data.race.id));
+        }
       }
 
       alert("Race saved successfully!");
@@ -734,23 +883,49 @@ export default function RacesPage() {
           // Merge preview data into the existing local record
           const existing = updatedRaces[existingIdx];
           if (!existing) continue;
+          const savedRace = data.race ?? null;
           updatedRaces[existingIdx] = {
             ...existing,
-            name: row.name,
-            tagline: row.tagline,
-            is_free: row.is_free,
+            name: savedRace?.name ?? row.name,
+            parentRaceId: savedRace?.parentRaceId ?? existing.parentRaceId ?? null,
+            tagline: savedRace?.tagline ?? row.tagline,
+            is_free: savedRace?.isFree ?? row.is_free,
             def: row.def,
             attr: row.attr,
             bonusRows: row.bonusRows,
             specialRows: row.specialRows,
+            masterRaceLabel: savedRace?.masterRaceLabel ?? existing.masterRaceLabel,
+            lineageDepth:
+              typeof savedRace?.lineageDepth === "number"
+                ? savedRace.lineageDepth
+                : existing.lineageDepth,
+            lineagePath: Array.isArray(savedRace?.lineagePath)
+              ? savedRace.lineagePath
+              : existing.lineagePath,
+            hasLineageCycle:
+              savedRace?.hasLineageCycle !== undefined
+                ? Boolean(savedRace.hasLineageCycle)
+                : existing.hasLineageCycle,
           };
         } else if (data.race) {
           // Add new race using the preview data plus server ID and canEdit flag
           updatedRaces.unshift({
             ...row,
             id: data.race.id,
+            parentRaceId: data.race.parentRaceId ?? null,
+            name: data.race.name ?? row.name,
+            tagline: data.race.tagline ?? row.tagline,
             createdBy: data.race.createdBy,
             canEdit: true, // Admin uploaded, so editable
+            masterRaceLabel: data.race.masterRaceLabel ?? row.name,
+            lineageDepth:
+              typeof data.race.lineageDepth === "number"
+                ? data.race.lineageDepth
+                : 0,
+            lineagePath: Array.isArray(data.race.lineagePath)
+              ? data.race.lineagePath
+              : [row.name],
+            hasLineageCycle: Boolean(data.race.hasLineageCycle),
           });
         }
       }
@@ -788,6 +963,8 @@ export default function RacesPage() {
     if (tagline) {
       lines.push(`"${tagline}"`);
     }
+    lines.push(`Master Label: ${selectedHierarchy?.masterRaceLabel ?? (name || "New Race")}`);
+    lines.push(`Lineage Path: ${(selectedHierarchy?.lineagePath ?? [name || "New Race"]).join(" > ")}`);
     lines.push("");
 
     // Identity / lore
@@ -860,7 +1037,7 @@ export default function RacesPage() {
     }
 
     return lines.join("\n");
-  }, [selected]);
+  }, [selected, selectedHierarchy]);
 
   /* ---------- render ---------- */
 
@@ -924,7 +1101,7 @@ export default function RacesPage() {
             <Input
               value={qtext}
               onChange={(e) => setQtext(e.target.value)}
-              placeholder="Search races by name, tagline, or lore…"
+              placeholder="Search races by name, master label, or lore..."
             />
           </div>
 
@@ -947,13 +1124,15 @@ export default function RacesPage() {
                   <thead className="text-left text-zinc-400">
                     <tr>
                       <th className="px-3 py-1">Name</th>
-                      <th className="px-3 py-1">Tagline</th>
+                      <th className="px-3 py-1">Master</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredList.map((r) => {
                       const idStr = String(r.id);
                       const isSel = selectedId === idStr;
+                      const hierarchy = hierarchyByRaceId.get(idStr) ?? null;
+                      const depth = hierarchy?.lineageDepth ?? 0;
                       return (
                         <tr
                           key={idStr}
@@ -963,12 +1142,18 @@ export default function RacesPage() {
                           onClick={() => setSelectedId(idStr)}
                         >
                           <td className="px-3 py-1.5">
-                            <div className="flex items-center gap-2">
+                            <div
+                              className="flex items-center gap-2"
+                              style={{ paddingLeft: `${Math.min(depth, 8) * 12}px` }}
+                            >
+                              {depth > 0 ? (
+                                <span className="text-zinc-500 text-[10px]">|-</span>
+                              ) : null}
                               <span>{r.name || "(unnamed)"}</span>
                             </div>
                           </td>
                           <td className="px-3 py-1.5">
-                            {r.tagline ? r.tagline : "—"}
+                            {hierarchy?.masterRaceLabel || r.masterRaceLabel || r.name || "-"}
                           </td>
                         </tr>
                       );
@@ -1131,6 +1316,63 @@ export default function RacesPage() {
                         Free (available to all users)
                       </span>
                     </label>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <FormField
+                      label="Parent Race"
+                      htmlFor="race-parent"
+                      description="Attach this race under a broader lineage branch."
+                    >
+                      <select
+                        id="race-parent"
+                        value={selected.parentRaceId ?? ""}
+                        onChange={(e) =>
+                          updateSelected({
+                            parentRaceId: e.target.value || null,
+                          })
+                        }
+                        disabled={readOnlyMode}
+                        className="w-full rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40 disabled:opacity-60"
+                      >
+                        <option value="">(none - top-level branch)</option>
+                        {parentChoices.map((raceOption) => {
+                          const optionId = String(raceOption.id);
+                          const optionMeta = hierarchyByRaceId.get(optionId) ?? null;
+                          const optionDepth = optionMeta?.lineageDepth ?? 0;
+                          const prefix =
+                            optionDepth > 0
+                              ? `${"  ".repeat(Math.min(optionDepth, 5))}- `
+                              : "";
+                          return (
+                            <option key={optionId} value={optionId}>
+                              {`${prefix}${raceOption.name || "(unnamed)"}`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </FormField>
+
+                    <FormField
+                      label="Master Label (Computed)"
+                      htmlFor="race-master-label"
+                      description="Auto-derived from the top ancestor in the lineage tree."
+                    >
+                      <input
+                        id="race-master-label"
+                        value={selectedHierarchy?.masterRaceLabel ?? selected.name}
+                        readOnly
+                        className="w-full rounded-lg border border-white/10 bg-neutral-900/60 px-3 py-2 text-sm text-zinc-200"
+                      />
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        Path: {(selectedHierarchy?.lineagePath ?? [selected.name]).join(" > ")}
+                      </p>
+                      {selectedHierarchy?.hasLineageCycle ? (
+                        <p className="mt-1 text-[11px] text-rose-300">
+                          Lineage cycle detected. Choose a different parent.
+                        </p>
+                      ) : null}
+                    </FormField>
                   </div>
                 </div>
 
@@ -1687,3 +1929,4 @@ export default function RacesPage() {
     </main>
   );
 }
+

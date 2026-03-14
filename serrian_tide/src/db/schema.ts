@@ -175,6 +175,7 @@ export const races = pgTable('races', {
   createdBy: varchar('created_by', { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  parentRaceId: varchar('parent_race_id', { length: 36 }).references((): any => races.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(),
   tagline: text('tagline'),
   
@@ -217,6 +218,7 @@ export const races = pgTable('races', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byCreator: index('idx_races_created_by').on(t.createdBy),
+  byParentRace: index('idx_races_parent_race_id').on(t.parentRaceId),
 }));
 
 // Creatures table

@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Database workflow
+
+This project uses Drizzle ORM with a SQL-first bootstrap.
+
+- `npm run db:setup`: applies `db_schema.sql`
+- `npm run db:migrate`: applies incremental SQL files in `migrations/` with tracking in `schema_migrations`
+- `npm run db:seed`: seeds default roles
+- `npm run db:bootstrap`: runs setup + migrate + seed
+
+Drizzle tooling:
+
+- `npm run db:generate`: generate Drizzle migration files from `src/db/schema.ts`
+- `npm run db:push`: push Drizzle schema changes directly to the database
+- `npm run db:studio`: open Drizzle Studio
+
+Drizzle config lives in `drizzle.config.ts` and reads `DATABASE_URL` from `.env.local`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

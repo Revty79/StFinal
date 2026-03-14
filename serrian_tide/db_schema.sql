@@ -131,6 +131,7 @@ CREATE INDEX IF NOT EXISTS "idx_special_ability_details_skill_id" ON "special_ab
 CREATE TABLE IF NOT EXISTS "races" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
   "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "parent_race_id" varchar(36) REFERENCES "races"("id") ON DELETE SET NULL,
   "name" varchar(255) NOT NULL,
   "tagline" text,
   "definition" jsonb,
@@ -144,6 +145,7 @@ CREATE TABLE IF NOT EXISTS "races" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_races_created_by" ON "races"("created_by");
+CREATE INDEX IF NOT EXISTS "idx_races_parent_race_id" ON "races"("parent_race_id");
 
 -- ============================================
 -- WORLDBUILDER: CREATURES
