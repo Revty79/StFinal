@@ -17,10 +17,11 @@ type ToolCard = {
 
 const TOOL_CARDS: ToolCard[] = [
   {
-    title: "Races",
-    description: "Create peoples, lineages, and strange bloodlines that will live in your worlds.",
+    title: "Creatures",
+    description:
+      "Create peoples, lineages, monsters, beasts, mounts, pets, and companions that populate your worlds.",
     href: "/worldbuilder/races",
-    buttonLabel: "Enter Races",
+    buttonLabel: "Enter Creatures",
     iconBg: "bg-emerald-500/20",
     dotBg: "bg-emerald-300",
     hoverShadow: "hover:shadow-[0_0_40px_rgba(52,211,153,0.15)]",
@@ -34,16 +35,6 @@ const TOOL_CARDS: ToolCard[] = [
     iconBg: "bg-blue-500/20",
     dotBg: "bg-blue-300",
     hoverShadow: "hover:shadow-[0_0_40px_rgba(59,130,246,0.15)]",
-  },
-  {
-    title: "Creatures",
-    description:
-      "Build monsters, beasts, mounts, pets, and companions that inhabit your worlds and test your tables.",
-    href: "/worldbuilder/creatures",
-    buttonLabel: "Enter Creatures",
-    iconBg: "bg-rose-500/20",
-    dotBg: "bg-rose-300",
-    hoverShadow: "hover:shadow-[0_0_40px_rgba(248,113,113,0.15)]",
   },
   {
     title: "Inventory",

@@ -4,7 +4,6 @@ import { db } from '@/db/client';
 import { 
   skills, 
   races, 
-  creatures, 
   inventoryItems, 
   inventoryWeapons, 
   inventoryArmor, 
@@ -28,7 +27,6 @@ export async function GET() {
     const [
       skillsCount,
       racesCount,
-      creaturesCount,
       itemsCount,
       weaponsCount,
       armorCount,
@@ -36,12 +34,13 @@ export async function GET() {
     ] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(skills).where(eq(skills.createdBy, userId)),
       db.select({ count: sql<number>`count(*)` }).from(races).where(eq(races.createdBy, userId)),
-      db.select({ count: sql<number>`count(*)` }).from(creatures).where(eq(creatures.createdBy, userId)),
       db.select({ count: sql<number>`count(*)` }).from(inventoryItems).where(eq(inventoryItems.createdBy, userId)),
       db.select({ count: sql<number>`count(*)` }).from(inventoryWeapons).where(eq(inventoryWeapons.createdBy, userId)),
       db.select({ count: sql<number>`count(*)` }).from(inventoryArmor).where(eq(inventoryArmor.createdBy, userId)),
       db.select({ count: sql<number>`count(*)` }).from(npcs).where(eq(npcs.createdBy, userId)),
     ]);
+
+    const creaturesCount = Number(racesCount[0]?.count || 0);
 
     // Count campaigns created (as G.O.D)
     const campaignsCreatedResult = await db
@@ -66,7 +65,6 @@ export async function GET() {
     const totalCreations = 
       Number(skillsCount[0]?.count || 0) +
       Number(racesCount[0]?.count || 0) +
-      Number(creaturesCount[0]?.count || 0) +
       Number(itemsCount[0]?.count || 0) +
       Number(weaponsCount[0]?.count || 0) +
       Number(armorCount[0]?.count || 0) +
@@ -78,7 +76,7 @@ export async function GET() {
         worldbuilder: {
           skills: Number(skillsCount[0]?.count || 0),
           races: Number(racesCount[0]?.count || 0),
-          creatures: Number(creaturesCount[0]?.count || 0),
+          creatures: creaturesCount,
           items: Number(itemsCount[0]?.count || 0),
           weapons: Number(weaponsCount[0]?.count || 0),
           armor: Number(armorCount[0]?.count || 0),

@@ -139,7 +139,7 @@ export default async function SourceForgePage() {
               World Builder's Toolbox
             </GradientText>
             <p className="mt-3 text-base text-zinc-300/90 leading-relaxed">
-              Create reusable components: races, creatures, skills, inventory, calendars, factions, magic systems, and more.
+              Create reusable components: creatures and lineages, skills, inventory, calendars, factions, magic systems, and more.
             </p>
             
             <div className="mt-6">

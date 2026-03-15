@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       SELECT
         (SELECT COUNT(*) FROM skills) as skills,
         (SELECT COUNT(*) FROM npcs) as npcs,
-        (SELECT COUNT(*) FROM creatures) as creatures,
+        (SELECT COUNT(*) FROM races) as creatures,
         (SELECT COUNT(*) FROM inventory_items) as items,
         (SELECT COUNT(*) FROM races) as races,
         (SELECT COUNT(*) FROM calendars) as calendars

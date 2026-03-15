@@ -82,6 +82,37 @@ const GENRE_PRESETS = [
   "Political Intrigue",
 ] as const;
 
+const COMPANION_CLASSIFICATION_KEYWORDS = [
+  "mount",
+  "pet",
+  "companion",
+  "familiar",
+  "beast",
+  "steed",
+  "animal",
+  "summon",
+] as const;
+
+function raceLooksLikeCompanionOption(race: any): boolean {
+  const classifications = Array.isArray(race?.classifications)
+    ? race.classifications
+    : [];
+  const terms = [
+    race?.masterLabel,
+    ...classifications,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (terms.length === 0) return true;
+
+  const joined = terms.join(" ");
+  return COMPANION_CLASSIFICATION_KEYWORDS.some((keyword) =>
+    joined.includes(keyword)
+  );
+}
+
 /* ---------- main page ---------- */
 
 export default function InventoryCompanionsPage() {
@@ -120,12 +151,12 @@ export default function InventoryCompanionsPage() {
           setCurrentUser({ id: userData.user.id, role: userData.user.role });
         }
 
-        // Load creatures for dropdown
-        const creaturesRes = await fetch("/api/worldbuilder/creatures");
+        // Load unified creatures (races) for dropdown
+        const creaturesRes = await fetch("/api/worldbuilder/races");
         const creaturesData = await creaturesRes.json();
-        if (creaturesData.ok && creaturesData.creatures) {
-          const creatureOptions = creaturesData.creatures
-            .filter((c: any) => c.canBeMount || c.canBePet || c.canBeCompanion)
+        if (creaturesData.ok && creaturesData.races) {
+          const creatureOptions = creaturesData.races
+            .filter((c: any) => raceLooksLikeCompanionOption(c))
             .map((c: any) => ({ id: c.id, name: c.name }));
           setCreatures(creatureOptions);
         }
@@ -685,7 +716,7 @@ export default function InventoryCompanionsPage() {
                 <FormField
                   label="Creature"
                   htmlFor="companion-creature"
-                  description="Select a creature from your library (must have mount/pet/companion flag enabled)."
+                  description="Select a creature from your library (filtered by companion-like classifications)."
                 >
                   <select
                     id="companion-creature"

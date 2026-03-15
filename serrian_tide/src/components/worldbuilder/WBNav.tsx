@@ -3,7 +3,6 @@ import Link from "next/link";
 export type WBNavKey =
   | "creatures"
   | "skillsets"
-  | "races"
   | "inventory"
   | "calendars"
   | "npcs"
@@ -23,9 +22,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/worldbuilder/creatures", key: "creatures", label: "Creatures" },
+  { href: "/worldbuilder/races", key: "creatures", label: "Creatures" },
   { href: "/worldbuilder/skillsets", key: "skillsets", label: "Skillsets" },
-  { href: "/worldbuilder/races", key: "races", label: "Races" },
   { href: "/worldbuilder/inventory", key: "inventory", label: "Inventory" },
   { href: "/worldbuilder/calendars", key: "calendars", label: "Calendars" },
   { href: "/worldbuilder/npcs", key: "npcs", label: "NPCs" },

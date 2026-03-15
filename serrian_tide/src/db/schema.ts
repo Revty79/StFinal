@@ -227,61 +227,6 @@ export const races = pgTable('races', {
   byParent2Race: index('idx_races_parent2_race_id').on(t.parent2RaceId),
 }));
 
-// Creatures table
-export const creatures = pgTable('creatures', {
-  id: varchar('id', { length: 36 }).primaryKey(),
-  createdBy: varchar('created_by', { length: 36 })
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
-  altNames: text('alt_names'),
-  challengeRating: varchar('challenge_rating', { length: 50 }),
-  encounterScale: varchar('encounter_scale', { length: 50 }),
-  type: varchar('type', { length: 100 }),
-  role: varchar('role', { length: 100 }),
-  size: varchar('size', { length: 50 }),
-  genreTags: text('genre_tags'),
-  descriptionShort: text('description_short'),
-  
-  // Stats
-  strength: integer('strength'),
-  dexterity: integer('dexterity'),
-  constitution: integer('constitution'),
-  intelligence: integer('intelligence'),
-  wisdom: integer('wisdom'),
-  charisma: integer('charisma'),
-  hpTotal: integer('hp_total'),
-  initiative: integer('initiative'),
-  hpByLocation: text('hp_by_location'),
-  armorSoak: text('armor_soak'),
-  
-  // Combat
-  attacks: jsonb('attacks').$type<Array<{ description: string; damage: number; range: string }>>(),
-  specialAbilities: text('special_abilities'),
-  magicResonanceInteraction: text('magic_resonance_interaction'),
-  
-  // Behavior & Lore
-  behaviorTactics: text('behavior_tactics'),
-  habitat: text('habitat'),
-  diet: text('diet'),
-  variants: text('variants'),
-  lootHarvest: text('loot_harvest'),
-  storyHooks: text('story_hooks'),
-  notes: text('notes'),
-  
-  // Usage flags for mount/pet/companion
-  canBeMount: boolean('can_be_mount').default(false),
-  canBePet: boolean('can_be_pet').default(false),
-  canBeCompanion: boolean('can_be_companion').default(false),
-  
-  isFree: boolean('is_free').notNull().default(true),
-  isPublished: boolean('is_published').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  byCreator: index('idx_creatures_created_by').on(t.createdBy),
-}));
-
 // Inventory Items table
 export const inventoryItems = pgTable('inventory_items', {
   id: varchar('id', { length: 36 }).primaryKey(),
@@ -458,7 +403,7 @@ export const inventoryServices = pgTable('inventory_services', {
   byCreator: index('idx_inventory_services_created_by').on(t.createdBy),
 }));
 
-// Inventory Companions table (pets, mounts, etc - references creatures table)
+// Inventory Companions table (pets, mounts, etc - references unified creatures/races)
 export const inventoryCompanions = pgTable('inventory_companions', {
   id: varchar('id', { length: 36 }).primaryKey(),
   createdBy: varchar('created_by', { length: 36 })
@@ -466,7 +411,7 @@ export const inventoryCompanions = pgTable('inventory_companions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   companionType: varchar('companion_type', { length: 50 }), // pet, mount, companion, familiar, summon
-  creatureId: varchar('creature_id', { length: 36 }).references(() => creatures.id, { onDelete: 'set null' }),
+  creatureId: varchar('creature_id', { length: 36 }).references(() => races.id, { onDelete: 'set null' }),
   creatureName: varchar('creature_name', { length: 255 }), // denormalized for display
   timelineTag: varchar('timeline_tag', { length: 100 }),
   costCredits: integer('cost_credits'),

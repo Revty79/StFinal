@@ -97,9 +97,8 @@ export function NavigationPixie() {
       { href: "/worldbuilder", label: "Source Forge Hub" },
       { href: "/worldbuilder/toolbox", label: "Toolbox" },
       { href: "/worldbuilder/galaxy", label: "Galaxy Forge" },
-      { href: "/worldbuilder/creatures", label: "Creatures" },
+      { href: "/worldbuilder/races", label: "Creatures" },
       { href: "/worldbuilder/skillsets", label: "Skillsets" },
-      { href: "/worldbuilder/races", label: "Races" },
       { href: "/worldbuilder/inventory", label: "Inventory" },
     ];
   }, [role]);

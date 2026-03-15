@@ -154,56 +154,6 @@ CREATE INDEX IF NOT EXISTS "idx_races_parent_race_id" ON "races"("parent_race_id
 CREATE INDEX IF NOT EXISTS "idx_races_parent2_race_id" ON "races"("parent2_race_id");
 
 -- ============================================
--- WORLDBUILDER: CREATURES
--- ============================================
-
-CREATE TABLE IF NOT EXISTS "creatures" (
-  "id" varchar(36) PRIMARY KEY NOT NULL,
-  "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-  "name" varchar(255) NOT NULL,
-  "alt_names" text,
-  "challenge_rating" varchar(50),
-  "encounter_scale" varchar(50),
-  "type" varchar(100),
-  "role" varchar(100),
-  "size" varchar(50),
-  "genre_tags" text,
-  "description_short" text,
-  "strength" integer,
-  "dexterity" integer,
-  "constitution" integer,
-  "intelligence" integer,
-  "wisdom" integer,
-  "charisma" integer,
-  "hp_total" integer,
-  "initiative" integer,
-  "hp_by_location" text,
-  "armor_soak" text,
-  "attacks" jsonb,
-  "special_abilities" text,
-  "magic_resonance_interaction" text,
-  "behavior_tactics" text,
-  "habitat" text,
-  "diet" text,
-  "variants" text,
-  "loot_harvest" text,
-  "story_hooks" text,
-  "notes" text,
-  
-  -- Usage flags for mount/pet/companion
-  "can_be_mount" boolean DEFAULT false,
-  "can_be_pet" boolean DEFAULT false,
-  "can_be_companion" boolean DEFAULT false,
-  
-  "is_free" boolean DEFAULT false NOT NULL,
-  "is_published" boolean DEFAULT false NOT NULL,
-  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
-  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS "idx_creatures_created_by" ON "creatures"("created_by");
-
--- ============================================
 -- WORLDBUILDER: INVENTORY
 -- ============================================
 
@@ -374,7 +324,7 @@ CREATE TABLE IF NOT EXISTS "inventory_companions" (
   "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
   "name" varchar(255) NOT NULL,
   "companion_type" varchar(50),
-  "creature_id" varchar(36) REFERENCES "creatures"("id") ON DELETE SET NULL,
+  "creature_id" varchar(36) REFERENCES "races"("id") ON DELETE SET NULL,
   "creature_name" varchar(255),
   "timeline_tag" varchar(100),
   "cost_credits" numeric(10,2),

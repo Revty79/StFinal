@@ -54,7 +54,7 @@ const fieldGroups: ToolFieldGroup[] = [
 
 const relatedTools: RelatedToolLink[] = [
   { label: "Geography", href: "/worldbuilder/geography", note: "Build one encounter set per region or biome." },
-  { label: "Creatures", href: "/worldbuilder/creatures", note: "Use creature entries as table results or variants." },
+  { label: "Creatures", href: "/worldbuilder/races", note: "Use creature entries as table results or variants." },
   { label: "Factions", href: "/worldbuilder/factions", note: "Add patrols, spies, and faction pressure to roads." },
   { label: "Dungeons", href: "/worldbuilder/dungeons", note: "Chain travel outcomes into site-based delves." },
 ];
