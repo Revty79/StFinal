@@ -16,12 +16,15 @@ export default function LoginPage() {
   // login
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
 
   // register
   const [regUser, setRegUser] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regConfirm, setRegConfirm] = useState('');
+  const [showRegPass, setShowRegPass] = useState(false);
+  const [showRegConfirm, setShowRegConfirm] = useState(false);
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -136,6 +139,9 @@ export default function LoginPage() {
               onChange={(id) => {
                 setTab(id as 'login' | 'register');
                 setMsg(null);
+                setShowLoginPass(false);
+                setShowRegPass(false);
+                setShowRegConfirm(false);
               }}
               fullWidth
             />
@@ -171,15 +177,27 @@ export default function LoginPage() {
                 htmlFor="login-password"
                 required
               >
-                <Input
-                  id="login-password"
-                  type="password"
-                  value={loginPass}
-                  onChange={e => setLoginPass(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  autoComplete="current-password"
-                  data-testid="input-login-password"
-                />
+                <div className="relative">
+                  <Input
+                    id="login-password"
+                    type={showLoginPass ? 'text' : 'password'}
+                    value={loginPass}
+                    onChange={e => setLoginPass(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                    autoComplete="current-password"
+                    className="pr-20"
+                    data-testid="input-login-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPass(v => !v)}
+                    aria-label={showLoginPass ? 'Hide password' : 'Show password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-amber-300 transition hover:text-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                    data-testid="button-login-password-toggle"
+                  >
+                    {showLoginPass ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </FormField>
 
               <Button
@@ -241,15 +259,27 @@ export default function LoginPage() {
                 htmlFor="register-password"
                 required
               >
-                <Input
-                  id="register-password"
-                  type="password"
-                  value={regPass}
-                  onChange={e => setRegPass(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
-                  autoComplete="new-password"
-                  data-testid="input-register-password"
-                />
+                <div className="relative">
+                  <Input
+                    id="register-password"
+                    type={showRegPass ? 'text' : 'password'}
+                    value={regPass}
+                    onChange={e => setRegPass(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                    autoComplete="new-password"
+                    className="pr-20"
+                    data-testid="input-register-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegPass(v => !v)}
+                    aria-label={showRegPass ? 'Hide password' : 'Show password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-amber-300 transition hover:text-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                    data-testid="button-register-password-toggle"
+                  >
+                    {showRegPass ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </FormField>
 
               <FormField
@@ -257,15 +287,27 @@ export default function LoginPage() {
                 htmlFor="register-confirm"
                 required
               >
-                <Input
-                  id="register-confirm"
-                  type="password"
-                  value={regConfirm}
-                  onChange={e => setRegConfirm(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleRegister()}
-                  autoComplete="new-password"
-                  data-testid="input-register-confirm"
-                />
+                <div className="relative">
+                  <Input
+                    id="register-confirm"
+                    type={showRegConfirm ? 'text' : 'password'}
+                    value={regConfirm}
+                    onChange={e => setRegConfirm(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleRegister()}
+                    autoComplete="new-password"
+                    className="pr-20"
+                    data-testid="input-register-confirm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegConfirm(v => !v)}
+                    aria-label={showRegConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-amber-300 transition hover:text-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                    data-testid="button-register-confirm-toggle"
+                  >
+                    {showRegConfirm ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </FormField>
 
               <Button
