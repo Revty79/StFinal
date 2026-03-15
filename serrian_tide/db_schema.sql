@@ -131,8 +131,11 @@ CREATE INDEX IF NOT EXISTS "idx_special_ability_details_skill_id" ON "special_ab
 CREATE TABLE IF NOT EXISTS "races" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
   "created_by" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "world_id" varchar(36),
   "parent_race_id" varchar(36) REFERENCES "races"("id") ON DELETE SET NULL,
+  "parent2_race_id" varchar(36) REFERENCES "races"("id") ON DELETE SET NULL,
   "name" varchar(255) NOT NULL,
+  "master_label" varchar(255),
   "tagline" text,
   "definition" jsonb,
   "attributes" jsonb,
@@ -145,7 +148,9 @@ CREATE TABLE IF NOT EXISTS "races" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_races_created_by" ON "races"("created_by");
+CREATE INDEX IF NOT EXISTS "idx_races_world_id" ON "races"("world_id");
 CREATE INDEX IF NOT EXISTS "idx_races_parent_race_id" ON "races"("parent_race_id");
+CREATE INDEX IF NOT EXISTS "idx_races_parent2_race_id" ON "races"("parent2_race_id");
 
 -- ============================================
 -- WORLDBUILDER: CREATURES
@@ -647,6 +652,20 @@ CREATE TABLE IF NOT EXISTS "galaxy_worlds" (
 
 CREATE INDEX IF NOT EXISTS "idx_galaxy_worlds_created_by" ON "galaxy_worlds"("created_by");
 CREATE INDEX IF NOT EXISTS "idx_galaxy_worlds_name" ON "galaxy_worlds"("name");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'races_world_id_fkey'
+  ) THEN
+    ALTER TABLE "races"
+      ADD CONSTRAINT "races_world_id_fkey"
+      FOREIGN KEY ("world_id") REFERENCES "galaxy_worlds"("id") ON DELETE SET NULL;
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS "galaxy_eras" (
   "id" varchar(36) PRIMARY KEY NOT NULL,

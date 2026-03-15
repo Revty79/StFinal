@@ -2,6 +2,7 @@ export type RaceHierarchySource = {
   id: string;
   name: string;
   parentRaceId?: string | null;
+  parent2RaceId?: string | null;
 };
 
 export type RaceHierarchyMeta = {
@@ -87,28 +88,47 @@ export function buildRaceHierarchyMetaMap(
 }
 
 export function wouldCreateRaceCycle(
-  races: Array<{ id: string; parentRaceId: string | null }>,
+  races: Array<{ id: string; parentRaceId: string | null; parent2RaceId?: string | null }>,
   raceId: string,
-  parentRaceId: string | null
+  parentRaceId: string | null,
+  parent2RaceId: string | null
 ): boolean {
-  if (!parentRaceId) return false;
-  if (parentRaceId === raceId) return true;
+  if (!parentRaceId && !parent2RaceId) return false;
+  if (parentRaceId === raceId || parent2RaceId === raceId) return true;
+  if (parentRaceId && parent2RaceId && parentRaceId === parent2RaceId) return true;
 
-  const parentById = new Map<string, string | null>();
+  const parentsById = new Map<string, { primary: string | null; secondary: string | null }>();
   for (const race of races) {
-    parentById.set(race.id, race.parentRaceId);
+    parentsById.set(race.id, {
+      primary: race.parentRaceId ?? null,
+      secondary: race.parent2RaceId ?? null,
+    });
   }
-  parentById.set(raceId, parentRaceId);
+  parentsById.set(raceId, { primary: parentRaceId, secondary: parent2RaceId });
 
-  const visited = new Set<string>();
-  let current: string | null = parentRaceId;
+  const reachesRace = (startId: string | null): boolean => {
+    if (!startId) return false;
+    const visited = new Set<string>();
+    const queue: string[] = [startId];
 
-  while (current) {
-    if (current === raceId) return true;
-    if (visited.has(current)) return true;
-    visited.add(current);
-    current = parentById.get(current) ?? null;
-  }
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) continue;
+      if (current === raceId) return true;
+      if (visited.has(current)) continue;
+
+      visited.add(current);
+      const parents = parentsById.get(current);
+      if (!parents) continue;
+      if (parents.primary) queue.push(parents.primary);
+      if (parents.secondary) queue.push(parents.secondary);
+    }
+
+    return false;
+  };
+
+  if (reachesRace(parentRaceId)) return true;
+  if (reachesRace(parent2RaceId)) return true;
 
   return false;
 }

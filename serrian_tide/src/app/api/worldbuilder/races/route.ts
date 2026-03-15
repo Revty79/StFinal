@@ -20,8 +20,31 @@ function normalizeParentRaceId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeWorldId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function normalizeName(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveMasterRaceLabel(
+  race: { name: string; masterLabel: string | null | undefined },
+  hierarchyLabel: string | undefined
+): string {
+  const manualLabel = normalizeOptionalText(race.masterLabel);
+  if (manualLabel) return manualLabel;
+  const fallbackHierarchyLabel = normalizeOptionalText(hierarchyLabel);
+  if (fallbackHierarchyLabel) return fallbackHierarchyLabel;
+  return normalizeName(race.name) || "Unnamed Race";
 }
 
 async function getVisibleRacesForUser(user: SessionUser) {
@@ -34,7 +57,70 @@ async function getVisibleRacesForUser(user: SessionUser) {
         .orderBy(asc(schema.races.name));
 }
 
-async function validateParentRaceAccess(user: SessionUser, parentRaceId: string | null) {
+async function getVisibleWorldNameMapForUser(user: SessionUser) {
+  const worlds = isAdmin(user)
+    ? await db
+        .select({
+          id: schema.galaxyWorlds.id,
+          name: schema.galaxyWorlds.name,
+        })
+        .from(schema.galaxyWorlds)
+    : await db
+        .select({
+          id: schema.galaxyWorlds.id,
+          name: schema.galaxyWorlds.name,
+        })
+        .from(schema.galaxyWorlds)
+        .where(
+          or(
+            eq(schema.galaxyWorlds.createdBy, user.id),
+            eq(schema.galaxyWorlds.isFree, true)
+          )
+        );
+
+  return new Map(worlds.map((world) => [world.id, world.name]));
+}
+
+async function validateWorldAccess(user: SessionUser, worldId: string | null) {
+  if (!worldId) {
+    return { ok: true as const };
+  }
+
+  const rows = await db
+    .select({
+      id: schema.galaxyWorlds.id,
+      createdBy: schema.galaxyWorlds.createdBy,
+    })
+    .from(schema.galaxyWorlds)
+    .where(eq(schema.galaxyWorlds.id, worldId))
+    .limit(1);
+
+  const world = rows[0];
+  if (!world) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "INVALID_WORLD",
+    };
+  }
+
+  const canEditWorld = isAdmin(user) || world.createdBy === user.id;
+  if (!canEditWorld) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "WORLD_FORBIDDEN",
+    };
+  }
+
+  return { ok: true as const };
+}
+
+async function validateParentRaceAccess(
+  user: SessionUser,
+  parentRaceId: string | null,
+  worldId: string | null
+) {
   if (!parentRaceId) {
     return { ok: true as const };
   }
@@ -44,6 +130,7 @@ async function validateParentRaceAccess(user: SessionUser, parentRaceId: string 
       id: schema.races.id,
       createdBy: schema.races.createdBy,
       isFree: schema.races.isFree,
+      worldId: schema.races.worldId,
     })
     .from(schema.races)
     .where(eq(schema.races.id, parentRaceId))
@@ -67,6 +154,14 @@ async function validateParentRaceAccess(user: SessionUser, parentRaceId: string 
     };
   }
 
+  if (normalizeWorldId(parent.worldId) !== worldId) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "PARENT_RACE_WORLD_MISMATCH",
+    };
+  }
+
   return { ok: true as const };
 }
 
@@ -80,11 +175,13 @@ export async function GET(request: Request) {
     }
 
     const races = await getVisibleRacesForUser(user);
+    const worldNameById = await getVisibleWorldNameMapForUser(user);
     const hierarchyByRaceId = buildRaceHierarchyMetaMap(
       races.map((race) => ({
         id: race.id,
         name: race.name,
         parentRaceId: race.parentRaceId,
+        parent2RaceId: race.parent2RaceId,
       }))
     );
 
@@ -93,11 +190,15 @@ export async function GET(request: Request) {
       const attrs = (race.attributes as any) || {};
       const canEdit = isAdmin(user) || race.createdBy === user.id;
       const hierarchy = hierarchyByRaceId.get(race.id);
+      const worldId = normalizeWorldId(race.worldId);
       return {
         ...race,
+        worldId,
+        worldName: worldId ? worldNameById.get(worldId) ?? null : null,
         canEdit, // Add explicit canEdit flag
+        masterLabel: race.masterLabel ?? null,
         masterRaceId: hierarchy?.masterRaceId ?? race.id,
-        masterRaceLabel: hierarchy?.masterRaceLabel ?? race.name,
+        masterRaceLabel: resolveMasterRaceLabel(race, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [race.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
@@ -133,10 +234,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
     }
 
+    const worldId = normalizeWorldId(body.worldId);
+    const worldValidation = await validateWorldAccess(user, worldId);
+    if (!worldValidation.ok) {
+      return NextResponse.json({ ok: false, error: worldValidation.error }, { status: worldValidation.status });
+    }
+
     const parentRaceId = normalizeParentRaceId(body.parentRaceId);
-    const parentValidation = await validateParentRaceAccess(user, parentRaceId);
-    if (!parentValidation.ok) {
-      return NextResponse.json({ ok: false, error: parentValidation.error }, { status: parentValidation.status });
+    const parent2RaceId = normalizeParentRaceId(body.parent2RaceId);
+    if (parentRaceId && parent2RaceId && parentRaceId === parent2RaceId) {
+      return NextResponse.json({ ok: false, error: "RACE_PARENTS_DUPLICATE" }, { status: 400 });
+    }
+
+    const parent1Validation = await validateParentRaceAccess(user, parentRaceId, worldId);
+    if (!parent1Validation.ok) {
+      return NextResponse.json({ ok: false, error: parent1Validation.error }, { status: parent1Validation.status });
+    }
+
+    const parent2Validation = await validateParentRaceAccess(user, parent2RaceId, worldId);
+    if (!parent2Validation.ok) {
+      return NextResponse.json({ ok: false, error: parent2Validation.error }, { status: parent2Validation.status });
     }
 
     const id = crypto.randomUUID();
@@ -144,8 +261,11 @@ export async function POST(req: Request) {
     const newRace = {
       id,
       createdBy: user.id,
+      worldId,
       parentRaceId,
+      parent2RaceId,
       name,
+      masterLabel: normalizeOptionalText(body.masterLabel ?? body.masterRaceLabel),
       tagline: body.tagline ?? null,
       definition: body.definition || null,
       attributes: body.attributes || null,
@@ -155,29 +275,35 @@ export async function POST(req: Request) {
       isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : false,
     };
 
-    await db.insert(schema.races).values(newRace);
+    const insertedRows = await db.insert(schema.races).values(newRace).returning();
+    const insertedRace = insertedRows[0]!;
 
     const visibleRaces = await getVisibleRacesForUser(user);
+    const worldNameById = await getVisibleWorldNameMapForUser(user);
     const hierarchyByRaceId = buildRaceHierarchyMetaMap(
       visibleRaces.map((race) => ({
         id: race.id,
         name: race.name,
         parentRaceId: race.parentRaceId,
+        parent2RaceId: race.parent2RaceId,
       }))
     );
 
-    const hierarchy = hierarchyByRaceId.get(id);
+    const hierarchy = hierarchyByRaceId.get(insertedRace.id);
+    const normalizedWorldId = normalizeWorldId(insertedRace.worldId);
 
     return NextResponse.json({
       ok: true,
       id,
       race: {
-        ...newRace,
+        ...insertedRace,
+        worldId: normalizedWorldId,
+        worldName: normalizedWorldId ? worldNameById.get(normalizedWorldId) ?? null : null,
         canEdit: true,
-        masterRaceId: hierarchy?.masterRaceId ?? id,
-        masterRaceLabel: hierarchy?.masterRaceLabel ?? name,
+        masterRaceId: hierarchy?.masterRaceId ?? insertedRace.id,
+        masterRaceLabel: resolveMasterRaceLabel(insertedRace, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
-        lineagePath: hierarchy?.lineagePath ?? [name],
+        lineagePath: hierarchy?.lineagePath ?? [insertedRace.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
       },
     });

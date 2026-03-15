@@ -175,8 +175,11 @@ export const races = pgTable('races', {
   createdBy: varchar('created_by', { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  worldId: varchar('world_id', { length: 36 }).references((): any => galaxyWorlds.id, { onDelete: 'set null' }),
   parentRaceId: varchar('parent_race_id', { length: 36 }).references((): any => races.id, { onDelete: 'set null' }),
+  parent2RaceId: varchar('parent2_race_id', { length: 36 }).references((): any => races.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(),
+  masterLabel: varchar('master_label', { length: 255 }),
   tagline: text('tagline'),
   
   // Identity & Lore (stored as JSONB for flexibility)
@@ -218,7 +221,9 @@ export const races = pgTable('races', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byCreator: index('idx_races_created_by').on(t.createdBy),
+  byWorld: index('idx_races_world_id').on(t.worldId),
   byParentRace: index('idx_races_parent_race_id').on(t.parentRaceId),
+  byParent2Race: index('idx_races_parent2_race_id').on(t.parent2RaceId),
 }));
 
 // Creatures table

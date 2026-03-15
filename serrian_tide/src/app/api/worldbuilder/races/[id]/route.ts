@@ -19,8 +19,31 @@ function normalizeParentRaceId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeWorldId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function normalizeName(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveMasterRaceLabel(
+  race: { name: string; masterLabel: string | null | undefined },
+  hierarchyLabel: string | undefined
+): string {
+  const manualLabel = normalizeOptionalText(race.masterLabel);
+  if (manualLabel) return manualLabel;
+  const fallbackHierarchyLabel = normalizeOptionalText(hierarchyLabel);
+  if (fallbackHierarchyLabel) return fallbackHierarchyLabel;
+  return normalizeName(race.name) || "Unnamed Race";
 }
 
 async function getVisibleRacesForUser(user: SessionUser) {
@@ -33,7 +56,70 @@ async function getVisibleRacesForUser(user: SessionUser) {
         .orderBy(asc(schema.races.name));
 }
 
-async function validateParentRaceAccess(user: SessionUser, parentRaceId: string | null) {
+async function getVisibleWorldNameMapForUser(user: SessionUser) {
+  const worlds = isAdmin(user)
+    ? await db
+        .select({
+          id: schema.galaxyWorlds.id,
+          name: schema.galaxyWorlds.name,
+        })
+        .from(schema.galaxyWorlds)
+    : await db
+        .select({
+          id: schema.galaxyWorlds.id,
+          name: schema.galaxyWorlds.name,
+        })
+        .from(schema.galaxyWorlds)
+        .where(
+          or(
+            eq(schema.galaxyWorlds.createdBy, user.id),
+            eq(schema.galaxyWorlds.isFree, true)
+          )
+        );
+
+  return new Map(worlds.map((world) => [world.id, world.name]));
+}
+
+async function validateWorldAccess(user: SessionUser, worldId: string | null) {
+  if (!worldId) {
+    return { ok: true as const };
+  }
+
+  const rows = await db
+    .select({
+      id: schema.galaxyWorlds.id,
+      createdBy: schema.galaxyWorlds.createdBy,
+    })
+    .from(schema.galaxyWorlds)
+    .where(eq(schema.galaxyWorlds.id, worldId))
+    .limit(1);
+
+  const world = rows[0];
+  if (!world) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "INVALID_WORLD",
+    };
+  }
+
+  const canEditWorld = isAdmin(user) || world.createdBy === user.id;
+  if (!canEditWorld) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "WORLD_FORBIDDEN",
+    };
+  }
+
+  return { ok: true as const };
+}
+
+async function validateParentRaceAccess(
+  user: SessionUser,
+  parentRaceId: string | null,
+  worldId: string | null
+) {
   if (!parentRaceId) {
     return { ok: true as const };
   }
@@ -43,6 +129,7 @@ async function validateParentRaceAccess(user: SessionUser, parentRaceId: string 
       id: schema.races.id,
       createdBy: schema.races.createdBy,
       isFree: schema.races.isFree,
+      worldId: schema.races.worldId,
     })
     .from(schema.races)
     .where(eq(schema.races.id, parentRaceId))
@@ -66,6 +153,14 @@ async function validateParentRaceAccess(user: SessionUser, parentRaceId: string 
     };
   }
 
+  if (normalizeWorldId(parent.worldId) !== worldId) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "PARENT_RACE_WORLD_MISMATCH",
+    };
+  }
+
   return { ok: true as const };
 }
 
@@ -84,6 +179,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  void req;
   try {
     const user = await getSessionUser();
     if (!user) {
@@ -93,21 +189,14 @@ export async function GET(
     const { id } = await params;
 
     // Admins can view all, users can view their own + free content
-    const whereClause = user.role === 'admin'
+    const whereClause = isAdmin(user)
       ? eq(schema.races.id, id)
       : and(
           eq(schema.races.id, id),
-          or(
-            eq(schema.races.createdBy, user.id),
-            eq(schema.races.isFree, true)
-          )
+          or(eq(schema.races.createdBy, user.id), eq(schema.races.isFree, true))
         );
 
-    const race = await db
-      .select()
-      .from(schema.races)
-      .where(whereClause)
-      .limit(1);
+    const race = await db.select().from(schema.races).where(whereClause).limit(1);
 
     if (race.length === 0) {
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
@@ -117,21 +206,26 @@ export async function GET(
     const canEdit = isAdmin(user) || raceData.createdBy === user.id;
 
     const visibleRaces = await getVisibleRacesForUser(user);
+    const worldNameById = await getVisibleWorldNameMapForUser(user);
     const hierarchyByRaceId = buildRaceHierarchyMetaMap(
       visibleRaces.map((visibleRace) => ({
         id: visibleRace.id,
         name: visibleRace.name,
         parentRaceId: visibleRace.parentRaceId,
+        parent2RaceId: visibleRace.parent2RaceId,
       }))
     );
     const hierarchy = hierarchyByRaceId.get(raceData.id);
+    const worldId = normalizeWorldId(raceData.worldId);
 
     return NextResponse.json({
       ok: true,
       race: {
         ...raceData,
+        worldId,
+        worldName: worldId ? worldNameById.get(worldId) ?? null : null,
         masterRaceId: hierarchy?.masterRaceId ?? raceData.id,
-        masterRaceLabel: hierarchy?.masterRaceLabel ?? raceData.name,
+        masterRaceLabel: resolveMasterRaceLabel(raceData, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [raceData.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
@@ -157,9 +251,31 @@ export async function PUT(
 
     const { id } = await params;
     const body = (await req.json().catch(() => null)) as any;
-    
+
     if (!body) {
       return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+    }
+
+    const existingRows = await db
+      .select({
+        id: schema.races.id,
+        createdBy: schema.races.createdBy,
+        worldId: schema.races.worldId,
+        parentRaceId: schema.races.parentRaceId,
+        parent2RaceId: schema.races.parent2RaceId,
+      })
+      .from(schema.races)
+      .where(eq(schema.races.id, id))
+      .limit(1);
+
+    const existing = existingRows[0];
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+    }
+
+    const canEdit = isAdmin(user) || existing.createdBy === user.id;
+    if (!canEdit) {
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const updates: Record<string, unknown> = {
@@ -195,68 +311,134 @@ export async function PUT(
     if (body.isPublished !== undefined) {
       updates.isPublished = Boolean(body.isPublished);
     }
+    if (body.masterLabel !== undefined || body.masterRaceLabel !== undefined) {
+      const rawMasterLabel =
+        body.masterLabel !== undefined ? body.masterLabel : body.masterRaceLabel;
+      updates.masterLabel = normalizeOptionalText(rawMasterLabel);
+    }
 
-    if (body.parentRaceId !== undefined) {
-      const parentRaceId = normalizeParentRaceId(body.parentRaceId);
-      if (parentRaceId === id) {
-        return NextResponse.json({ ok: false, error: "RACE_PARENT_SELF" }, { status: 400 });
+    const finalWorldId =
+      body.worldId !== undefined
+        ? normalizeWorldId(body.worldId)
+        : normalizeWorldId(existing.worldId);
+
+    if (body.worldId !== undefined) {
+      const worldValidation = await validateWorldAccess(user, finalWorldId);
+      if (!worldValidation.ok) {
+        return NextResponse.json(
+          { ok: false, error: worldValidation.error },
+          { status: worldValidation.status }
+        );
+      }
+      updates.worldId = finalWorldId;
+    }
+
+    const finalParentRaceId =
+      body.parentRaceId !== undefined
+        ? normalizeParentRaceId(body.parentRaceId)
+        : normalizeParentRaceId(existing.parentRaceId);
+    const finalParent2RaceId =
+      body.parent2RaceId !== undefined
+        ? normalizeParentRaceId(body.parent2RaceId)
+        : normalizeParentRaceId(existing.parent2RaceId);
+
+    if (finalParentRaceId === id || finalParent2RaceId === id) {
+      return NextResponse.json({ ok: false, error: "RACE_PARENT_SELF" }, { status: 400 });
+    }
+    if (
+      finalParentRaceId &&
+      finalParent2RaceId &&
+      finalParentRaceId === finalParent2RaceId
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "RACE_PARENTS_DUPLICATE" },
+        { status: 400 }
+      );
+    }
+
+    const shouldRevalidateParents =
+      body.parentRaceId !== undefined ||
+      body.parent2RaceId !== undefined ||
+      body.worldId !== undefined;
+
+    if (shouldRevalidateParents) {
+      const parent1Validation = await validateParentRaceAccess(
+        user,
+        finalParentRaceId,
+        finalWorldId
+      );
+      if (!parent1Validation.ok) {
+        return NextResponse.json(
+          { ok: false, error: parent1Validation.error },
+          { status: parent1Validation.status }
+        );
       }
 
-      const parentValidation = await validateParentRaceAccess(user, parentRaceId);
-      if (!parentValidation.ok) {
-        return NextResponse.json({ ok: false, error: parentValidation.error }, { status: parentValidation.status });
+      const parent2Validation = await validateParentRaceAccess(
+        user,
+        finalParent2RaceId,
+        finalWorldId
+      );
+      if (!parent2Validation.ok) {
+        return NextResponse.json(
+          { ok: false, error: parent2Validation.error },
+          { status: parent2Validation.status }
+        );
       }
 
       const allRaces = await db
-        .select({ id: schema.races.id, parentRaceId: schema.races.parentRaceId })
+        .select({
+          id: schema.races.id,
+          parentRaceId: schema.races.parentRaceId,
+          parent2RaceId: schema.races.parent2RaceId,
+        })
         .from(schema.races);
 
-      if (wouldCreateRaceCycle(allRaces, id, parentRaceId)) {
+      if (wouldCreateRaceCycle(allRaces, id, finalParentRaceId, finalParent2RaceId)) {
         return NextResponse.json({ ok: false, error: "RACE_PARENT_CYCLE" }, { status: 400 });
       }
+    }
 
-      updates.parentRaceId = parentRaceId;
+    if (body.parentRaceId !== undefined) {
+      updates.parentRaceId = finalParentRaceId;
+    }
+    if (body.parent2RaceId !== undefined) {
+      updates.parent2RaceId = finalParent2RaceId;
     }
 
     const updatedRows = await db
       .update(schema.races)
       .set(updates)
-      .where(
-        user.role === 'admin'
-          ? eq(schema.races.id, id)
-          : and(
-              eq(schema.races.id, id),
-              eq(schema.races.createdBy, user.id)
-            )
-      )
+      .where(eq(schema.races.id, id))
       .returning();
 
     if (updatedRows.length === 0) {
-      const exists = await checkRaceExists(id);
-      if (!exists) {
-        return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
-      }
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
     }
 
     const updatedRace = updatedRows[0]!;
     const visibleRaces = await getVisibleRacesForUser(user);
+    const worldNameById = await getVisibleWorldNameMapForUser(user);
     const hierarchyByRaceId = buildRaceHierarchyMetaMap(
       visibleRaces.map((visibleRace) => ({
         id: visibleRace.id,
         name: visibleRace.name,
         parentRaceId: visibleRace.parentRaceId,
+        parent2RaceId: visibleRace.parent2RaceId,
       }))
     );
     const hierarchy = hierarchyByRaceId.get(updatedRace.id);
+    const normalizedWorldId = normalizeWorldId(updatedRace.worldId);
 
     return NextResponse.json({
       ok: true,
       race: {
         ...updatedRace,
+        worldId: normalizedWorldId,
+        worldName: normalizedWorldId ? worldNameById.get(normalizedWorldId) ?? null : null,
         canEdit: true,
         masterRaceId: hierarchy?.masterRaceId ?? updatedRace.id,
-        masterRaceLabel: hierarchy?.masterRaceLabel ?? updatedRace.name,
+        masterRaceLabel: resolveMasterRaceLabel(updatedRace, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [updatedRace.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
@@ -273,6 +455,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  void req;
   try {
     const user = await getSessionUser();
     if (!user) {
@@ -284,12 +467,9 @@ export async function DELETE(
     const deletedRows = await db
       .delete(schema.races)
       .where(
-        user.role === 'admin'
+        isAdmin(user)
           ? eq(schema.races.id, id)
-          : and(
-              eq(schema.races.id, id),
-              eq(schema.races.createdBy, user.id)
-            )
+          : and(eq(schema.races.id, id), eq(schema.races.createdBy, user.id))
       )
       .returning({ id: schema.races.id });
 
