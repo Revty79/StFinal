@@ -58,7 +58,7 @@ type GalaxyWorldSummary = {
 type WorldScope = "__all__" | "__unassigned__" | string;
 type ParentScope = "all" | "with-parent" | "top-level";
 type OwnershipScope = "all" | "mine" | "editable" | "readonly";
-type SortKey = "tree" | "name" | "master" | "created" | "updated";
+type SortKey = "tree" | "name" | "classification" | "created" | "updated";
 type SortDirection = "asc" | "desc";
 
 type RaceRecord = {
@@ -72,7 +72,7 @@ type RaceRecord = {
   is_free?: boolean;
   createdBy?: string;
   canEdit?: boolean; // Add canEdit flag from API
-  masterRaceLabel?: string;
+  classifications: string[];
   lineageDepth?: number;
   lineagePath?: string[];
   hasLineageCycle?: boolean;
@@ -119,6 +119,43 @@ function normalizeRaceParentId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeClassifications(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of source) {
+    if (typeof entry !== "string") continue;
+    const label = entry.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
+function resolveRaceClassifications(
+  race: { classifications?: unknown; masterRaceLabel?: unknown; masterLabel?: unknown } | null | undefined,
+  fallback: string[] = []
+): string[] {
+  const hasClassificationsField =
+    Boolean(race) &&
+    Object.prototype.hasOwnProperty.call(
+      race as { classifications?: unknown },
+      "classifications"
+    );
+  if (hasClassificationsField) {
+    return normalizeClassifications(race?.classifications);
+  }
+  const fromLegacyLabels = normalizeClassifications([
+    race?.masterRaceLabel,
+    race?.masterLabel,
+  ]);
+  if (fromLegacyLabels.length > 0) return fromLegacyLabels;
+  return normalizeClassifications(fallback);
 }
 
 function getRaceParentIds(race: {
@@ -317,6 +354,7 @@ function parseTSVToRaceRecords(raw: string): RaceRecord[] {
       name,
       tagline: "", // can be filled manually later if desired
       is_free: false,
+      classifications: [],
       def: {
         legacy_description: legacy || null,
         physical_characteristics: physChars || null,
@@ -352,6 +390,47 @@ function parseTSVToRaceRecords(raw: string): RaceRecord[] {
   return records;
 }
 
+function mapApiRaceToRecord(r: any): RaceRecord {
+  return {
+    id: r.id,
+    worldId: r.worldId ?? null,
+    worldName: r.worldName ?? null,
+    parentRaceId: r.parentRaceId ?? null,
+    parent2RaceId: r.parent2RaceId ?? null,
+    name: r.name,
+    tagline: r.tagline || "",
+    is_free: r.isFree ?? false,
+    createdBy: r.createdBy,
+    canEdit: r.canEdit ?? true,
+    classifications: resolveRaceClassifications(r),
+    lineageDepth: typeof r.lineageDepth === "number" ? r.lineageDepth : 0,
+    lineagePath: Array.isArray(r.lineagePath)
+      ? r.lineagePath
+      : [r.name || "Unnamed Creature"],
+    hasLineageCycle: Boolean(r.hasLineageCycle),
+    def: r.definition || {},
+    attr: r.attributes || {},
+    bonusRows: [
+      ...(r.bonusSkills || []).map((b: any, idx: number) => ({
+        slotIdx: idx,
+        skillName: b.skillName || "",
+        points: String(b.points || 0),
+      })),
+      ...makeBonusRows(MAX_BONUS_SKILLS - (r.bonusSkills || []).length),
+    ].map((row, idx) => ({ ...row, slotIdx: idx })),
+    specialRows: [
+      ...(r.specialAbilities || []).map((s: any, idx: number) => ({
+        slotIdx: idx,
+        skillName: s.skillName || "",
+        points: String(s.points || 0),
+      })),
+      ...makeBonusRows(MAX_SPECIALS - (r.specialAbilities || []).length),
+    ].map((row, idx) => ({ ...row, slotIdx: idx })),
+    createdAt: typeof r.createdAt === "string" ? r.createdAt : undefined,
+    updatedAt: typeof r.updatedAt === "string" ? r.updatedAt : undefined,
+  };
+}
+
 /* ---------- Page ---------- */
 
 export default function CreaturesPage() {
@@ -370,9 +449,11 @@ export default function CreaturesPage() {
   const [worldScope, setWorldScope] = useState<WorldScope>("__all__");
   const [parentScope, setParentScope] = useState<ParentScope>("all");
   const [ownershipScope, setOwnershipScope] = useState<OwnershipScope>("all");
-  const [masterLabelScope, setMasterLabelScope] = useState<string>("__all__");
+  const [classificationScope, setClassificationScope] = useState<string>("__all__");
   const [sortKey, setSortKey] = useState<SortKey>("tree");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [bulkMoveWorldId, setBulkMoveWorldId] = useState<string>("");
+  const [bulkMoveLoading, setBulkMoveLoading] = useState(false);
   
   // Read-only mode for races owned by others
   const [readOnlyMode, setReadOnlyMode] = useState(false);
@@ -448,42 +529,7 @@ export default function CreaturesPage() {
         }
 
         // Transform API response to match our UI format
-        const transformed: RaceRecord[] = (racesData.races || []).map((r: any) => ({
-          id: r.id,
-          worldId: r.worldId ?? null,
-          worldName: r.worldName ?? null,
-          parentRaceId: r.parentRaceId ?? null,
-          parent2RaceId: r.parent2RaceId ?? null,
-          name: r.name,
-          tagline: r.tagline || "",
-          is_free: r.isFree ?? false,
-          createdBy: r.createdBy,
-          canEdit: r.canEdit ?? true, // Use canEdit from API
-          masterRaceLabel: r.masterRaceLabel ?? "",
-          lineageDepth: typeof r.lineageDepth === "number" ? r.lineageDepth : 0,
-          lineagePath: Array.isArray(r.lineagePath) ? r.lineagePath : [r.name || "Unnamed Creature"],
-          hasLineageCycle: Boolean(r.hasLineageCycle),
-          def: r.definition || {},
-          attr: r.attributes || {},
-          bonusRows: [
-            ...(r.bonusSkills || []).map((b: any, idx: number) => ({
-              slotIdx: idx,
-              skillName: b.skillName || "",
-              points: String(b.points || 0),
-            })),
-            ...makeBonusRows(MAX_BONUS_SKILLS - (r.bonusSkills || []).length),
-          ].map((row, idx) => ({ ...row, slotIdx: idx })),
-          specialRows: [
-            ...(r.specialAbilities || []).map((s: any, idx: number) => ({
-              slotIdx: idx,
-              skillName: s.skillName || "",
-              points: String(s.points || 0),
-            })),
-            ...makeBonusRows(MAX_SPECIALS - (r.specialAbilities || []).length),
-          ].map((row, idx) => ({ ...row, slotIdx: idx })),
-          createdAt: typeof r.createdAt === "string" ? r.createdAt : undefined,
-          updatedAt: typeof r.updatedAt === "string" ? r.updatedAt : undefined,
-        }));
+        const transformed: RaceRecord[] = (racesData.races || []).map(mapApiRaceToRecord);
 
         setRaces(transformed);
       } catch (error) {
@@ -606,22 +652,22 @@ export default function CreaturesPage() {
     return parentCandidateRaces.filter((race) => !blockedIds.has(String(race.id)));
   }, [parentCandidateRaces, selected]);
 
-  const masterLabelOptions = useMemo(() => {
+  const classificationOptions = useMemo(() => {
     return Array.from(
       new Set(
-        scopedRaces
-          .map((race) => String(race.masterRaceLabel ?? "").trim())
-          .filter((label) => label.length > 0)
+        scopedRaces.flatMap((race) =>
+          normalizeClassifications(race.classifications).map((label) => label.trim())
+        )
       )
     ).sort((a, b) => a.localeCompare(b));
   }, [scopedRaces]);
 
   useEffect(() => {
-    if (masterLabelScope === "__all__") return;
-    if (!masterLabelOptions.includes(masterLabelScope)) {
-      setMasterLabelScope("__all__");
+    if (classificationScope === "__all__") return;
+    if (!classificationOptions.includes(classificationScope)) {
+      setClassificationScope("__all__");
     }
-  }, [masterLabelOptions, masterLabelScope]);
+  }, [classificationOptions, classificationScope]);
 
   const filteredList = useMemo(() => {
     const q = qtext.trim().toLowerCase();
@@ -630,7 +676,7 @@ export default function CreaturesPage() {
       const base = [
         r.name,
         r.tagline,
-        r.masterRaceLabel ?? "",
+        normalizeClassifications(r.classifications).join(" "),
         (hierarchy?.lineagePath ?? []).join(" "),
         r.def.examples_by_genre ?? "",
         r.def.cultural_mindset ?? "",
@@ -639,9 +685,9 @@ export default function CreaturesPage() {
         .toLowerCase();
       if (q && !base.includes(q)) return false;
 
-      if (masterLabelScope !== "__all__") {
-        const label = String(r.masterRaceLabel ?? "").trim();
-        if (label !== masterLabelScope) return false;
+      if (classificationScope !== "__all__") {
+        const labels = normalizeClassifications(r.classifications);
+        if (!labels.includes(classificationScope)) return false;
       }
 
       const hasAnyParent = getRaceParentIds(r).length > 0;
@@ -667,9 +713,9 @@ export default function CreaturesPage() {
       if (sortKey === "name") {
         return (a.name || "").localeCompare(b.name || "");
       }
-      if (sortKey === "master") {
-        return String(a.masterRaceLabel ?? "").localeCompare(
-          String(b.masterRaceLabel ?? "")
+      if (sortKey === "classification") {
+        return String(normalizeClassifications(a.classifications)[0] ?? "").localeCompare(
+          String(normalizeClassifications(b.classifications)[0] ?? "")
         );
       }
       if (sortKey === "created") {
@@ -694,7 +740,7 @@ export default function CreaturesPage() {
   }, [
     currentUser,
     hierarchyByRaceId,
-    masterLabelScope,
+    classificationScope,
     orderedRaces,
     ownershipScope,
     parentScope,
@@ -715,6 +761,22 @@ export default function CreaturesPage() {
 
   const activeScopeWorldId: string | null =
     worldScope !== "__all__" && worldScope !== "__unassigned__" ? worldScope : null;
+  const myCreatureCount = useMemo(
+    () =>
+      races.filter(
+        (race) => race.createdBy && race.createdBy === currentUser?.id
+      ).length,
+    [currentUser?.id, races]
+  );
+
+  async function refreshRacesFromApi() {
+    const response = await fetch("/api/worldbuilder/races");
+    const data = await response.json();
+    if (!data.ok) {
+      throw new Error(data.error || "Failed to reload creatures");
+    }
+    setRaces((data.races || []).map(mapApiRaceToRecord));
+  }
 
   /* ---------- library CRUD helpers (UI-only) ---------- */
 
@@ -734,7 +796,7 @@ export default function CreaturesPage() {
       tagline: "",
       is_free: false,
       canEdit: true, // New races are always editable by creator
-      masterRaceLabel: "",
+      classifications: [],
       lineageDepth: 0,
       lineagePath: ["New Creature"],
       hasLineageCycle: false,
@@ -872,6 +934,44 @@ export default function CreaturesPage() {
     );
   }
 
+  function addClassificationRow() {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) =>
+        String(r.id) === idStr
+          ? ({ ...r, classifications: [...(r.classifications ?? []), ""] } as RaceRecord)
+          : r
+      )
+    );
+  }
+
+  function updateClassificationRow(idx: number, value: string) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) => {
+        if (String(r.id) !== idStr) return r;
+        const next = [...(r.classifications ?? [])];
+        if (idx < 0 || idx >= next.length) return r;
+        next[idx] = value;
+        return { ...r, classifications: next } as RaceRecord;
+      })
+    );
+  }
+
+  function removeClassificationRow(idx: number) {
+    if (!selected) return;
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) => {
+        if (String(r.id) !== idStr) return r;
+        const next = (r.classifications ?? []).filter((_, rowIdx) => rowIdx !== idx);
+        return { ...r, classifications: next } as RaceRecord;
+      })
+    );
+  }
+
   async function saveSelected() {
     if (!selected) return;
     
@@ -902,7 +1002,7 @@ export default function CreaturesPage() {
         worldId: selected.worldId || null,
         parentRaceId: selected.parentRaceId || null,
         parent2RaceId: selected.parent2RaceId || null,
-        masterLabel: selected.masterRaceLabel || null,
+        classifications: normalizeClassifications(selected.classifications),
         tagline: selected.tagline || null,
         isFree: selected.is_free ?? false,
         definition: selected.def,
@@ -951,7 +1051,7 @@ export default function CreaturesPage() {
               parent2RaceId: data.race.parent2RaceId ?? null,
               createdBy: data.race.createdBy ?? r.createdBy,
               canEdit: data.race.canEdit ?? r.canEdit,
-              masterRaceLabel: data.race.masterRaceLabel ?? r.masterRaceLabel,
+              classifications: resolveRaceClassifications(data.race, r.classifications),
               lineageDepth:
                 typeof data.race.lineageDepth === "number"
                   ? data.race.lineageDepth
@@ -984,6 +1084,49 @@ export default function CreaturesPage() {
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
+    }
+  }
+
+  async function moveAllMyCreaturesToWorld() {
+    if (!currentUser) return;
+    if (!bulkMoveWorldId) {
+      alert("Choose a destination world first.");
+      return;
+    }
+    if (myCreatureCount <= 0) {
+      alert("You do not have any saved creatures to move.");
+      return;
+    }
+
+    const targetWorldName =
+      worlds.find((world) => world.id === bulkMoveWorldId)?.name ?? bulkMoveWorldId;
+    const confirmed = confirm(
+      `Move all ${myCreatureCount} of your creatures to "${targetWorldName}"?`
+    );
+    if (!confirmed) return;
+
+    setBulkMoveLoading(true);
+    try {
+      const response = await fetch("/api/worldbuilder/races/bulk-world", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetWorldId: bulkMoveWorldId }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        throw new Error(data.error || "Failed to move creatures");
+      }
+      await refreshRacesFromApi();
+      alert(`Moved ${data.movedCount ?? 0} creature records.`);
+    } catch (error) {
+      console.error("Bulk move error:", error);
+      alert(
+        `Failed to move creatures: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setBulkMoveLoading(false);
     }
   }
 
@@ -1057,6 +1200,7 @@ export default function CreaturesPage() {
         const payload = {
           name: row.name,
           worldId: existing?.worldId ?? activeScopeWorldId,
+          classifications: normalizeClassifications(row.classifications),
           tagline: row.tagline || null,
           isFree: row.is_free ?? false,
           definition: row.def,
@@ -1109,7 +1253,7 @@ export default function CreaturesPage() {
             attr: row.attr,
             bonusRows: row.bonusRows,
             specialRows: row.specialRows,
-            masterRaceLabel: savedRace?.masterRaceLabel ?? existing.masterRaceLabel,
+            classifications: resolveRaceClassifications(savedRace, existing.classifications),
             lineageDepth:
               typeof savedRace?.lineageDepth === "number"
                 ? savedRace.lineageDepth
@@ -1146,7 +1290,7 @@ export default function CreaturesPage() {
             tagline: data.race.tagline ?? row.tagline,
             createdBy: data.race.createdBy,
             canEdit: true, // Admin uploaded, so editable
-            masterRaceLabel: data.race.masterRaceLabel ?? row.masterRaceLabel ?? "",
+            classifications: resolveRaceClassifications(data.race, row.classifications),
             lineageDepth:
               typeof data.race.lineageDepth === "number"
                 ? data.race.lineageDepth
@@ -1215,7 +1359,11 @@ export default function CreaturesPage() {
     lines.push(
       `Parents: ${parentNames.length > 0 ? parentNames.join(" + ") : "(none)"}`
     );
-    lines.push(`Master Label: ${selected.masterRaceLabel || "(none)"}`);
+    lines.push(
+      `Classifications: ${
+        normalizeClassifications(selected.classifications).join(", ") || "(none)"
+      }`
+    );
     lines.push(`Lineage Path: ${(selectedHierarchy?.lineagePath ?? [name || "New Creature"]).join(" > ")}`);
     lines.push("");
 
@@ -1353,7 +1501,7 @@ export default function CreaturesPage() {
             <Input
               value={qtext}
               onChange={(e) => setQtext(e.target.value)}
-              placeholder="Search creatures by name, master label, or lore..."
+              placeholder="Search creatures by name, classification, or lore..."
             />
             <div className="grid grid-cols-1 gap-2">
               <select
@@ -1394,14 +1542,14 @@ export default function CreaturesPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <select
-                  value={masterLabelScope}
-                  onChange={(e) => setMasterLabelScope(e.target.value)}
+                  value={classificationScope}
+                  onChange={(e) => setClassificationScope(e.target.value)}
                   className="w-full rounded-md border border-white/15 bg-black/50 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40"
                 >
-                  <option value="__all__">Master Label: All</option>
-                  {masterLabelOptions.map((label) => (
+                  <option value="__all__">Classification: All</option>
+                  {classificationOptions.map((label) => (
                     <option key={label} value={label}>
-                      {`Master Label: ${label}`}
+                      {`Classification: ${label}`}
                     </option>
                   ))}
                 </select>
@@ -1412,7 +1560,7 @@ export default function CreaturesPage() {
                 >
                   <option value="tree">Sort: Tree</option>
                   <option value="name">Sort: Name</option>
-                  <option value="master">Sort: Master Label</option>
+                  <option value="classification">Sort: Classification</option>
                   <option value="updated">Sort: Updated Time</option>
                   <option value="created">Sort: Created Time</option>
                 </select>
@@ -1427,6 +1575,39 @@ export default function CreaturesPage() {
                 <option value="desc">Direction: Descending</option>
               </select>
             </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-emerald-300/30 bg-emerald-300/5 p-2 space-y-2">
+            <div className="text-[11px] font-semibold text-emerald-100">
+              Quick Move: All My Creatures
+            </div>
+            <select
+              value={bulkMoveWorldId}
+              onChange={(e) => setBulkMoveWorldId(e.target.value)}
+              className="w-full rounded-md border border-white/15 bg-black/50 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-400/40"
+              disabled={bulkMoveLoading}
+            >
+              <option value="">Select destination world</option>
+              {worlds.map((world) => {
+                const disabled = world.canEdit === false;
+                return (
+                  <option key={world.id} value={world.id} disabled={disabled}>
+                    {world.name}
+                  </option>
+                );
+              })}
+            </select>
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={moveAllMyCreaturesToWorld}
+              disabled={bulkMoveLoading || !bulkMoveWorldId || myCreatureCount <= 0}
+            >
+              {bulkMoveLoading
+                ? "Moving..."
+                : `Move My ${myCreatureCount} Creatures`}
+            </Button>
           </div>
 
           {/* List */}
@@ -1448,7 +1629,7 @@ export default function CreaturesPage() {
                   <thead className="text-left text-zinc-400">
                     <tr>
                       <th className="px-3 py-1">Name</th>
-                      <th className="px-3 py-1">Master</th>
+                      <th className="px-3 py-1">Classification</th>
                       <th className="px-3 py-1">World</th>
                     </tr>
                   </thead>
@@ -1478,7 +1659,7 @@ export default function CreaturesPage() {
                             </div>
                           </td>
                           <td className="px-3 py-1.5">
-                            {r.masterRaceLabel || "-"}
+                            {normalizeClassifications(r.classifications).join(", ") || "-"}
                           </td>
                           <td className="px-3 py-1.5 text-zinc-400">
                             {r.worldName ||
@@ -1687,7 +1868,7 @@ export default function CreaturesPage() {
                     <FormField
                       label="Primary Parent Creature"
                       htmlFor="race-parent-primary"
-                      description="Main lineage branch used for tree display and master-label pathing."
+                      description="Main lineage branch used for tree display and lineage pathing."
                     >
                       <select
                         id="race-parent-primary"
@@ -1759,21 +1940,45 @@ export default function CreaturesPage() {
                     </FormField>
 
                     <FormField
-                      label="Master Label"
-                      htmlFor="race-master-label"
-                      description="Header/category label (for example: Humanoids, Elves, Spirits)."
+                      label="Classifications"
+                      htmlFor="race-classifications"
+                      description="Add one or more classification tags to this creature."
+                      className="md:col-span-2 xl:col-span-2"
                     >
-                      <Input
-                        id="race-master-label"
-                        value={selected.masterRaceLabel ?? ""}
-                        onChange={(e) =>
-                          updateSelected({
-                            masterRaceLabel: e.target.value,
-                          })
-                        }
-                        disabled={readOnlyMode}
-                        placeholder="e.g., Humanoids"
-                      />
+                      <div className="space-y-3 rounded-lg border border-white/10 bg-neutral-950/30 p-3">
+                        {(selected.classifications ?? []).map((classification, idx) => (
+                          <div key={idx} className="flex items-center gap-2 flex-wrap">
+                            <Input
+                              id={idx === 0 ? "race-classifications" : undefined}
+                              value={classification}
+                              onChange={(e) =>
+                                updateClassificationRow(idx, e.target.value)
+                              }
+                              disabled={readOnlyMode}
+                              placeholder="e.g., Humanoid"
+                              className="w-[24ch] max-w-full min-h-[44px]"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              type="button"
+                              onClick={() => removeClassificationRow(idx)}
+                              disabled={readOnlyMode}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          type="button"
+                          onClick={addClassificationRow}
+                          disabled={readOnlyMode}
+                        >
+                          + Add Classification
+                        </Button>
+                      </div>
                       <p className="mt-1 text-[11px] text-zinc-500">
                         Top-level lineage path (reference only): {(selectedHierarchy?.lineagePath ?? [selected.name]).join(" > ")}
                       </p>

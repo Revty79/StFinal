@@ -180,6 +180,7 @@ export const races = pgTable('races', {
   parent2RaceId: varchar('parent2_race_id', { length: 36 }).references((): any => races.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 255 }).notNull(),
   masterLabel: varchar('master_label', { length: 255 }),
+  classifications: jsonb('classifications').$type<string[]>().notNull().default([]),
   tagline: text('tagline'),
   
   // Identity & Lore (stored as JSONB for flexibility)

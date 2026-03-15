@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS "races" (
   "parent2_race_id" varchar(36) REFERENCES "races"("id") ON DELETE SET NULL,
   "name" varchar(255) NOT NULL,
   "master_label" varchar(255),
+  "classifications" jsonb DEFAULT '[]'::jsonb NOT NULL,
   "tagline" text,
   "definition" jsonb,
   "attributes" jsonb,

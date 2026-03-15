@@ -36,12 +36,38 @@ function normalizeOptionalText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function resolveMasterRaceLabel(
-  race: { name: string; masterLabel: string | null | undefined },
+function normalizeClassifications(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of source) {
+    if (typeof entry !== "string") continue;
+    const label = entry.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
+function resolveClassificationsFromBody(body: any): string[] {
+  if (body?.classifications !== undefined) {
+    return normalizeClassifications(body.classifications);
+  }
+  const legacyLabel = normalizeOptionalText(body?.masterLabel ?? body?.masterRaceLabel);
+  return legacyLabel ? [legacyLabel] : [];
+}
+
+function resolvePrimaryClassification(
+  race: { name: string; classifications?: unknown; masterLabel?: string | null | undefined },
   hierarchyLabel: string | undefined
 ): string {
-  const manualLabel = normalizeOptionalText(race.masterLabel);
-  if (manualLabel) return manualLabel;
+  const classifications = normalizeClassifications(race.classifications);
+  if (classifications.length > 0) return classifications[0]!;
+  const legacyLabel = normalizeOptionalText(race.masterLabel);
+  if (legacyLabel) return legacyLabel;
   const fallbackHierarchyLabel = normalizeOptionalText(hierarchyLabel);
   if (fallbackHierarchyLabel) return fallbackHierarchyLabel;
   return normalizeName(race.name) || "Unnamed Race";
@@ -191,14 +217,16 @@ export async function GET(request: Request) {
       const canEdit = isAdmin(user) || race.createdBy === user.id;
       const hierarchy = hierarchyByRaceId.get(race.id);
       const worldId = normalizeWorldId(race.worldId);
+      const classifications = normalizeClassifications(race.classifications);
       return {
         ...race,
         worldId,
         worldName: worldId ? worldNameById.get(worldId) ?? null : null,
+        classifications,
         canEdit, // Add explicit canEdit flag
-        masterLabel: race.masterLabel ?? null,
+        masterLabel: classifications[0] ?? race.masterLabel ?? null,
         masterRaceId: hierarchy?.masterRaceId ?? race.id,
-        masterRaceLabel: resolveMasterRaceLabel(race, hierarchy?.masterRaceLabel),
+        masterRaceLabel: resolvePrimaryClassification(race, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [race.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
@@ -256,6 +284,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: parent2Validation.error }, { status: parent2Validation.status });
     }
 
+    const classifications = resolveClassificationsFromBody(body);
     const id = crypto.randomUUID();
 
     const newRace = {
@@ -265,7 +294,8 @@ export async function POST(req: Request) {
       parentRaceId,
       parent2RaceId,
       name,
-      masterLabel: normalizeOptionalText(body.masterLabel ?? body.masterRaceLabel),
+      masterLabel: classifications[0] ?? null,
+      classifications,
       tagline: body.tagline ?? null,
       definition: body.definition || null,
       attributes: body.attributes || null,
@@ -291,6 +321,7 @@ export async function POST(req: Request) {
 
     const hierarchy = hierarchyByRaceId.get(insertedRace.id);
     const normalizedWorldId = normalizeWorldId(insertedRace.worldId);
+    const normalizedClassifications = normalizeClassifications(insertedRace.classifications);
 
     return NextResponse.json({
       ok: true,
@@ -299,9 +330,10 @@ export async function POST(req: Request) {
         ...insertedRace,
         worldId: normalizedWorldId,
         worldName: normalizedWorldId ? worldNameById.get(normalizedWorldId) ?? null : null,
+        classifications: normalizedClassifications,
         canEdit: true,
         masterRaceId: hierarchy?.masterRaceId ?? insertedRace.id,
-        masterRaceLabel: resolveMasterRaceLabel(insertedRace, hierarchy?.masterRaceLabel),
+        masterRaceLabel: resolvePrimaryClassification(insertedRace, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [insertedRace.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,

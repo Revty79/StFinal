@@ -35,12 +35,38 @@ function normalizeOptionalText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function resolveMasterRaceLabel(
-  race: { name: string; masterLabel: string | null | undefined },
+function normalizeClassifications(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of source) {
+    if (typeof entry !== "string") continue;
+    const label = entry.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
+function resolveClassificationsFromBody(body: any): string[] {
+  if (body?.classifications !== undefined) {
+    return normalizeClassifications(body.classifications);
+  }
+  const legacyLabel = normalizeOptionalText(body?.masterLabel ?? body?.masterRaceLabel);
+  return legacyLabel ? [legacyLabel] : [];
+}
+
+function resolvePrimaryClassification(
+  race: { name: string; classifications?: unknown; masterLabel?: string | null | undefined },
   hierarchyLabel: string | undefined
 ): string {
-  const manualLabel = normalizeOptionalText(race.masterLabel);
-  if (manualLabel) return manualLabel;
+  const classifications = normalizeClassifications(race.classifications);
+  if (classifications.length > 0) return classifications[0]!;
+  const legacyLabel = normalizeOptionalText(race.masterLabel);
+  if (legacyLabel) return legacyLabel;
   const fallbackHierarchyLabel = normalizeOptionalText(hierarchyLabel);
   if (fallbackHierarchyLabel) return fallbackHierarchyLabel;
   return normalizeName(race.name) || "Unnamed Race";
@@ -217,6 +243,7 @@ export async function GET(
     );
     const hierarchy = hierarchyByRaceId.get(raceData.id);
     const worldId = normalizeWorldId(raceData.worldId);
+    const classifications = normalizeClassifications(raceData.classifications);
 
     return NextResponse.json({
       ok: true,
@@ -224,8 +251,9 @@ export async function GET(
         ...raceData,
         worldId,
         worldName: worldId ? worldNameById.get(worldId) ?? null : null,
+        classifications,
         masterRaceId: hierarchy?.masterRaceId ?? raceData.id,
-        masterRaceLabel: resolveMasterRaceLabel(raceData, hierarchy?.masterRaceLabel),
+        masterRaceLabel: resolvePrimaryClassification(raceData, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [raceData.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
@@ -311,10 +339,14 @@ export async function PUT(
     if (body.isPublished !== undefined) {
       updates.isPublished = Boolean(body.isPublished);
     }
-    if (body.masterLabel !== undefined || body.masterRaceLabel !== undefined) {
-      const rawMasterLabel =
-        body.masterLabel !== undefined ? body.masterLabel : body.masterRaceLabel;
-      updates.masterLabel = normalizeOptionalText(rawMasterLabel);
+    if (
+      body.classifications !== undefined ||
+      body.masterLabel !== undefined ||
+      body.masterRaceLabel !== undefined
+    ) {
+      const nextClassifications = resolveClassificationsFromBody(body);
+      updates.classifications = nextClassifications;
+      updates.masterLabel = nextClassifications[0] ?? null;
     }
 
     const finalWorldId =
@@ -429,6 +461,7 @@ export async function PUT(
     );
     const hierarchy = hierarchyByRaceId.get(updatedRace.id);
     const normalizedWorldId = normalizeWorldId(updatedRace.worldId);
+    const normalizedClassifications = normalizeClassifications(updatedRace.classifications);
 
     return NextResponse.json({
       ok: true,
@@ -436,9 +469,10 @@ export async function PUT(
         ...updatedRace,
         worldId: normalizedWorldId,
         worldName: normalizedWorldId ? worldNameById.get(normalizedWorldId) ?? null : null,
+        classifications: normalizedClassifications,
         canEdit: true,
         masterRaceId: hierarchy?.masterRaceId ?? updatedRace.id,
-        masterRaceLabel: resolveMasterRaceLabel(updatedRace, hierarchy?.masterRaceLabel),
+        masterRaceLabel: resolvePrimaryClassification(updatedRace, hierarchy?.masterRaceLabel),
         lineageDepth: hierarchy?.lineageDepth ?? 0,
         lineagePath: hierarchy?.lineagePath ?? [updatedRace.name],
         hasLineageCycle: hierarchy?.hasLineageCycle ?? false,
