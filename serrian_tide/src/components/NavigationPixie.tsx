@@ -122,9 +122,7 @@ export function NavigationPixie() {
     { href: "/free-tools", label: "Free Tools" },
   ];
 
-  const bazaarLink = role && canAccessSourceForge(role)
-    ? { href: "/coming-soon?realm=bazaar&tool=shop&back=/dashboard", label: "Bazaar" }
-    : null;
+  const bazaarLink = { href: "/coming-soon?realm=bazaar&tool=shop&back=/dashboard", label: "Bazaar" };
   const adminLink = role && isAdmin(role)
     ? { href: "/admin", label: "Admin Console" }
     : null;

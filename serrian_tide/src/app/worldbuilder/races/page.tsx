@@ -137,6 +137,24 @@ function normalizeClassifications(value: unknown): string[] {
   return out;
 }
 
+function normalizeClassificationRows(value: unknown): string[] {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of source) {
+    const label = typeof entry === "string" ? entry.trim() : "";
+    if (!label) {
+      out.push("");
+      continue;
+    }
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
 function resolveRaceClassifications(
   race: { classifications?: unknown; masterRaceLabel?: unknown; masterLabel?: unknown } | null | undefined,
   fallback: string[] = []
@@ -454,6 +472,10 @@ export default function CreaturesPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [bulkMoveWorldId, setBulkMoveWorldId] = useState<string>("");
   const [bulkMoveLoading, setBulkMoveLoading] = useState(false);
+  const [newClassificationDraft, setNewClassificationDraft] = useState("");
+  const [showTieMapper, setShowTieMapper] = useState(false);
+  const [tieMapSearch, setTieMapSearch] = useState("");
+  const [tieMapSelection, setTieMapSelection] = useState<string[]>([]);
   
   // Read-only mode for races owned by others
   const [readOnlyMode, setReadOnlyMode] = useState(false);
@@ -662,6 +684,18 @@ export default function CreaturesPage() {
     ).sort((a, b) => a.localeCompare(b));
   }, [scopedRaces]);
 
+  const classificationEditorOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        races
+          .flatMap((race) =>
+            normalizeClassifications(race.classifications).map((label) => label.trim())
+          )
+          .concat(normalizeClassifications(selected?.classifications ?? []))
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [races, selected?.classifications]);
+
   useEffect(() => {
     if (classificationScope === "__all__") return;
     if (!classificationOptions.includes(classificationScope)) {
@@ -748,6 +782,174 @@ export default function CreaturesPage() {
     sortDirection,
     sortKey,
   ]);
+
+  const tieMapCandidates = useMemo(() => {
+    const q = tieMapSearch.trim().toLowerCase();
+    if (!q) return orderedRaces;
+    return orderedRaces.filter((race) => {
+      const hierarchy = hierarchyByRaceId.get(String(race.id));
+      const haystack = [
+        race.name,
+        normalizeClassifications(race.classifications).join(" "),
+        (hierarchy?.lineagePath ?? []).join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [hierarchyByRaceId, orderedRaces, tieMapSearch]);
+
+  const tieMapGraph = useMemo(() => {
+    const raceById = new Map(races.map((race) => [String(race.id), race]));
+    const selectedIds = tieMapSelection.filter((id) => raceById.has(id));
+    const selectedSet = new Set(selectedIds);
+    const nodeIds = new Set<string>(selectedIds);
+
+    for (const id of selectedIds) {
+      const race = raceById.get(id);
+      if (!race) continue;
+      const primaryParent = normalizeRaceParentId(race.parentRaceId);
+      const secondaryParent = normalizeRaceParentId(race.parent2RaceId);
+      if (primaryParent && raceById.has(primaryParent)) nodeIds.add(primaryParent);
+      if (secondaryParent && raceById.has(secondaryParent)) nodeIds.add(secondaryParent);
+    }
+
+    const parentageEdges: Array<{
+      parentId: string;
+      childId: string;
+      relation: "primary" | "secondary";
+    }> = [];
+
+    for (const nodeId of nodeIds) {
+      const race = raceById.get(nodeId);
+      if (!race) continue;
+      const primaryParent = normalizeRaceParentId(race.parentRaceId);
+      const secondaryParent = normalizeRaceParentId(race.parent2RaceId);
+      if (primaryParent && nodeIds.has(primaryParent)) {
+        parentageEdges.push({ parentId: primaryParent, childId: nodeId, relation: "primary" });
+      }
+      if (secondaryParent && nodeIds.has(secondaryParent)) {
+        parentageEdges.push({ parentId: secondaryParent, childId: nodeId, relation: "secondary" });
+      }
+    }
+
+    const incomingByChild = new Map<string, string[]>();
+    for (const edge of parentageEdges) {
+      const current = incomingByChild.get(edge.childId) ?? [];
+      current.push(edge.parentId);
+      incomingByChild.set(edge.childId, current);
+    }
+
+    const depthMemo = new Map<string, number>();
+    const depthStack = new Set<string>();
+    const depthFor = (id: string): number => {
+      if (depthMemo.has(id)) return depthMemo.get(id) ?? 0;
+      if (depthStack.has(id)) return 0;
+      depthStack.add(id);
+      const parents = incomingByChild.get(id) ?? [];
+      const depth =
+        parents.length === 0
+          ? 0
+          : Math.max(...parents.map((parentId) => depthFor(parentId) + 1));
+      depthMemo.set(id, depth);
+      depthStack.delete(id);
+      return depth;
+    };
+
+    const nodes = Array.from(nodeIds)
+      .map((id) => ({
+        id,
+        name: raceById.get(id)?.name?.trim() || "(unnamed)",
+        selected: selectedSet.has(id),
+        depth: depthFor(id),
+      }))
+      .sort((a, b) => {
+        if (a.depth !== b.depth) return a.depth - b.depth;
+        return a.name.localeCompare(b.name);
+      });
+
+    const layers = Array.from(
+      nodes.reduce((map, node) => {
+        const list = map.get(node.depth) ?? [];
+        list.push(node);
+        map.set(node.depth, list);
+        return map;
+      }, new Map<number, Array<(typeof nodes)[number]>>())
+    ).sort((a, b) => a[0] - b[0]);
+
+    const classificationGroups = new Map<string, { label: string; ids: string[] }>();
+    for (const nodeId of nodeIds) {
+      const race = raceById.get(nodeId);
+      if (!race) continue;
+      for (const label of normalizeClassifications(race.classifications)) {
+        const key = label.trim().toLowerCase();
+        if (!key) continue;
+        const existing = classificationGroups.get(key);
+        if (existing) {
+          if (!existing.ids.includes(nodeId)) existing.ids.push(nodeId);
+        } else {
+          classificationGroups.set(key, { label, ids: [nodeId] });
+        }
+      }
+    }
+
+    const classificationPairMap = new Map<
+      string,
+      { leftId: string; rightId: string; labels: Set<string> }
+    >();
+    for (const group of classificationGroups.values()) {
+      const uniqueIds = Array.from(new Set(group.ids)).sort();
+      if (uniqueIds.length < 2) continue;
+      for (let i = 0; i < uniqueIds.length; i++) {
+        for (let j = i + 1; j < uniqueIds.length; j++) {
+          const leftId = uniqueIds[i];
+          const rightId = uniqueIds[j];
+          if (!leftId || !rightId) continue;
+          const key = `${leftId}::${rightId}`;
+          const existing = classificationPairMap.get(key);
+          if (existing) {
+            existing.labels.add(group.label);
+          } else {
+            classificationPairMap.set(key, {
+              leftId,
+              rightId,
+              labels: new Set([group.label]),
+            });
+          }
+        }
+      }
+    }
+
+    const classificationEdges = Array.from(classificationPairMap.values())
+      .map((entry) => ({
+        leftId: entry.leftId,
+        rightId: entry.rightId,
+        labels: Array.from(entry.labels).sort((a, b) => a.localeCompare(b)),
+      }))
+      .sort((a, b) => {
+        const leftA = raceById.get(a.leftId)?.name ?? a.leftId;
+        const leftB = raceById.get(b.leftId)?.name ?? b.leftId;
+        const leftCmp = leftA.localeCompare(leftB);
+        if (leftCmp !== 0) return leftCmp;
+        const rightA = raceById.get(a.rightId)?.name ?? a.rightId;
+        const rightB = raceById.get(b.rightId)?.name ?? b.rightId;
+        return rightA.localeCompare(rightB);
+      });
+
+    return {
+      selectedCount: selectedIds.length,
+      nodes,
+      parentageEdges,
+      classificationEdges,
+      layers,
+    };
+  }, [races, tieMapSelection]);
+
+  useEffect(() => {
+    setTieMapSelection((prev) =>
+      prev.filter((id) => races.some((race) => String(race.id) === id))
+    );
+  }, [races]);
 
   useEffect(() => {
     if (filteredList.length === 0) return;
@@ -940,7 +1142,7 @@ export default function CreaturesPage() {
     setRaces((prev) =>
       prev.map((r) =>
         String(r.id) === idStr
-          ? ({ ...r, classifications: [...(r.classifications ?? []), ""] } as RaceRecord)
+          ? ({ ...r, classifications: [...normalizeClassificationRows(r.classifications), ""] } as RaceRecord)
           : r
       )
     );
@@ -952,10 +1154,10 @@ export default function CreaturesPage() {
     setRaces((prev) =>
       prev.map((r) => {
         if (String(r.id) !== idStr) return r;
-        const next = [...(r.classifications ?? [])];
+        const next = [...normalizeClassificationRows(r.classifications)];
         if (idx < 0 || idx >= next.length) return r;
-        next[idx] = value;
-        return { ...r, classifications: next } as RaceRecord;
+        next[idx] = value.trim();
+        return { ...r, classifications: normalizeClassificationRows(next) } as RaceRecord;
       })
     );
   }
@@ -966,10 +1168,68 @@ export default function CreaturesPage() {
     setRaces((prev) =>
       prev.map((r) => {
         if (String(r.id) !== idStr) return r;
-        const next = (r.classifications ?? []).filter((_, rowIdx) => rowIdx !== idx);
+        const next = normalizeClassificationRows(r.classifications).filter(
+          (_, rowIdx) => rowIdx !== idx
+        );
         return { ...r, classifications: next } as RaceRecord;
       })
     );
+  }
+
+  function addCustomClassification() {
+    if (!selected) return;
+    const label = newClassificationDraft.trim();
+    if (!label) return;
+
+    const idStr = String(selected.id);
+    setRaces((prev) =>
+      prev.map((r) => {
+        if (String(r.id) !== idStr) return r;
+
+        const current = normalizeClassificationRows(r.classifications);
+        const duplicate = current.some(
+          (entry) => entry.trim().toLowerCase() === label.toLowerCase()
+        );
+        if (duplicate) return r;
+
+        const blankIndex = current.findIndex((entry) => entry.trim().length === 0);
+        if (blankIndex >= 0) {
+          const next = [...current];
+          next[blankIndex] = label;
+          return { ...r, classifications: normalizeClassificationRows(next) } as RaceRecord;
+        }
+
+        return {
+          ...r,
+          classifications: normalizeClassificationRows([...current, label]),
+        } as RaceRecord;
+      })
+    );
+    setNewClassificationDraft("");
+  }
+
+  function toggleTieMapRace(raceId: string) {
+    setTieMapSelection((prev) =>
+      prev.includes(raceId)
+        ? prev.filter((id) => id !== raceId)
+        : [...prev, raceId]
+    );
+  }
+
+  function toggleTieMapper() {
+    setShowTieMapper((prev) => {
+      const next = !prev;
+      if (next) {
+        setTieMapSelection((current) =>
+          current.length > 0
+            ? current
+            : selectedId
+              ? [String(selectedId)]
+              : []
+        );
+      }
+      return next;
+    });
   }
 
   async function saveSelected() {
@@ -1574,6 +1834,156 @@ export default function CreaturesPage() {
                 <option value="asc">Direction: Ascending</option>
                 <option value="desc">Direction: Descending</option>
               </select>
+
+              <div className="rounded-xl border border-sky-300/30 bg-sky-300/5 p-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-sky-100">
+                    Species Sort Tools
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={toggleTieMapper}
+                  >
+                    {showTieMapper ? "Hide Tie Map" : "Map Racial Ties"}
+                  </Button>
+                </div>
+
+                {showTieMapper ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={tieMapSearch}
+                      onChange={(e) => setTieMapSearch(e.target.value)}
+                      placeholder="Find creatures to include in tie map..."
+                      className="min-h-[40px] px-3 py-2 text-sm"
+                    />
+
+                    <div className="max-h-[150px] overflow-auto rounded-lg border border-white/10 bg-black/30 p-2 space-y-1">
+                      {tieMapCandidates.length === 0 ? (
+                        <p className="text-xs text-zinc-500">
+                          No creatures match this map search.
+                        </p>
+                      ) : (
+                        tieMapCandidates.map((raceOption) => {
+                          const raceId = String(raceOption.id);
+                          const checked = tieMapSelection.includes(raceId);
+                          return (
+                            <label
+                              key={`tie-map-${raceId}`}
+                              className="flex items-start gap-2 text-xs text-zinc-200"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleTieMapRace(raceId)}
+                              />
+                              <span>
+                                <span className="font-medium">{raceOption.name || "(unnamed)"}</span>
+                                <span className="ml-1 text-zinc-400">
+                                  {normalizeClassifications(raceOption.classifications).join(", ") || "unclassified"}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-white/10 bg-black/30 p-2 space-y-2">
+                      <p className="text-[11px] uppercase tracking-wide text-zinc-400">
+                        {`Mapped Races: ${tieMapGraph.selectedCount}`}
+                      </p>
+
+                      {tieMapGraph.selectedCount === 0 ? (
+                        <p className="text-xs text-zinc-500">
+                          Select one or more creatures to map lineage ties.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="space-y-1">
+                            {tieMapGraph.layers.map(([depth, layerNodes]) => (
+                              <div key={`layer-${depth}`} className="space-y-1">
+                                <p className="text-[11px] text-zinc-400">{`Tier ${depth}`}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {layerNodes.map((node) => (
+                                    <span
+                                      key={`node-${node.id}`}
+                                      className={`rounded-md border px-2 py-1 text-[11px] ${
+                                        node.selected
+                                          ? "border-sky-300/40 bg-sky-300/10 text-sky-100"
+                                          : "border-white/15 bg-white/5 text-zinc-300"
+                                      }`}
+                                    >
+                                      {node.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="border-t border-white/10 pt-2">
+                            <p className="text-[11px] text-zinc-400 mb-1">Parentage Ties</p>
+                            {tieMapGraph.parentageEdges.length === 0 ? (
+                              <p className="text-xs text-zinc-500">
+                                No mapped parentage ties yet.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {tieMapGraph.parentageEdges.map((edge, idx) => {
+                                  const parentName =
+                                    tieMapGraph.nodes.find((node) => node.id === edge.parentId)?.name ||
+                                    edge.parentId;
+                                  const childName =
+                                    tieMapGraph.nodes.find((node) => node.id === edge.childId)?.name ||
+                                    edge.childId;
+                                  return (
+                                    <li
+                                      key={`tie-parent-${edge.parentId}-${edge.childId}-${edge.relation}-${idx}`}
+                                      className="text-[11px] text-zinc-300"
+                                    >
+                                      {`${parentName} -> ${childName} (${edge.relation === "primary" ? "primary parentage" : "secondary parentage"})`}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+
+                          <div className="border-t border-white/10 pt-2">
+                            <p className="text-[11px] text-zinc-400 mb-1">Classification Ties</p>
+                            {tieMapGraph.classificationEdges.length === 0 ? (
+                              <p className="text-xs text-zinc-500">
+                                No shared classifications across mapped races yet.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1">
+                                {tieMapGraph.classificationEdges.map((edge, idx) => {
+                                  const leftName =
+                                    tieMapGraph.nodes.find((node) => node.id === edge.leftId)?.name ||
+                                    edge.leftId;
+                                  const rightName =
+                                    tieMapGraph.nodes.find((node) => node.id === edge.rightId)?.name ||
+                                    edge.rightId;
+                                  return (
+                                    <li
+                                      key={`tie-class-${edge.leftId}-${edge.rightId}-${idx}`}
+                                      className="text-[11px] text-zinc-300"
+                                    >
+                                      {`${leftName} <-> ${rightName} (shared classification: ${edge.labels.join(", ")})`}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -1948,16 +2358,22 @@ export default function CreaturesPage() {
                       <div className="space-y-3 rounded-lg border border-white/10 bg-neutral-950/30 p-3">
                         {(selected.classifications ?? []).map((classification, idx) => (
                           <div key={idx} className="flex items-center gap-2 flex-wrap">
-                            <Input
+                            <select
                               id={idx === 0 ? "race-classifications" : undefined}
                               value={classification}
                               onChange={(e) =>
                                 updateClassificationRow(idx, e.target.value)
                               }
                               disabled={readOnlyMode}
-                              placeholder="e.g., Humanoid"
-                              className="w-[24ch] max-w-full min-h-[44px]"
-                            />
+                              className="w-[24ch] max-w-full min-h-[44px] rounded-lg border border-white/10 bg-neutral-950/50 px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-amber-400/40 disabled:opacity-60"
+                            >
+                              <option value="">(select classification)</option>
+                              {classificationEditorOptions.map((label) => (
+                                <option key={`${idx}-${label}`} value={label}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
                             <Button
                               variant="secondary"
                               size="sm"
@@ -1969,6 +2385,24 @@ export default function CreaturesPage() {
                             </Button>
                           </div>
                         ))}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Input
+                            value={newClassificationDraft}
+                            onChange={(e) => setNewClassificationDraft(e.target.value)}
+                            disabled={readOnlyMode}
+                            placeholder="Create new classification..."
+                            className="w-[24ch] max-w-full min-h-[44px]"
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            onClick={addCustomClassification}
+                            disabled={readOnlyMode || !newClassificationDraft.trim()}
+                          >
+                            Add New
+                          </Button>
+                        </div>
                         <Button
                           variant="secondary"
                           size="sm"

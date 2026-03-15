@@ -768,16 +768,39 @@ export const geography = pgTable('geography', {
   tagline: text('tagline'),
   data: jsonb('data').$type<{
     scale?: string | null;
+    scaleOther?: string | null;
     parentId?: string | null;
+    description?: string | null;
+    terrainProfile?: string | null;
     biome?: string | null;
     climate?: string | null;
     travelNotes?: string | null;
     hazards?: string | null;
     resources?: string | null;
+    scarcityPressure?: string | null;
+    marketLevers?: string | null;
     controllingFactionId?: string | null;
     keyNpcIds?: string[] | null;
+    languageFamilies?: string[] | null;
+    settlementIds?: string[] | null;
+    cultureIds?: string[] | null;
+    dungeonIds?: string[] | null;
+    economyIds?: string[] | null;
+    primarySettlementId?: string | null;
+    primaryCultureId?: string | null;
+    primaryDungeonId?: string | null;
+    primaryEconomyId?: string | null;
+    resourceNodes?: Array<{ resource?: string; location?: string; controller?: string }> | null;
+    poiLedger?: Array<{ poi?: string; type?: string; spotlight?: string }> | null;
+    transitSpokes?: Array<{ from?: string; to?: string; travel_time?: string }> | null;
+    culturalTensions?: Array<{ group?: string; tension?: string; play_hook?: string }> | null;
+    ruinHotspots?: Array<{ site?: string; state?: string; threat?: string }> | null;
+    delveConsequences?: Array<{ trigger?: string; regional_shift?: string }> | null;
+    tradeRoutes?: Array<{ route?: string; goods?: string; risk?: string }> | null;
+    travelScript?: Array<{ trigger?: string; beat?: string; consequence?: string }> | null;
+    eventClock?: Array<{ phase?: string; world_change?: string; gm_note?: string }> | null;
+    sessionOpeners?: string | null;
     tags?: string[] | null;
-    description?: string | null;
   }>(),
   isFree: boolean('is_free').notNull().default(true),
   isPublished: boolean('is_published').notNull().default(false),
